@@ -1,0 +1,23 @@
+{
+  "name": "agentdesk-widget",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AgentDesk embeddable chat widget. Single-file IIFE bundle built with Preact + Vite, mounted inside a Shadow DOM.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b --noEmit && vite build",
+    "build:nocheck": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit",
+    "size": "gzip -c ../agent_desk_app/public/widget.js | wc -c"
+  },
+  "dependencies": {
+    "preact": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  }
+}

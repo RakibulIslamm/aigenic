@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgentDesk widget — local embed test</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: #18181b;
+        background: linear-gradient(180deg, #fafafa 0%, #f4f4f5 100%);
+        min-height: 100vh;
+        padding: 64px 24px;
+      }
+      .wrap { max-width: 720px; margin: 0 auto; }
+      h1 { font-size: 32px; margin: 0 0 12px; letter-spacing: -0.02em; }
+      p { color: #52525b; line-height: 1.55; margin: 0 0 14px; }
+      .card {
+        background: #fff;
+        border: 1px solid #e4e4e7;
+        border-radius: 16px;
+        padding: 24px;
+        margin: 24px 0;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      }
+      code, pre {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+      }
+      pre {
+        background: #18181b;
+        color: #f4f4f5;
+        padding: 14px 16px;
+        border-radius: 12px;
+        overflow-x: auto;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        background: #ecfdf5;
+        color: #047857;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .pill::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 9999px;
+        background: currentColor;
+      }
+      ol { padding-left: 20px; line-height: 1.7; }
+      ol li { margin-bottom: 6px; }
+      input.site-input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #d4d4d8;
+        border-radius: 10px;
+        font: inherit;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+      }
+      .small { font-size: 12px; color: #71717a; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <span class="pill">Local embed test</span>
+      <h1 style="margin-top:16px;">AgentDesk widget</h1>
+      <p>
+        This page mounts the production widget script the same way a tenant would: a single
+        <code>&lt;script src="/widget.js" data-site="…"&gt;</code> tag at the bottom of the page.
+        If everything is wired up, you should see a chat bubble appear in the bottom-right corner
+        within a second or two.
+      </p>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Use it</h3>
+        <ol>
+          <li>Run the Next.js app: <code>cd agent_desk_app &amp;&amp; pnpm dev</code></li>
+          <li>Build the widget if you haven't: <code>cd widget &amp;&amp; pnpm build</code></li>
+          <li>Open this file with a static server pointed at the Next.js origin so the widget can
+              hit <code>/api/widget/*</code>:
+              <pre>cd agent_desk &amp;&amp; npx --yes serve -p 4173 .</pre>
+              then visit <code>http://localhost:4173/test.html</code>.</li>
+          <li>Make sure the script tag below uses a <strong>real</strong> site id from the
+              dashboard. Click the bubble, ask a question — you should see the agent
+              search the knowledge base and stream a reply.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Embed snippet</h3>
+        <p>
+          The same one your tenants paste into their site:
+        </p>
+        <pre>&lt;script src="https://agentdesk.app/widget.js" data-site="YOUR_SITE_ID" async&gt;&lt;/script&gt;</pre>
+        <p class="small">
+          Locally we point the script at <code>/widget.js</code> so it loads from the dev server's
+          <code>public/</code> folder, and the widget infers the API origin from the script's URL
+          (so it talks to <code>/api/widget/*</code> on the same host).
+        </p>
+      </div>
+
+      <p class="small">
+        Replace <code>REPLACE_WITH_REAL_SITE_ID</code> below with a UUID from your dashboard.
+        Without a real site id, the widget will hit <code>/api/widget/config</code>, get a 404,
+        and silently render nothing (intentional — fail closed).
+      </p>
+    </main>
+
+    <!--
+      The actual embed. In production this is exactly what tenants drop on their site,
+      pointed at https://agentdesk.app/widget.js. Here we use a relative path so it loads
+      from whichever origin is serving this HTML.
+    -->
+    <script
+      src="http://localhost:3000/widget.js"
+      data-site="REPLACE_WITH_REAL_SITE_ID"
+      async
+    ></script>
+  </body>
+</html>
