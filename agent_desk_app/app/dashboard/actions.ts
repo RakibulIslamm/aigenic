@@ -1,0 +1,205 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { and, eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { articles, sites } from '@/db/schema';
+import { getOrCreateUser, requireUserId } from '@/lib/auth/user';
+import {
+  createSiteSchema,
+  updateSiteSchema,
+  DEFAULT_WIDGET_CONFIG,
+} from '@/lib/sites/schemas';
+import { startSiteCrawl, isScraperConfigured } from '@/lib/scraper/client';
+
+export type ActionState =
+  | { ok: true; siteId?: string; message?: string }
+  | { ok: false; error: string; fieldErrors?: Record<string, string> };
+
+/**
+ * Validates a FormData payload against a Zod schema and returns either the
+ * parsed object or an ActionState with per-field errors.
+ */
+function parseForm<T>(
+  schema: { safeParse: (data: unknown) => { success: boolean; data?: T; error?: { issues: Array<{ path: PropertyKey[]; message: string }> } } },
+  formData: FormData
+): { ok: true; data: T } | { ok: false; fieldErrors: Record<string, string> } {
+  const entries = Object.fromEntries(formData.entries());
+  const result = schema.safeParse(entries);
+  if (result.success && result.data) {
+    return { ok: true, data: result.data };
+  }
+  const fieldErrors: Record<string, string> = {};
+  for (const issue of result.error?.issues ?? []) {
+    const key = String(issue.path[0] ?? 'form');
+    fieldErrors[key] ??= issue.message;
+  }
+  return { ok: false, fieldErrors };
+}
+
+export async function createSiteAction(
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState> {
+  const user = await getOrCreateUser();
+
+  const parsed = parseForm(createSiteSchema, formData);
+  if (!parsed.ok) {
+    return { ok: false, error: 'Please fix the highlighted fields', fieldErrors: parsed.fieldErrors };
+  }
+
+  const [site] = await db
+    .insert(sites)
+    .values({
+      userId: user.id,
+      name: parsed.data.name,
+      domain: parsed.data.domain,
+      escalationEmail: parsed.data.escalationEmail,
+      widgetConfig: { ...DEFAULT_WIDGET_CONFIG },
+      kbStatus: 'pending',
+    })
+    .returning();
+
+  if (!site) {
+    return { ok: false, error: 'Could not create site' };
+  }
+
+  // Fire-and-forget the crawl. We don't await the network call beyond the
+  // initial accept response — webhooks update kbStatus as articles arrive.
+  let scraperMessage: string | undefined;
+  if (isScraperConfigured()) {
+    try {
+      await startSiteCrawl({ siteId: site.id, domain: site.domain });
+      await db
+        .update(sites)
+        .set({ kbStatus: 'crawling' })
+        .where(eq(sites.id, site.id));
+    } catch (err) {
+      await db
+        .update(sites)
+        .set({ kbStatus: 'failed' })
+        .where(eq(sites.id, site.id));
+      scraperMessage =
+        err instanceof Error ? err.message : 'Could not reach scraper';
+    }
+  } else {
+    scraperMessage =
+      'Scraper service is not configured. Set SCRAPER_API_URL and SCRAPER_API_KEY to enable automatic crawls.';
+  }
+
+  revalidatePath('/dashboard');
+  return { ok: true, siteId: site.id, message: scraperMessage };
+}
+
+export async function updateSiteAction(
+  siteId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData
+): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  const parsed = parseForm(updateSiteSchema, formData);
+  if (!parsed.ok) {
+    return { ok: false, error: 'Please fix the highlighted fields', fieldErrors: parsed.fieldErrors };
+  }
+
+  const result = await db
+    .update(sites)
+    .set({
+      name: parsed.data.name,
+      domain: parsed.data.domain,
+      escalationEmail: parsed.data.escalationEmail,
+      widgetConfig: {
+        primaryColor: parsed.data.primaryColor,
+        greeting: parsed.data.greeting,
+        botName: parsed.data.botName,
+      },
+    })
+    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
+    .returning({ id: sites.id });
+
+  if (result.length === 0) {
+    return { ok: false, error: 'Site not found' };
+  }
+
+  revalidatePath(`/dashboard/sites/${siteId}`, 'layout');
+  revalidatePath('/dashboard');
+  return { ok: true, siteId, message: 'Settings saved' };
+}
+
+export async function deleteSiteAction(siteId: string): Promise<void> {
+  const userId = await requireUserId();
+
+  await db
+    .delete(sites)
+    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)));
+
+  revalidatePath('/dashboard');
+  redirect('/dashboard');
+}
+
+export async function rescrapeSiteAction(siteId: string): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  const site = await db.query.sites.findFirst({
+    where: and(eq(sites.id, siteId), eq(sites.userId, userId)),
+  });
+  if (!site) {
+    return { ok: false, error: 'Site not found' };
+  }
+
+  if (!isScraperConfigured()) {
+    return {
+      ok: false,
+      error: 'Scraper service is not configured (SCRAPER_API_URL / SCRAPER_API_KEY).',
+    };
+  }
+
+  // Wipe existing articles so the next crawl reflects current docs.
+  await db.delete(articles).where(eq(articles.siteId, siteId));
+
+  await db
+    .update(sites)
+    .set({ kbStatus: 'crawling' })
+    .where(eq(sites.id, siteId));
+
+  try {
+    await startSiteCrawl({ siteId, domain: site.domain });
+  } catch (err) {
+    await db
+      .update(sites)
+      .set({ kbStatus: 'failed' })
+      .where(eq(sites.id, siteId));
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not reach scraper',
+    };
+  }
+
+  revalidatePath(`/dashboard/sites/${siteId}`, 'layout');
+  revalidatePath('/dashboard');
+  return { ok: true, siteId, message: 'Re-crawl started' };
+}
+
+export async function rescrapeArticleAction(
+  siteId: string,
+  articleId: string
+): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  const site = await db.query.sites.findFirst({
+    where: and(eq(sites.id, siteId), eq(sites.userId, userId)),
+  });
+  if (!site) {
+    return { ok: false, error: 'Site not found' };
+  }
+
+  // Phase 2: per-article re-scrape isn't supported by the worker yet — it
+  // re-runs the full crawl, which will overwrite this article.
+  await db
+    .delete(articles)
+    .where(and(eq(articles.id, articleId), eq(articles.siteId, siteId)));
+
+  return rescrapeSiteAction(siteId);
+}
