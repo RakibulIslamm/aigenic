@@ -5,6 +5,7 @@ import { ArrowUpRight, MessageSquare, User } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
 import { getSiteForUser } from '@/lib/sites/queries';
 import {
+  getConversationStatusCounts,
   listConversationsFiltered,
   type ConversationStatusFilter,
 } from '@/lib/sites/conversations';
@@ -41,28 +42,11 @@ export default async function ConversationsPage({
 
   const filter = normalizeFilter(status);
 
-  // Fetch counts for each filter chip in parallel.
-  const [allConvs, activeConvs, escalatedConvs, resolvedConvs] = await Promise.all([
-    listConversationsFiltered(siteId, 'all', 200),
-    listConversationsFiltered(siteId, 'active', 1),
-    listConversationsFiltered(siteId, 'escalated', 1),
-    listConversationsFiltered(siteId, 'resolved', 1),
+  // Two queries in parallel: status counts (one GROUP BY) + the visible page.
+  const [counts, visible] = await Promise.all([
+    getConversationStatusCounts(siteId),
+    listConversationsFiltered(siteId, filter, 200),
   ]);
-
-  const counts: Record<FilterValue, number> = {
-    all: allConvs.length,
-    active: allConvs.filter((c) => c.status === 'active').length,
-    escalated: allConvs.filter((c) => c.status === 'escalated').length,
-    resolved: allConvs.filter((c) => c.status === 'resolved').length,
-  };
-
-  // The "active" / "escalated" / "resolved" lists are pre-filtered subsets of allConvs;
-  // we only fetched them above so the parallel `Promise.all` warms the connection.
-  void activeConvs;
-  void escalatedConvs;
-  void resolvedConvs;
-
-  const visible = filter === 'all' ? allConvs : allConvs.filter((c) => c.status === filter);
 
   return (
     <div className="flex flex-col gap-6">

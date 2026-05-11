@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { and, asc, count, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
@@ -10,6 +11,48 @@ import {
 } from '@/db/schema';
 
 export type ConversationStatusFilter = 'all' | 'active' | 'resolved' | 'escalated';
+
+export interface ConversationStatusCounts {
+  all: number;
+  active: number;
+  escalated: number;
+  resolved: number;
+}
+
+/**
+ * Returns one row per status via GROUP BY, assembled into the four buckets
+ * the filter chips render. Replaces a previous fan-out of four list queries
+ * (eight round trips) that was used purely to count rows.
+ */
+export const getConversationStatusCounts = cache(
+  async (siteId: string): Promise<ConversationStatusCounts> => {
+    const rows = await db
+      .select({
+        status: conversations.status,
+        value: count(),
+      })
+      .from(conversations)
+      .where(eq(conversations.siteId, siteId))
+      .groupBy(conversations.status);
+
+    const counts: ConversationStatusCounts = {
+      all: 0,
+      active: 0,
+      escalated: 0,
+      resolved: 0,
+    };
+
+    for (const row of rows) {
+      const n = Number(row.value);
+      counts.all += n;
+      if (row.status === 'active' || row.status === 'escalated' || row.status === 'resolved') {
+        counts[row.status] += n;
+      }
+    }
+
+    return counts;
+  }
+);
 
 export interface ConversationListItem {
   id: string;

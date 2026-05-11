@@ -15,6 +15,13 @@
       "when": 1778514437826,
       "tag": "0001_fts_index",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778522513991,
+      "tag": "0002_perf_indexes",
+      "breakpoints": true
     }
   ]
 }

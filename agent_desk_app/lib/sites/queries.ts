@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { and, count, desc, eq, gte, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
@@ -39,14 +40,15 @@ export async function listSitesForUser(userId: string): Promise<SiteListItem[]> 
   return rows;
 }
 
-export async function getSiteForUser(
-  siteId: string,
-  userId: string
-): Promise<Site | undefined> {
-  return db.query.sites.findFirst({
-    where: and(eq(sites.id, siteId), eq(sites.userId, userId)),
-  });
-}
+// Memoized per-request: the site layout + each tab page both reach for the
+// same row, and we don't want N round trips per navigation.
+export const getSiteForUser = cache(
+  async (siteId: string, userId: string): Promise<Site | undefined> => {
+    return db.query.sites.findFirst({
+      where: and(eq(sites.id, siteId), eq(sites.userId, userId)),
+    });
+  }
+);
 
 export async function getSiteStats(siteId: string) {
   const monthStart = new Date();

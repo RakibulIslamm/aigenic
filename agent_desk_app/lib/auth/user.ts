@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
@@ -7,8 +8,11 @@ import { users, type User } from '@/db/schema';
  * Returns the row from `users` for the current Clerk user, creating it on
  * first sight. Throws if there is no signed-in session — pair with the proxy
  * matcher so it only runs under protected routes.
+ *
+ * Wrapped in React `cache()` so every page + layout in the same request
+ * shares one Promise instead of triggering a fresh Clerk + DB roundtrip each.
  */
-export async function getOrCreateUser(): Promise<User> {
+export const getOrCreateUser = cache(async (): Promise<User> => {
   const { userId } = await auth();
   if (!userId) {
     throw new Error('Not authenticated');
@@ -40,12 +44,12 @@ export async function getOrCreateUser(): Promise<User> {
     throw new Error('Failed to provision user row');
   }
   return refetched;
-}
+});
 
-export async function requireUserId(): Promise<string> {
+export const requireUserId = cache(async (): Promise<string> => {
   const { userId } = await auth();
   if (!userId) {
     throw new Error('Not authenticated');
   }
   return userId;
-}
+});

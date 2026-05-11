@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ConversationsChart } from './_components/conversations-chart';
+import { ConversationsChart } from './_components/conversations-chart-loader';
 
 export default async function AnalyticsPage({
   params,
