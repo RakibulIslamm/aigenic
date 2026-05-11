@@ -3,6 +3,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ArrowUpRight, Globe, MessageSquare, Sparkles } from 'lucide-react';
 import { getOrCreateUser } from '@/lib/auth/user';
 import { listSitesForUser, type SiteListItem } from '@/lib/sites/queries';
+import { getPlan } from '@/lib/billing/plans';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AddSiteDialog } from './_components/add-site-dialog';
@@ -14,7 +15,14 @@ export default async function DashboardPage() {
   const sites = await listSitesForUser(user.id);
 
   const totalConversations = sites.reduce((sum, s) => sum + s.conversationCount, 0);
-  const limits = planLimits(user.plan);
+  const plan = getPlan(user.plan);
+  const limits = {
+    sites: plan.limits.sites,
+    conversations:
+      plan.limits.conversationsPerMonth === Number.POSITIVE_INFINITY
+        ? Number.POSITIVE_INFINITY
+        : plan.limits.conversationsPerMonth,
+  };
   const anyInProgress = sites.some(
     (s) => s.kbStatus === 'pending' || s.kbStatus === 'crawling'
   );
@@ -40,17 +48,21 @@ export default async function DashboardPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <StatCard icon={Globe} label="Sites" value={sites.length} hint={`of ${limits.sites} on ${user.plan}`} />
+        <StatCard icon={Globe} label="Sites" value={sites.length} hint={`of ${limits.sites} on ${plan.name}`} />
         <StatCard
           icon={MessageSquare}
           label="Conversations this month"
           value={totalConversations}
-          hint={limits.conversations === Infinity ? 'Unlimited' : `of ${limits.conversations} on ${user.plan}`}
+          hint={
+            limits.conversations === Number.POSITIVE_INFINITY
+              ? 'Unlimited'
+              : `of ${limits.conversations} on ${plan.name}`
+          }
         />
         <StatCard
           icon={Sparkles}
           label="Plan"
-          value={user.plan === 'pro' ? 'Pro' : 'Free'}
+          value={plan.name}
           hint={user.plan === 'pro' ? 'Manage in Billing' : 'Upgrade in Billing'}
         />
       </section>
@@ -66,11 +78,6 @@ export default async function DashboardPage() {
       )}
     </div>
   );
-}
-
-function planLimits(plan: string) {
-  if (plan === 'pro') return { sites: 5, conversations: Infinity };
-  return { sites: 1, conversations: 100 };
 }
 
 function StatCard({

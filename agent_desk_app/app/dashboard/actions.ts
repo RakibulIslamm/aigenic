@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { articles, sites } from '@/db/schema';
+import { articles, conversations, sites } from '@/db/schema';
 import { getOrCreateUser, requireUserId } from '@/lib/auth/user';
 import {
   createSiteSchema,
@@ -12,6 +12,8 @@ import {
   DEFAULT_WIDGET_CONFIG,
 } from '@/lib/sites/schemas';
 import { startSiteCrawl, isScraperConfigured } from '@/lib/scraper/client';
+import { getPlan } from '@/lib/billing/plans';
+import { count } from 'drizzle-orm';
 
 export type ActionState =
   | { ok: true; siteId?: string; message?: string }
@@ -47,6 +49,20 @@ export async function createSiteAction(
   const parsed = parseForm(createSiteSchema, formData);
   if (!parsed.ok) {
     return { ok: false, error: 'Please fix the highlighted fields', fieldErrors: parsed.fieldErrors };
+  }
+
+  // Enforce per-plan site limit on the server. The dashboard already disables
+  // the button at the limit, but this guards against direct form posts.
+  const plan = getPlan(user.plan);
+  const [siteCountRow] = await db
+    .select({ value: count() })
+    .from(sites)
+    .where(eq(sites.userId, user.id));
+  if ((siteCountRow?.value ?? 0) >= plan.limits.sites) {
+    return {
+      ok: false,
+      error: `Your ${plan.name} plan is limited to ${plan.limits.sites} site${plan.limits.sites === 1 ? '' : 's'}. Upgrade to add more.`,
+    };
   }
 
   const [site] = await db
@@ -180,6 +196,36 @@ export async function rescrapeSiteAction(siteId: string): Promise<ActionState> {
   revalidatePath(`/dashboard/sites/${siteId}`, 'layout');
   revalidatePath('/dashboard');
   return { ok: true, siteId, message: 'Re-crawl started' };
+}
+
+export async function markConversationResolvedAction(
+  siteId: string,
+  conversationId: string
+): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  const site = await db.query.sites.findFirst({
+    where: and(eq(sites.id, siteId), eq(sites.userId, userId)),
+  });
+  if (!site) return { ok: false, error: 'Site not found' };
+
+  const result = await db
+    .update(conversations)
+    .set({ status: 'resolved' })
+    .where(
+      and(
+        eq(conversations.id, conversationId),
+        eq(conversations.siteId, siteId)
+      )
+    )
+    .returning({ id: conversations.id });
+
+  if (result.length === 0) {
+    return { ok: false, error: 'Conversation not found' };
+  }
+
+  revalidatePath(`/dashboard/sites/${siteId}/conversations`, 'layout');
+  return { ok: true, message: 'Marked as resolved' };
 }
 
 export async function rescrapeArticleAction(

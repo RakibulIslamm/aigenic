@@ -3,9 +3,11 @@ import { asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ModelMessage } from 'ai';
 import { db } from '@/db';
-import { conversations, messages, sites } from '@/db/schema';
+import { conversations, messages, sites, users } from '@/db/schema';
 import { runSupportAgent } from '@/lib/agent/support-agent';
 import { DEFAULT_WIDGET_CONFIG } from '@/lib/sites/schemas';
+import { countConversationsThisMonthForUser } from '@/lib/sites/conversations';
+import { getPlan } from '@/lib/billing/plans';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -58,6 +60,24 @@ export async function POST(request: NextRequest) {
       return jsonError('Conversation does not belong to this site', 403);
     }
   } else {
+    // Free-plan cap: refuse to create a new conversation once the site owner
+    // has hit their per-month allowance. Existing conversations keep working.
+    const owner = await db.query.users.findFirst({
+      where: eq(users.id, site.userId),
+    });
+    if (owner) {
+      const plan = getPlan(owner.plan);
+      if (plan.limits.conversationsPerMonth !== Number.POSITIVE_INFINITY) {
+        const used = await countConversationsThisMonthForUser(owner.id);
+        if (used >= plan.limits.conversationsPerMonth) {
+          return jsonError(
+            'This site is at its monthly conversation limit. Please come back next month or contact the team.',
+            429
+          );
+        }
+      }
+    }
+
     const [created] = await db
       .insert(conversations)
       .values({ siteId, visitorId, status: 'active' })

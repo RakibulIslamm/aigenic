@@ -21,15 +21,9 @@ export default function DashboardLayout({
             <Link href="/dashboard" className="transition hover:text-foreground">
               Sites
             </Link>
-            <span className="cursor-not-allowed opacity-50" title="Coming in Phase 4">
-              Conversations
-            </span>
-            <span className="cursor-not-allowed opacity-50" title="Coming in Phase 5">
-              Analytics
-            </span>
-            <span className="cursor-not-allowed opacity-50" title="Coming in Phase 6">
+            <Link href="/dashboard/billing" className="transition hover:text-foreground">
               Billing
-            </span>
+            </Link>
           </nav>
           <UserButton />
         </div>

@@ -11,8 +11,9 @@ interface TabNavProps {
 const TABS = [
   { label: 'Overview', href: '' },
   { label: 'Knowledge base', href: '/knowledge' },
-  { label: 'Widget code', href: '/widget' },
   { label: 'Conversations', href: '/conversations' },
+  { label: 'Analytics', href: '/analytics' },
+  { label: 'Widget code', href: '/widget' },
   { label: 'Settings', href: '/settings' },
 ];
 
@@ -38,7 +39,7 @@ export function TabNav({ siteId }: TabNavProps) {
           >
             {tab.label}
             {isActive && (
-              <span className="absolute inset-x-3 bottom-[-1px] h-[2px] rounded-full bg-foreground" />
+              <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-foreground" />
             )}
           </Link>
         );
