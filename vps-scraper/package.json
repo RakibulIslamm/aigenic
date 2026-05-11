@@ -1,0 +1,34 @@
+{
+  "name": "agentdesk-scraper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VPS-hosted Playwright crawler for AgentDesk. Crawls a tenant site and streams clean article content back via webhook.",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "playwright:install": "playwright install chromium --with-deps"
+  },
+  "dependencies": {
+    "@mozilla/readability": "latest",
+    "express": "latest",
+    "helmet": "latest",
+    "jsdom": "latest",
+    "p-limit": "latest",
+    "pino": "latest",
+    "pino-pretty": "latest",
+    "playwright": "latest",
+    "robots-parser": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/express": "latest",
+    "@types/jsdom": "latest",
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}
