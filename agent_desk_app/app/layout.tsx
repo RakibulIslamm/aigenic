@@ -45,6 +45,7 @@ export default function RootLayout({
     >
       <html
         lang="en"
+        
         className={cn(
           'h-full dark',
           geistSans.variable,
@@ -54,7 +55,7 @@ export default function RootLayout({
         )}
         suppressHydrationWarning
       >
-        <body className="min-h-full bg-background font-sans text-foreground antialiased">
+        <body suppressHydrationWarning className="min-h-full bg-background font-sans text-foreground antialiased">
           {children}
           <Toaster richColors position="top-right" theme="dark" />
         </body>
