@@ -8,9 +8,12 @@ export default clerkMiddleware(async (auth, req) => {
   }
 });
 
+// Skip the public, auth-less surfaces: widget endpoints (called from arbitrary
+// origins by the embed bubble), the scraper webhook, and the Stripe webhook.
+// Each of these used to pay a Clerk round trip on every request.
 export const config = {
   matcher: [
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    '/(api|trpc)(.*)',
+    '/((?!_next|api/widget|api/scraper|api/stripe/webhook|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    '/(trpc)(.*)',
   ],
 };

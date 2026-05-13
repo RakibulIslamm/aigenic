@@ -354,14 +354,14 @@ export async function countConversationsThisMonthForUser(
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
 
-  const rows = await db.execute(sql`
+  // postgres-js returns rows directly as an array — no `.rows` wrapper
+  // (that's the node-postgres shape). Drizzle's typing is `unknown`, so we cast.
+  const rows = (await db.execute(sql`
     select count(${conversations.id})::int as value
     from ${conversations}
     inner join sites on sites.id = ${conversations.siteId}
     where sites.user_id = ${userId}
       and ${conversations.createdAt} >= ${monthStart.toISOString()}
-  `);
-  // drizzle's execute returns a Postgres result with .rows
-  const first = (rows as unknown as { rows: Array<{ value: number }> }).rows[0];
-  return first?.value ?? 0;
+  `)) as unknown as Array<{ value: number }>;
+  return rows[0]?.value ?? 0;
 }

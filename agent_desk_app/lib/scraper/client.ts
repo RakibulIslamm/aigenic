@@ -22,7 +22,7 @@ export interface StartCrawlResponse {
 export async function startSiteCrawl({
   siteId,
   domain,
-  maxPages = 100,
+  maxPages = 300,
 }: StartCrawlOptions): Promise<StartCrawlResponse> {
   if (!SCRAPER_API_URL || !SCRAPER_API_KEY) {
     throw new Error(

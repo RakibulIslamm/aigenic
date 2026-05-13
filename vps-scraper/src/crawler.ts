@@ -11,6 +11,7 @@ const robotsParser = require('robots-parser') as (
   body: string
 ) => { isAllowed(url: string, ua: string): boolean | undefined };
 import { extractContent, extractInternalLinks } from './content-extractor.js';
+import { discoverSitemapUrls } from './sitemap.js';
 import { sendWebhook, type WebhookEvent } from './webhook.js';
 
 const CONCURRENCY = 3;
@@ -60,7 +61,20 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
 
     const visited = new Set<string>();
     const queue: string[] = [normalizeUrl(startUrl)];
+    const queueSet = new Set<string>(queue);
     const limit = pLimit(CONCURRENCY);
+
+    // Seed the frontier with every URL we can discover from sitemap.xml +
+    // sitemap_index.xml + robots.txt. This is what turns a 5-page crawl of an
+    // e-commerce homepage into a full product-catalog crawl.
+    const sitemapUrls = await discoverSitemapUrls({ origin, userAgent: USER_AGENT });
+    for (const u of sitemapUrls) {
+      const n = normalizeUrl(u);
+      if (!queueSet.has(n)) {
+        queue.push(n);
+        queueSet.add(n);
+      }
+    }
 
     while (queue.length > 0 && visited.size < maxPages) {
       const batchSize = Math.min(
@@ -120,9 +134,9 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
 
         for (const link of internalLinks) {
           const normalized = normalizeUrl(link);
-          if (!visited.has(normalized) && !queue.includes(normalized)) {
-            queue.push(normalized);
-          }
+          if (visited.has(normalized) || queueSet.has(normalized)) continue;
+          queue.push(normalized);
+          queueSet.add(normalized);
         }
       }
     }

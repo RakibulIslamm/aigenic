@@ -58,6 +58,11 @@ export default function RootLayout({
         <body suppressHydrationWarning className="min-h-full bg-background font-sans text-foreground antialiased">
           {children}
           <Toaster richColors position="top-right" theme="dark" />
+          <script
+            src="http://localhost:3000/widget.js"
+            data-site="f92d0178-b7cd-4427-8687-bffb6e4338e5"
+            async
+          ></script>
         </body>
       </html>
     </ClerkProvider>
