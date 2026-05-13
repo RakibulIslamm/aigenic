@@ -42,6 +42,7 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
   }, [state, router]);
 
   const fieldErrors = state && !state.ok ? state.fieldErrors ?? {} : {};
+  const values = state && !state.ok ? state.values ?? {} : {};
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -58,12 +59,17 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
             We&apos;ll crawl your URL to build a private knowledge base. The chat bubble appears as soon as the first articles land.
           </DialogDescription>
         </DialogHeader>
-        <form action={formAction} className="grid gap-4 py-2">
+        <form
+          key={state && !state.ok ? `err-${Object.values(values).join('|')}` : 'fresh'}
+          action={formAction}
+          className="grid gap-4 py-2"
+        >
           <Field
             id="name"
             label="Display name"
             placeholder="Acme Docs"
             error={fieldErrors.name}
+            defaultValue={values.name}
             autoFocus
           />
           <Field
@@ -73,6 +79,7 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
             type="url"
             inputMode="url"
             error={fieldErrors.domain}
+            defaultValue={values.domain}
             description="Full URL including https://. We crawl pages within this domain only."
           />
           <Field
@@ -81,6 +88,7 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
             placeholder="support@acme.com"
             type="email"
             error={fieldErrors.escalationEmail}
+            defaultValue={values.escalationEmail}
             description="Where we send transcripts when the agent can't confidently answer."
           />
           <DialogFooter className="mt-2">

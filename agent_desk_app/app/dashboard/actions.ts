@@ -17,7 +17,20 @@ import { count } from 'drizzle-orm';
 
 export type ActionState =
   | { ok: true; siteId?: string; message?: string }
-  | { ok: false; error: string; fieldErrors?: Record<string, string> };
+  | {
+      ok: false;
+      error: string;
+      fieldErrors?: Record<string, string>;
+      values?: Record<string, string>;
+    };
+
+function formValues(formData: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of formData.entries()) {
+    if (typeof value === 'string') out[key] = value;
+  }
+  return out;
+}
 
 /**
  * Validates a FormData payload against a Zod schema and returns either the
@@ -48,7 +61,12 @@ export async function createSiteAction(
 
   const parsed = parseForm(createSiteSchema, formData);
   if (!parsed.ok) {
-    return { ok: false, error: 'Please fix the highlighted fields', fieldErrors: parsed.fieldErrors };
+    return {
+      ok: false,
+      error: 'Please fix the highlighted fields',
+      fieldErrors: parsed.fieldErrors,
+      values: formValues(formData),
+    };
   }
 
   // Enforce per-plan site limit on the server. The dashboard already disables
@@ -62,6 +80,7 @@ export async function createSiteAction(
     return {
       ok: false,
       error: `Your ${plan.name} plan is limited to ${plan.limits.sites} site${plan.limits.sites === 1 ? '' : 's'}. Upgrade to add more.`,
+      values: formValues(formData),
     };
   }
 
@@ -117,7 +136,12 @@ export async function updateSiteAction(
 
   const parsed = parseForm(updateSiteSchema, formData);
   if (!parsed.ok) {
-    return { ok: false, error: 'Please fix the highlighted fields', fieldErrors: parsed.fieldErrors };
+    return {
+      ok: false,
+      error: 'Please fix the highlighted fields',
+      fieldErrors: parsed.fieldErrors,
+      values: formValues(formData),
+    };
   }
 
   const result = await db

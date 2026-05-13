@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   jsonb,
+  index,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -16,56 +17,83 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
-export const sites = pgTable('sites', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: text('user_id')
-    .references(() => users.id, { onDelete: 'cascade' })
-    .notNull(),
-  name: text('name').notNull(),
-  domain: text('domain').notNull(),
-  escalationEmail: text('escalation_email').notNull(),
-  widgetConfig: jsonb('widget_config').$type<{
-    primaryColor: string;
-    greeting: string;
-    botName: string;
-  }>(),
-  kbStatus: text('kb_status').notNull().default('pending'),
-  kbLastSyncedAt: timestamp('kb_last_synced_at'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const sites = pgTable(
+  'sites',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    name: text('name').notNull(),
+    domain: text('domain').notNull(),
+    escalationEmail: text('escalation_email').notNull(),
+    widgetConfig: jsonb('widget_config').$type<{
+      primaryColor: string;
+      greeting: string;
+      botName: string;
+    }>(),
+    kbStatus: text('kb_status').notNull().default('pending'),
+    kbLastSyncedAt: timestamp('kb_last_synced_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [index('sites_user_id_idx').on(t.userId)]
+);
 
-export const articles = pgTable('articles', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  siteId: uuid('site_id')
-    .references(() => sites.id, { onDelete: 'cascade' })
-    .notNull(),
-  sourceUrl: text('source_url'),
-  title: text('title').notNull(),
-  content: text('content').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const articles = pgTable(
+  'articles',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    siteId: uuid('site_id')
+      .references(() => sites.id, { onDelete: 'cascade' })
+      .notNull(),
+    sourceUrl: text('source_url'),
+    title: text('title').notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    index('articles_site_id_idx').on(t.siteId),
+    index('articles_site_id_created_at_idx').on(t.siteId, t.createdAt),
+  ]
+);
 
-export const conversations = pgTable('conversations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  siteId: uuid('site_id')
-    .references(() => sites.id, { onDelete: 'cascade' })
-    .notNull(),
-  visitorId: text('visitor_id').notNull(),
-  visitorEmail: text('visitor_email'),
-  status: text('status').notNull().default('active'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const conversations = pgTable(
+  'conversations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    siteId: uuid('site_id')
+      .references(() => sites.id, { onDelete: 'cascade' })
+      .notNull(),
+    visitorId: text('visitor_id').notNull(),
+    visitorEmail: text('visitor_email'),
+    status: text('status').notNull().default('active'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    index('conversations_site_id_created_at_idx').on(t.siteId, t.createdAt),
+    index('conversations_site_id_visitor_id_idx').on(t.siteId, t.visitorId),
+  ]
+);
 
-export const messages = pgTable('messages', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  conversationId: uuid('conversation_id')
-    .references(() => conversations.id, { onDelete: 'cascade' })
-    .notNull(),
-  role: text('role').notNull(),
-  content: text('content').notNull(),
-  toolCalls: jsonb('tool_calls'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const messages = pgTable(
+  'messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    conversationId: uuid('conversation_id')
+      .references(() => conversations.id, { onDelete: 'cascade' })
+      .notNull(),
+    role: text('role').notNull(),
+    content: text('content').notNull(),
+    toolCalls: jsonb('tool_calls'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    index('messages_conversation_id_created_at_idx').on(
+      t.conversationId,
+      t.createdAt
+    ),
+  ]
+);
 
 export const escalations = pgTable('escalations', {
   id: uuid('id').primaryKey().defaultRandom(),
