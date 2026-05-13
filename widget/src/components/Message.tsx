@@ -71,34 +71,67 @@ function humanizeTool(name: string): string {
  * Lightweight inline renderer: turns http(s) URLs into clickable links and
  * preserves line breaks. We deliberately don't pull in a markdown lib — the
  * agent's responses are plain prose with the occasional link.
+ *
+ * URL boundary rules:
+ *   - The character class excludes `*`, `[`, `]` so markdown emphasis
+ *     (`**url**`) and link syntax (`[label](url)`) don't get pulled in.
+ *   - After matching, trailing sentence punctuation is stripped onto the
+ *     text run, but a closing `)` is kept if it balances an opening `(`
+ *     inside the URL (e.g. Wikipedia `Foo_(bar)`).
  */
 function renderRichText(text: string): JSX.Element[] {
-  const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
+  const URL_RE = /(https?:\/\/[^\s<>"'*[\]]+)/g;
+  const TRAIL_RE = /[).,;:!?'"]+$/;
   const out: JSX.Element[] = [];
 
   text.split(/\n/).forEach((line, lineIdx, all) => {
-    const segments = line.split(URL_RE);
-    segments.forEach((seg, segIdx) => {
-      if (!seg) return;
-      if (URL_RE.test(seg)) {
-        // Reset lastIndex — global regex state after .test()
-        URL_RE.lastIndex = 0;
-        out.push(
-          <a
-            key={`l-${lineIdx}-${segIdx}`}
-            href={seg}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="ad-link"
-          >
-            {seg}
-          </a>
-        );
-      } else {
-        out.push(<span key={`s-${lineIdx}-${segIdx}`}>{seg}</span>);
+    let cursor = 0;
+    for (const match of line.matchAll(URL_RE)) {
+      const start = match.index ?? 0;
+      let url = match[0];
+      let trail = '';
+
+      const trailMatch = url.match(TRAIL_RE);
+      if (trailMatch) {
+        trail = trailMatch[0];
+        url = url.slice(0, -trail.length);
       }
-      URL_RE.lastIndex = 0;
-    });
+      // Restore a trailing `)` that closes an opening `(` inside the URL.
+      while (trail.startsWith(')')) {
+        const opens = (url.match(/\(/g) ?? []).length;
+        const closes = (url.match(/\)/g) ?? []).length;
+        if (opens > closes) {
+          url += ')';
+          trail = trail.slice(1);
+        } else {
+          break;
+        }
+      }
+
+      if (start > cursor) {
+        out.push(
+          <span key={`s-${lineIdx}-${cursor}`}>{line.slice(cursor, start)}</span>
+        );
+      }
+      out.push(
+        <a
+          key={`l-${lineIdx}-${start}`}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ad-link"
+        >
+          {url}
+        </a>
+      );
+      if (trail) {
+        out.push(<span key={`t-${lineIdx}-${start}`}>{trail}</span>);
+      }
+      cursor = start + match[0].length;
+    }
+    if (cursor < line.length) {
+      out.push(<span key={`s-${lineIdx}-${cursor}`}>{line.slice(cursor)}</span>);
+    }
     if (lineIdx < all.length - 1) {
       out.push(<br key={`br-${lineIdx}`} />);
     }

@@ -25,7 +25,10 @@ import {
 } from './url-utils.js';
 import { sendWebhook, type WebhookEvent } from './webhook.js';
 
-const CONCURRENCY = 5;
+// Concurrency 3 is a sweet spot for Cloudflare-fronted origins: high enough to
+// keep throughput up, low enough that the edge doesn't reset our connections
+// for "burst" behavior. Bump it for friendlier hosts via SCRAPER_CONCURRENCY.
+const CONCURRENCY = Number(process.env.SCRAPER_CONCURRENCY ?? 3);
 const DEFAULT_MIN_DELAY_MS = 150;
 const MAX_MIN_DELAY_MS = 5_000;
 
