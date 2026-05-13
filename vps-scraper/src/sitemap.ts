@@ -1,4 +1,5 @@
 import { logger } from './logger.js';
+import { isSameSite, normalizeUrl, shouldSkipUrl, type NormalizedSite } from './url-utils.js';
 
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_SITEMAPS = 50;
@@ -6,17 +7,19 @@ const MAX_URLS = 5_000;
 
 interface DiscoverOptions {
   origin: string;
+  site: NormalizedSite;
   userAgent: string;
 }
 
 /**
  * Discovers product/article URLs by walking sitemap.xml and any nested
- * sitemap-index entries. Returns same-origin URLs only, deduped, capped at
- * MAX_URLS. Failures are swallowed — sitemaps are an optimization, not a
- * requirement.
+ * sitemap-index entries. Returns same-site URLs only, normalized, deduped,
+ * skip-pattern-filtered, capped at MAX_URLS. Failures are swallowed —
+ * sitemaps are an optimization, not a requirement.
  */
 export async function discoverSitemapUrls({
   origin,
+  site,
   userAgent,
 }: DiscoverOptions): Promise<string[]> {
   const seedCandidates = [
@@ -31,7 +34,6 @@ export async function discoverSitemapUrls({
   const visited = new Set<string>();
   const queue = [...initial];
   const urls = new Set<string>();
-  const host = new URL(origin).hostname;
 
   while (queue.length > 0 && visited.size < MAX_SITEMAPS && urls.size < MAX_URLS) {
     const sitemapUrl = queue.shift()!;
@@ -47,15 +49,12 @@ export async function discoverSitemapUrls({
       }
     } else {
       for (const loc of extractLocs(body)) {
-        try {
-          const u = new URL(loc);
-          if (u.hostname !== host) continue;
-          u.hash = '';
-          urls.add(u.toString());
-          if (urls.size >= MAX_URLS) break;
-        } catch {
-          // skip malformed locs
-        }
+        if (!isSameSite(loc, site)) continue;
+        if (shouldSkipUrl(loc)) continue;
+        const normalized = normalizeUrl(loc);
+        if (!normalized) continue;
+        urls.add(normalized);
+        if (urls.size >= MAX_URLS) break;
       }
     }
   }

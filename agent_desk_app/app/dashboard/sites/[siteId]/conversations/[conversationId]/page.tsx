@@ -50,8 +50,8 @@ export default async function ConversationDetailPage({
   const { conversation, messages: thread, escalation, visitorStats } = detail;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
-      <div className="flex flex-col gap-4">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div className="flex min-w-0 flex-col gap-4">
         <div className="flex items-center justify-between">
           <Link
             href={`/dashboard/sites/${siteId}/conversations`}
@@ -68,7 +68,7 @@ export default async function ConversationDetailPage({
           </Badge>
         </div>
 
-        <Card className="border-border/60 bg-card/40">
+        <Card className="sticky top-20 flex max-h-[calc(100vh-6rem)] flex-col overflow-hidden border-border/60 bg-card/40">
           <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
             <div>
               <CardTitle className="text-base">
@@ -82,14 +82,14 @@ export default async function ConversationDetailPage({
               <ResolveButton siteId={siteId} conversationId={conversation.id} />
             )}
           </CardHeader>
-          <CardContent className="flex flex-col gap-3 pt-0">
+          <CardContent className="flex flex-1 flex-col gap-3 overflow-y-auto pt-0">
             {thread.length === 0 && (
               <EmptyTranscript />
             )}
             {thread.map((m) => {
               const toolCalls = (m.toolCalls as ToolCallRecord[] | null | undefined) ?? null;
               return (
-                <div key={m.id} className="flex flex-col gap-2">
+                <div key={m.id} className="flex min-w-0 flex-col gap-2">
                   <MessageBubble role={m.role} content={m.content} createdAt={m.createdAt} />
                   {toolCalls && toolCalls.length > 0 && (
                     <ToolCallsAccordion toolCalls={toolCalls} />
@@ -204,7 +204,7 @@ function ToolCallsAccordion({ toolCalls }: { toolCalls: ToolCallRecord[] }) {
             </span>
           </AccordionTrigger>
           <AccordionContent className="px-3 pb-3">
-            <div className="grid gap-2 text-xs">
+            <div className="grid min-w-0 gap-2 text-xs">
               <KvBlock label="Input" value={call.input} />
               {call.output !== undefined && (
                 <KvBlock label="Output" value={call.output} />
@@ -219,11 +219,11 @@ function ToolCallsAccordion({ toolCalls }: { toolCalls: ToolCallRecord[] }) {
 
 function KvBlock({ label, value }: { label: string; value: unknown }) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
-      <pre className="overflow-x-auto rounded bg-muted/40 p-2 text-[11px] leading-snug text-foreground/80">
+      <pre className="max-h-64 max-w-full overflow-auto whitespace-pre-wrap wrap-break-word rounded bg-muted/40 p-2 text-[11px] leading-snug text-foreground/80">
 {JSON.stringify(value, null, 2)}
       </pre>
     </div>

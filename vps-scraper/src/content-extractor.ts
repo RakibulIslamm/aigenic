@@ -1,5 +1,17 @@
 import { Readability, isProbablyReaderable } from '@mozilla/readability';
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
+
+// JSDOM logs "Could not parse CSS stylesheet" to the parent console for every
+// vendor-specific CSS rule it doesn't recognize. We don't render CSS — silence
+// these to keep crawl logs readable.
+const silentConsole = new VirtualConsole();
+silentConsole.on('error', () => undefined);
+silentConsole.on('warn', () => undefined);
+silentConsole.on('jsdomError', () => undefined);
+
+function parseDom(html: string, url: string): JSDOM {
+  return new JSDOM(html, { url, virtualConsole: silentConsole });
+}
 
 export interface ExtractedArticle {
   title: string;
@@ -8,9 +20,32 @@ export interface ExtractedArticle {
   wordCount: number;
 }
 
+export interface ParsedPage {
+  article: ExtractedArticle | null;
+  canonical: string | null;
+  internalLinks: string[];
+}
+
 const MIN_WORDS = 12;
 const MAX_CONTENT_LEN = 80_000;
 const MAX_TITLE_LEN = 500;
+
+/**
+ * Single-pass parse: builds the JSDOM once and extracts the article, the
+ * `<link rel="canonical">` (if any), and all same-origin internal links. This
+ * is the entry point used by the crawler; the older standalone exports are
+ * kept for tests and ad-hoc use.
+ */
+export function parsePage(html: string, url: string): ParsedPage {
+  const dom = parseDom(html, url);
+  const doc = dom.window.document;
+
+  const article = extractArticleFromDoc(doc, url);
+  const canonical = extractCanonicalFromDoc(doc, url);
+  const internalLinks = extractInternalLinksFromDoc(doc, url);
+
+  return { article, canonical, internalLinks };
+}
 
 /**
  * Pulls usable content from a rendered HTML page. Tries three strategies in
@@ -20,9 +55,11 @@ const MAX_TITLE_LEN = 500;
  * Returns null only when every strategy fails or the page is empty.
  */
 export function extractContent(html: string, url: string): ExtractedArticle | null {
-  const dom = new JSDOM(html, { url });
-  const doc = dom.window.document;
+  const dom = parseDom(html, url);
+  return extractArticleFromDoc(dom.window.document, url);
+}
 
+function extractArticleFromDoc(doc: Document, url: string): ExtractedArticle | null {
   const structured = extractStructured(doc);
   if (structured && wordCount(structured.content) >= MIN_WORDS) {
     return finalize(structured);
@@ -39,6 +76,17 @@ export function extractContent(html: string, url: string): ExtractedArticle | nu
   }
 
   return null;
+}
+
+function extractCanonicalFromDoc(doc: Document, baseUrl: string): string | null {
+  const link = doc.querySelector('link[rel="canonical"]');
+  const href = link?.getAttribute('href')?.trim();
+  if (!href) return null;
+  try {
+    return new URL(href, baseUrl).toString();
+  } catch {
+    return null;
+  }
 }
 
 function extractReadable(
@@ -349,18 +397,27 @@ function extractNested(obj: Record<string, unknown>, path: string[]): unknown {
 /**
  * Returns every same-origin `<a href>` discovered on the page. Used to expand
  * the crawl frontier without leaving the tenant's domain.
+ *
+ * Note: this hostname check is a first pass — the crawler runs a stricter
+ * same-site guard (`buildSite`/`isSameSite`) before enqueueing, which also
+ * treats `www.example.com` and `example.com` as the same site. External URLs
+ * never reach the queue.
  */
 export function extractInternalLinks(html: string, baseUrl: string): string[] {
-  const dom = new JSDOM(html, { url: baseUrl });
-  const base = new URL(baseUrl);
-  const seen = new Set<string>();
+  const dom = parseDom(html, baseUrl);
+  return extractInternalLinksFromDoc(dom.window.document, baseUrl);
+}
 
-  for (const a of dom.window.document.querySelectorAll('a[href]')) {
+function extractInternalLinksFromDoc(doc: Document, baseUrl: string): string[] {
+  // Returns every absolute http(s) link on the page. Same-site filtering
+  // happens in the crawler (which uses the lenient `isSameSite` check so
+  // `www.example.com` and `example.com` are treated as one site).
+  const seen = new Set<string>();
+  for (const a of doc.querySelectorAll('a[href]')) {
     const raw = a.getAttribute('href');
     if (!raw) continue;
     try {
       const target = new URL(raw, baseUrl);
-      if (target.hostname !== base.hostname) continue;
       if (target.protocol !== 'http:' && target.protocol !== 'https:') continue;
       target.hash = '';
       seen.add(target.toString());
@@ -368,6 +425,5 @@ export function extractInternalLinks(html: string, baseUrl: string): string[] {
       // ignore malformed hrefs
     }
   }
-
   return [...seen];
 }
