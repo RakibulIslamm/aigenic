@@ -160,7 +160,7 @@ function Hero() {
   return (
     <section className="mx-auto max-w-6xl px-6 pb-24 pt-20 text-center md:pt-28">
       <Badge variant="secondary" className="mb-6 rounded-full border border-border/60 px-3 py-1 text-xs font-normal text-muted-foreground">
-        Powered by Claude Sonnet 4.6 · Tool-use enabled
+        Powered by DeepSeek V4 · Tool-use enabled
       </Badge>
       <h1 className="mx-auto max-w-3xl font-serif text-5xl leading-[1.05] tracking-tight md:text-6xl">
         Add an AI support agent to your site in&nbsp;60&nbsp;seconds.
@@ -494,8 +494,9 @@ function Footer() {
           </div>
           <span className="font-serif text-base text-foreground">AgentDesk</span>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
           <a href="#features" className="transition hover:text-foreground">Features</a>
+          <a href="#compare" className="transition hover:text-foreground">vs Intercom</a>
           <a href="#pricing" className="transition hover:text-foreground">Pricing</a>
           <a href="#faq" className="transition hover:text-foreground">FAQ</a>
         </div>

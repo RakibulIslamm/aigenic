@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -79,14 +79,9 @@ export function SettingsForm({ siteId, initial }: SettingsFormProps) {
           error={fieldErrors.botName}
           required
         />
-        <Field
-          id="primaryColor"
-          label="Primary color"
-          defaultValue={initial.primaryColor}
+        <ColorField
+          initialValue={initial.primaryColor}
           error={fieldErrors.primaryColor}
-          placeholder="#7c5cff"
-          description="Hex color used for the chat bubble and primary button."
-          required
         />
         <div className="grid gap-1.5">
           <Label htmlFor="greeting">Greeting</Label>
@@ -164,6 +159,56 @@ function Field({
       ) : description ? (
         <p className="text-xs text-muted-foreground">{description}</p>
       ) : null}
+    </div>
+  );
+}
+
+function ColorField({
+  initialValue,
+  error,
+}: {
+  initialValue: string;
+  error?: string;
+}) {
+  const [value, setValue] = useState(initialValue);
+  const isValidHex = /^#[0-9a-fA-F]{6}$/.test(value);
+
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor="primaryColor">Primary color</Label>
+      <div className="flex items-center gap-2">
+        <label
+          htmlFor="primaryColorPicker"
+          className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-md border border-border/60 transition hover:border-border"
+          style={{ backgroundColor: isValidHex ? value : 'transparent' }}
+          title="Pick a color"
+        >
+          <input
+            id="primaryColorPicker"
+            type="color"
+            value={isValidHex ? value : '#7c5cff'}
+            onChange={(e) => setValue(e.target.value)}
+            className="sr-only"
+            tabIndex={-1}
+          />
+        </label>
+        <Input
+          id="primaryColor"
+          name="primaryColor"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="#7c5cff"
+          aria-invalid={Boolean(error)}
+          required
+        />
+      </div>
+      {error ? (
+        <p className="text-xs text-destructive">{error}</p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Hex color used for the chat bubble and primary button.
+        </p>
+      )}
     </div>
   );
 }

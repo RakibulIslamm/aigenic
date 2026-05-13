@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { format, formatDistanceToNow } from 'date-fns';
-import { ChevronLeft, Mail, MessageSquare, ShieldAlert, User } from 'lucide-react';
+import { ChevronLeft, FileText, Mail, MessageSquare, Search, ShieldAlert, User, Wrench } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
 import { getSiteForUser } from '@/lib/sites/queries';
 import { getConversationDetail } from '@/lib/sites/conversations';
@@ -192,27 +192,33 @@ function MessageBubble({
 function ToolCallsAccordion({ toolCalls }: { toolCalls: ToolCallRecord[] }) {
   return (
     <Accordion type="single" collapsible className="ml-2">
-      {toolCalls.map((call, i) => (
-        <AccordionItem
-          key={call.toolCallId ?? `${call.toolName}-${i}`}
-          value={`call-${i}`}
-          className="rounded-md border border-border/40 bg-background/40"
-        >
-          <AccordionTrigger className="px-3 py-2 text-xs hover:no-underline">
-            <span className="font-mono text-muted-foreground">
-              {humanizeTool(call.toolName)}
-            </span>
-          </AccordionTrigger>
-          <AccordionContent className="px-3 pb-3">
-            <div className="grid min-w-0 gap-2 text-xs">
-              <KvBlock label="Input" value={call.input} />
-              {call.output !== undefined && (
-                <KvBlock label="Output" value={call.output} />
-              )}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      ))}
+      {toolCalls.map((call, i) => {
+        const meta = describeTool(call.toolName);
+        const Icon = meta.icon;
+        return (
+          <AccordionItem
+            key={call.toolCallId ?? `${call.toolName}-${i}`}
+            value={`call-${i}`}
+            className="rounded-md border border-border/40 bg-background/40"
+          >
+            <AccordionTrigger className="px-3 py-2 text-xs hover:no-underline">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Icon className="h-3.5 w-3.5" />
+                <span className="font-medium text-foreground/90">{meta.label}</span>
+                <span className="font-mono text-[10px] opacity-60">{call.toolName}</span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="px-3 pb-3">
+              <div className="grid min-w-0 gap-2 text-xs">
+                <KvBlock label="Input" value={call.input} />
+                {call.output !== undefined && (
+                  <KvBlock label="Output" value={call.output} />
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        );
+      })}
     </Accordion>
   );
 }
@@ -273,16 +279,21 @@ function EmptyTranscript() {
   );
 }
 
-function humanizeTool(name: string): string {
+type ToolMeta = {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+function describeTool(name: string): ToolMeta {
   switch (name) {
     case 'search_knowledge_base':
-      return 'search_knowledge_base';
+      return { label: 'Searched knowledge base', icon: Search };
     case 'get_article':
-      return 'get_article';
+      return { label: 'Opened article', icon: FileText };
     case 'escalate_to_human':
-      return 'escalate_to_human';
+      return { label: 'Escalated to human', icon: ShieldAlert };
     default:
-      return name;
+      return { label: name, icon: Wrench };
   }
 }
 

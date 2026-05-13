@@ -73,7 +73,7 @@ export default async function WidgetPage({
             />
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Phase 3 ships <code className="rounded bg-muted px-1 py-0.5">widget.js</code> from <code className="rounded bg-muted px-1 py-0.5">{widgetUrl}/widget.js</code>. Until then this iframe shows the wrapper page only.
+            Loaded from <code className="rounded bg-muted px-1 py-0.5">{widgetUrl}/widget.js</code>. The bubble mounts in a Shadow DOM so your host page&apos;s CSS can&apos;t reach inside.
           </p>
         </CardContent>
       </Card>
@@ -97,7 +97,7 @@ function previewHtml(siteId: string, widgetUrl: string): string {
   <body>
     <div class="card">
       <h2>Your site (preview)</h2>
-      <p>The AgentDesk chat bubble will mount in the bottom-right corner once Phase 3 ships <code>widget.js</code>.</p>
+      <p>The AgentDesk chat bubble mounts in the bottom-right corner. Click it to open the widget.</p>
     </div>
     <script src="${widgetUrl}/widget.js" data-site="${siteId}" async></script>
   </body>

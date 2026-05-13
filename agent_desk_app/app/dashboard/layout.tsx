@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { UserButton } from '@clerk/nextjs';
 import { Sparkles } from 'lucide-react';
+import { TopNav } from './_components/top-nav';
 
 export default function DashboardLayout({
   children,
@@ -17,14 +18,7 @@ export default function DashboardLayout({
             </div>
             <span className="font-serif text-xl tracking-tight">AgentDesk</span>
           </Link>
-          <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
-            <Link href="/dashboard" className="transition hover:text-foreground">
-              Sites
-            </Link>
-            <Link href="/dashboard/billing" className="transition hover:text-foreground">
-              Billing
-            </Link>
-          </nav>
+          <TopNav />
           <UserButton />
         </div>
       </header>
