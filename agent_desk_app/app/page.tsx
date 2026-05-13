@@ -26,8 +26,8 @@ import { Separator } from '@/components/ui/separator';
 const FEATURES = [
   {
     icon: BookOpen,
-    title: 'Trained on your docs',
-    body: 'Point it at your URL — AgentDesk crawls your help center, docs, and FAQs to build a private knowledge base in minutes.',
+    title: 'Trained on your website',
+    body: 'Point it at your URL — AgentDesk crawls your entire site (pages, help center, blog, FAQs) to build a private knowledge base in minutes.',
   },
   {
     icon: MessageSquare,
@@ -42,7 +42,7 @@ const FEATURES = [
   {
     icon: Gauge,
     title: 'Dashboard you\'ll actually open',
-    body: 'See live conversations, escalations, resolution rate, and what your visitors keep asking. Built for product teams.',
+    body: 'See live conversations, escalations, resolution rate, and what your visitors keep asking. Built for support, marketing, and product teams.',
   },
   {
     icon: Code2,
@@ -51,7 +51,7 @@ const FEATURES = [
   },
   {
     icon: Zap,
-    title: 'Built on Claude Sonnet 4.6',
+    title: 'Built on Claude sonnet',
     body: 'Frontier reasoning behind every reply, with structured tool use to look up articles before it answers.',
   },
 ];
@@ -77,7 +77,7 @@ const FAQS = [
   },
   {
     q: 'What model does it use?',
-    a: 'Anthropic Claude Sonnet 4.6 via OpenRouter, with tool-use enabled so it can search your KB before answering.',
+    a: 'Claude sonnet via OpenRouter, with tool-use enabled so it can search your KB before answering.',
   },
   {
     q: 'What happens when the AI doesn\'t know the answer?',
@@ -160,14 +160,14 @@ function Hero() {
   return (
     <section className="mx-auto max-w-6xl px-6 pb-24 pt-20 text-center md:pt-28">
       <Badge variant="secondary" className="mb-6 rounded-full border border-border/60 px-3 py-1 text-xs font-normal text-muted-foreground">
-        Powered by DeepSeek V4 · Tool-use enabled
+        Powered by Claude Sonnet · Tool-use enabled
       </Badge>
       <h1 className="mx-auto max-w-3xl font-serif text-5xl leading-[1.05] tracking-tight md:text-6xl">
         Add an AI support agent to your site in&nbsp;60&nbsp;seconds.
       </h1>
       <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground">
-        AgentDesk crawls your docs, embeds a chat bubble on your site, and answers customer questions
-        with citations — escalating to your support inbox when it isn't sure.
+        AgentDesk crawls your entire website, embeds a chat bubble on it, and answers customer questions
+        with citations — escalating to your support inbox when it isn&apos;t sure.
       </p>
       <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
         <Button asChild size="lg" className="h-12 px-6 text-base">
@@ -191,15 +191,15 @@ function Hero() {
                 <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
                 <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
               </div>
-              <span>linear-clone.app · support widget</span>
+              <span>northstar-coffee.com · support widget</span>
               <span />
             </div>
             <div className="relative grid gap-4 bg-background/40 p-6">
-              <ChatBubble role="bot">Hey! I'm Iris, the Linear support bot. How can I help?</ChatBubble>
-              <ChatBubble role="user">How do I move an issue between teams?</ChatBubble>
+              <ChatBubble role="bot">Hi! I&apos;m Bean, the Northstar Coffee assistant. How can I help?</ChatBubble>
+              <ChatBubble role="user">Do you ship to Canada, and how long does it take?</ChatBubble>
               <ChatBubble role="bot">
-                You can move an issue between teams by opening it and pressing <kbd className="rounded border border-border/60 bg-muted px-1.5 py-0.5 text-[10px]">M</kbd> — then choose the destination team. Cycles and labels carry over automatically.
-                <span className="mt-2 block text-[11px] text-muted-foreground">Source: docs.linear.app/issues/moving-issues</span>
+                Yes — we ship to Canada with <span className="font-medium">DHL Express</span>, usually <span className="font-medium">3–5 business days</span> from our Brooklyn roastery. Free over $60, otherwise $14 flat.
+                <span className="mt-2 block text-[11px] text-muted-foreground">Source: northstar-coffee.com/shipping</span>
               </ChatBubble>
             </div>
           </div>
@@ -253,9 +253,9 @@ function Features() {
   return (
     <section id="features" className="mx-auto max-w-6xl px-6 py-24">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-serif text-4xl tracking-tight md:text-5xl">Built for product teams who hate chatbots.</h2>
+        <h2 className="font-serif text-4xl tracking-tight md:text-5xl">Built for teams who hate chatbots.</h2>
         <p className="mt-4 text-muted-foreground">
-          Most "AI support" widgets are dressed-up FAQ bots. AgentDesk reads your actual docs and reasons through requests
+          Most &ldquo;AI support&rdquo; widgets are dressed-up FAQ bots. AgentDesk reads your actual website and reasons through requests
           like a thoughtful teammate.
         </p>
       </div>
@@ -357,7 +357,7 @@ function Pricing() {
           name="Free"
           price="$0"
           period="forever"
-          description="For solo builders shipping their first SaaS."
+          description="For solo founders and small businesses getting started."
           features={[
             '1 site',
             '100 conversations / month',

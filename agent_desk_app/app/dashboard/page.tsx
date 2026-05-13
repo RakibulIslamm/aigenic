@@ -38,7 +38,7 @@ export default async function DashboardPage() {
             Your sites
           </h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            A site is one product you&apos;ve added AgentDesk to. Each has its own knowledge base, widget config, and escalation inbox.
+            A site is one website you&apos;ve connected AgentDesk to. Each has its own knowledge base, widget config, and escalation inbox.
           </p>
         </div>
         <AddSiteDialog
@@ -123,7 +123,7 @@ function SiteCard({ site }: { site: SiteListItem }) {
       </CardHeader>
       <CardContent className="flex flex-1 flex-col justify-end gap-4">
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <Stat label="Articles" value={site.articleCount} />
+          <Stat label="Pages" value={site.articleCount} />
           <Stat label="Conversations" value={site.conversationCount} />
         </div>
         {lastSynced && (
@@ -164,7 +164,7 @@ function EmptyState() {
         <div>
           <h3 className="font-serif text-2xl tracking-tight">No sites yet</h3>
           <p className="mt-1 max-w-md text-sm text-muted-foreground">
-            Add your product&apos;s URL — we&apos;ll crawl it to build a knowledge base, and hand you a one-line embed code.
+            Add your website&apos;s URL — we&apos;ll crawl it to build a knowledge base, and hand you a one-line embed code.
           </p>
         </div>
         <AddSiteDialog />

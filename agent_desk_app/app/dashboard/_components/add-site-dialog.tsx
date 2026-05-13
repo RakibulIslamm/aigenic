@@ -67,7 +67,7 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
           <Field
             id="name"
             label="Display name"
-            placeholder="Acme Docs"
+            placeholder="Acme"
             error={fieldErrors.name}
             defaultValue={values.name}
             autoFocus
@@ -75,7 +75,7 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
           <Field
             id="domain"
             label="Site URL"
-            placeholder="https://docs.acme.com"
+            placeholder="https://acme.com"
             type="url"
             inputMode="url"
             error={fieldErrors.domain}
@@ -90,6 +90,10 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
             error={fieldErrors.escalationEmail}
             defaultValue={values.escalationEmail}
             description="Where we send transcripts when the agent can't confidently answer."
+          />
+          <MaxPagesField
+            error={fieldErrors.maxPages}
+            defaultValue={values.maxPages ?? '1000'}
           />
           <DialogFooter className="mt-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
@@ -133,6 +137,47 @@ function Field({
       ) : description ? (
         <p className="text-xs text-muted-foreground">{description}</p>
       ) : null}
+    </div>
+  );
+}
+
+const MAX_PAGES_OPTIONS = [
+  { value: '100', label: '100 pages · marketing site' },
+  { value: '500', label: '500 pages · small business' },
+  { value: '1000', label: '1,000 pages · standard (recommended)' },
+  { value: '2000', label: '2,000 pages · large e-commerce / docs' },
+];
+
+function MaxPagesField({
+  error,
+  defaultValue,
+}: {
+  error?: string;
+  defaultValue?: string;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor="maxPages">Crawl limit</Label>
+      <select
+        id="maxPages"
+        name="maxPages"
+        defaultValue={defaultValue}
+        aria-invalid={Boolean(error)}
+        className="h-9 w-full rounded-3xl border border-transparent bg-input/50 px-3 text-sm outline-none transition-[color,box-shadow,background-color] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
+      >
+        {MAX_PAGES_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value} className="bg-background text-foreground">
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      {error ? (
+        <p className="text-xs text-destructive">{error}</p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Maximum pages to crawl. The crawler stops once it hits the limit; you can resync any time.
+        </p>
+      )}
     </div>
   );
 }

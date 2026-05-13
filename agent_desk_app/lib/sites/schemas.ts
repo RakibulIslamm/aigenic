@@ -16,6 +16,7 @@ export const createSiteSchema = z.object({
       }
     }, 'Must be a full URL, e.g. https://example.com'),
   escalationEmail: z.string().trim().email('Enter a valid email'),
+  maxPages: z.coerce.number().int().min(50).max(2000).default(1000),
 });
 
 export const updateSiteSchema = z.object({
@@ -47,6 +48,6 @@ export type UpdateSiteInput = z.infer<typeof updateSiteSchema>;
 
 export const DEFAULT_WIDGET_CONFIG = {
   primaryColor: '#7c5cff',
-  greeting: "Hey! I'm here to help. Ask me anything about the product.",
+  greeting: "Hey! I'm here to help. Ask me anything about us.",
   botName: 'Support',
 } as const;

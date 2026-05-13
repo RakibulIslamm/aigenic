@@ -38,7 +38,7 @@ export default async function SiteOverviewPage({
       <section className="grid gap-4 md:grid-cols-3">
         <StatCard
           icon={BookOpen}
-          label="Articles"
+          label="Pages indexed"
           value={stats.articleCount}
           hint="In the knowledge base"
         />

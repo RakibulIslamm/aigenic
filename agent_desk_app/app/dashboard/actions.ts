@@ -105,7 +105,11 @@ export async function createSiteAction(
   let scraperMessage: string | undefined;
   if (isScraperConfigured()) {
     try {
-      await startSiteCrawl({ siteId: site.id, domain: site.domain });
+      await startSiteCrawl({
+        siteId: site.id,
+        domain: site.domain,
+        maxPages: parsed.data.maxPages,
+      });
       await db
         .update(sites)
         .set({ kbStatus: 'crawling' })
@@ -196,7 +200,7 @@ export async function rescrapeSiteAction(siteId: string): Promise<ActionState> {
     };
   }
 
-  // Wipe existing articles so the next crawl reflects current docs.
+  // Wipe existing articles so the next crawl reflects the current site.
   await db.delete(articles).where(eq(articles.siteId, siteId));
 
   await db

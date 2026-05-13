@@ -2,7 +2,7 @@
 
 > An embeddable, multi-tenant AI customer support agent. Sign up, paste your URL, drop a one-line script on your site, and your visitors get a chat bubble trained on your docs — with citations, tool use, and graceful escalation to a human.
 
-Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `deepseek/deepseek-v4-flash`, marketed against **Claude Sonnet 4.6**), **Next.js 16** App Router, **Drizzle ORM** on Neon Postgres, and **Clerk** for auth. The chat widget is a 9.5 KB Preact bundle that mounts inside a Shadow DOM. Crawling runs in a separate **Playwright** service on a Contabo VPS.
+Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `anthropic/claude-sonnet-4.6`, marketed against **Claude Sonnet 4.6**), **Next.js 16** App Router, **Drizzle ORM** on Neon Postgres, and **Clerk** for auth. The chat widget is a 9.5 KB Preact bundle that mounts inside a Shadow DOM. Crawling runs in a separate **Playwright** service on a Contabo VPS.
 
 ## Status
 
@@ -82,7 +82,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `de
 - **Framework:** Next.js 16 (App Router, Turbopack, React 19.2)
 - **Auth:** Clerk
 - **DB:** Neon Postgres + Drizzle ORM (`postgres-js` driver) + a generated `tsvector` column for full-text KB search
-- **AI:** Vercel AI SDK (`ai`, `@ai-sdk/openai`) pointed at OpenRouter — model is set in [`lib/agent/model.ts`](./lib/agent/model.ts) as `SUPPORT_MODEL_ID` (currently `deepseek/deepseek-v4-flash`; swap for any OpenRouter model). Three tools: `search_knowledge_base`, `get_article`, `escalate_to_human`. `stepCountIs(8)`, temp 0.3.
+- **AI:** Vercel AI SDK (`ai`, `@ai-sdk/openai`) pointed at OpenRouter — model is set in [`lib/agent/model.ts`](./lib/agent/model.ts) as `SUPPORT_MODEL_ID` (currently `anthropic/claude-sonnet-4.6`; swap for any OpenRouter model). Three tools: `search_knowledge_base`, `get_article`, `escalate_to_human`. `stepCountIs(8)`, temp 0.3.
 - **Widget:** Preact + Vite (IIFE bundle, ~9.5 KB gzipped, mounts in Shadow DOM, inlined CSS)
 - **Crawler:** Playwright (headless Chromium) + `@mozilla/readability` + JSDOM + robots-parser, in [`../vps-scraper/`](../vps-scraper). Same-site BFS, sitemap-seeded, per-host rate limit, two-tier fetcher (plain `fetch` → escalate to Playwright only for JS shells), `AbortController`-based stop, exponential-backoff webhook delivery.
 - **Email:** Resend (escalation transcripts, idempotent via `escalations` unique constraint)

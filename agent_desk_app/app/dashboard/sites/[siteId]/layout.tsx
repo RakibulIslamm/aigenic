@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChevronLeft, ExternalLink } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
-import { getSiteForUser } from '@/lib/sites/queries';
+import { getSiteForUser, getSiteStats } from '@/lib/sites/queries';
 import { KbStatusBadge } from '../../_components/kb-status-badge';
 import { CrawlProgress } from '../../_components/crawl-progress';
 import { TabNav } from './_components/tab-nav';
@@ -21,9 +21,14 @@ export default async function SiteLayout({
     notFound();
   }
 
+  const isCrawling = site.kbStatus === 'pending' || site.kbStatus === 'crawling';
+  // Only pay for the count query while a crawl is in flight — when the KB is
+  // ready/failed the banner doesn't render anyway.
+  const liveCount = isCrawling ? (await getSiteStats(siteId)).articleCount : undefined;
+
   return (
     <div className="flex flex-col gap-6">
-      <CrawlProgress status={site.kbStatus} />
+      <CrawlProgress status={site.kbStatus} pageCount={liveCount} />
 
       <div>
         <Link

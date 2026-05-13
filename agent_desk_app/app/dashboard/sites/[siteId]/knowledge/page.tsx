@@ -16,6 +16,7 @@ import {
   ResyncAllButton,
   RescrapeArticleButton,
 } from '../_components/rescrape-buttons';
+import { ArticleSearch } from './_components/article-search';
 
 const PAGE_SIZE = 25;
 
@@ -24,18 +25,20 @@ export default async function KnowledgeBasePage({
   searchParams,
 }: {
   params: Promise<{ siteId: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; q?: string }>;
 }) {
   const { siteId } = await params;
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, q: queryParam } = await searchParams;
   const userId = await requireUserId();
   const site = await getSiteForUser(siteId, userId);
   if (!site) notFound();
 
   const requestedPage = Number.parseInt(pageParam ?? '1', 10);
+  const trimmedQ = queryParam?.trim() ?? '';
   const { rows, total, page, totalPages } = await listArticlesForSitePaged(siteId, {
     page: Number.isFinite(requestedPage) ? requestedPage : 1,
     pageSize: PAGE_SIZE,
+    q: trimmedQ || undefined,
   });
 
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -47,23 +50,38 @@ export default async function KnowledgeBasePage({
         <div>
           <h2 className="font-serif text-2xl tracking-tight">Knowledge base</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {total} article{total === 1 ? '' : 's'} crawled from{' '}
-            <span className="font-medium text-foreground">{new URL(site.domain).hostname}</span>.
-            {site.kbLastSyncedAt &&
-              ` Last synced ${formatDistanceToNow(site.kbLastSyncedAt, { addSuffix: true })}.`}
+            {trimmedQ ? (
+              <>
+                {total} match{total === 1 ? '' : 'es'} for{' '}
+                <span className="font-medium text-foreground">&ldquo;{trimmedQ}&rdquo;</span>
+              </>
+            ) : (
+              <>
+                {total} page{total === 1 ? '' : 's'} indexed from{' '}
+                <span className="font-medium text-foreground">{new URL(site.domain).hostname}</span>.
+                {site.kbLastSyncedAt &&
+                  ` Last synced ${formatDistanceToNow(site.kbLastSyncedAt, { addSuffix: true })}.`}
+              </>
+            )}
           </p>
         </div>
         <ResyncAllButton siteId={siteId} kbStatus={site.kbStatus} />
       </section>
 
+      <ArticleSearch key={trimmedQ} defaultValue={trimmedQ} />
+
       {rows.length === 0 ? (
-        <EmptyState siteId={siteId} status={site.kbStatus} />
+        trimmedQ ? (
+          <NoMatchesState siteId={siteId} query={trimmedQ} />
+        ) : (
+          <EmptyState siteId={siteId} status={site.kbStatus} />
+        )
       ) : (
         <>
           <ul className="grid gap-3">
             {rows.map((article) => (
               <li key={article.id}>
-                <Card className="border-border/60 bg-card/40">
+                <Card className="group border-border/60 bg-card/40 transition hover:border-border">
                   <CardContent className="flex items-start justify-between gap-4 py-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -85,7 +103,9 @@ export default async function KnowledgeBasePage({
                         {article.content.length > 240 ? '…' : ''}
                       </p>
                     </div>
-                    <RescrapeArticleButton siteId={siteId} articleId={article.id} />
+                    <div className="opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+                      <RescrapeArticleButton siteId={siteId} articleId={article.id} />
+                    </div>
                   </CardContent>
                 </Card>
               </li>
@@ -100,6 +120,7 @@ export default async function KnowledgeBasePage({
               rangeStart={rangeStart}
               rangeEnd={rangeEnd}
               total={total}
+              query={trimmedQ}
             />
           )}
         </>
@@ -115,6 +136,7 @@ function Pagination({
   rangeStart,
   rangeEnd,
   total,
+  query,
 }: {
   siteId: string;
   page: number;
@@ -122,10 +144,12 @@ function Pagination({
   rangeStart: number;
   rangeEnd: number;
   total: number;
+  query?: string;
 }) {
   const basePath = `/dashboard/sites/${siteId}/knowledge`;
-  const prevHref = page > 2 ? `${basePath}?page=${page - 1}` : basePath;
-  const nextHref = `${basePath}?page=${page + 1}`;
+  const qParam = query ? `&q=${encodeURIComponent(query)}` : '';
+  const prevHref = page > 2 ? `${basePath}?page=${page - 1}${qParam}` : query ? `${basePath}?q=${encodeURIComponent(query)}` : basePath;
+  const nextHref = `${basePath}?page=${page + 1}${qParam}`;
 
   return (
     <nav
@@ -195,18 +219,39 @@ function EmptyState({ siteId, status }: { siteId: string; status: string }) {
             ? 'Crawling your site'
             : status === 'failed'
               ? 'Crawl failed'
-              : 'No articles yet'}
+              : 'No pages yet'}
         </CardTitle>
         <CardDescription className="max-w-md">
           {status === 'crawling' || status === 'pending'
-            ? 'Pages will appear here as the crawler finds them. This usually takes a few minutes for a small docs site.'
+            ? 'Pages will appear here as the crawler finds them. A small marketing site finishes in a few minutes; a larger e-commerce or docs site can take longer.'
             : status === 'failed'
               ? 'The scraper couldn\'t finish. Hit "Resync all" to try again, or check the URL and try once more.'
-              : 'Once your site is crawled, every public article will land here.'}
+              : 'Once your site is crawled, every public page will land here.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex justify-center pb-8">
         <ResyncAllButton siteId={siteId} kbStatus={status} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function NoMatchesState({ siteId, query }: { siteId: string; query: string }) {
+  return (
+    <Card className="border-dashed border-border/60 bg-card/20">
+      <CardHeader className="items-center text-center">
+        <div className="grid h-12 w-12 place-items-center rounded-xl border border-border/60 bg-background">
+          <BookOpen className="h-5 w-5" />
+        </div>
+        <CardTitle className="font-serif text-2xl tracking-tight">No matches</CardTitle>
+        <CardDescription className="max-w-md">
+          Nothing in your knowledge base has &ldquo;{query}&rdquo; in the title. Try a shorter or broader keyword.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex justify-center pb-8">
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/dashboard/sites/${siteId}/knowledge`}>Clear search</Link>
+        </Button>
       </CardContent>
     </Card>
   );

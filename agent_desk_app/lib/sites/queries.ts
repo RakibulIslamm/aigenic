@@ -1,5 +1,5 @@
 import { cache } from 'react';
-import { and, count, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, ilike, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   articles,
@@ -110,15 +110,20 @@ export interface ArticlePage {
  */
 export async function listArticlesForSitePaged(
   siteId: string,
-  { page, pageSize }: { page: number; pageSize: number }
+  { page, pageSize, q }: { page: number; pageSize: number; q?: string }
 ): Promise<ArticlePage> {
   const safePage = Math.max(1, Math.floor(page) || 1);
   const safePageSize = Math.max(1, Math.min(100, Math.floor(pageSize) || 25));
   const offset = (safePage - 1) * safePageSize;
+  const trimmedQ = q?.trim();
+  // `%foo%` matches any title containing the term; PG ILIKE is case-insensitive.
+  const whereExpr = trimmedQ
+    ? and(eq(articles.siteId, siteId), ilike(articles.title, `%${trimmedQ}%`))
+    : eq(articles.siteId, siteId);
 
   const [rows, [totalRow]] = await Promise.all([
     db.query.articles.findMany({
-      where: eq(articles.siteId, siteId),
+      where: whereExpr,
       orderBy: [desc(articles.createdAt)],
       limit: safePageSize,
       offset,
@@ -126,7 +131,7 @@ export async function listArticlesForSitePaged(
     db
       .select({ value: count() })
       .from(articles)
-      .where(eq(articles.siteId, siteId)),
+      .where(whereExpr),
   ]);
 
   const total = totalRow?.value ?? 0;
