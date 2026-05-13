@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { sendMessage, type ChatEvent, type WidgetConfig } from '../lib/api';
 import {
+  clearConversationId,
+  clearTranscript,
   getConversationId,
   getOrCreateVisitorId,
+  loadTranscript,
+  saveTranscript,
   setConversationId,
+  type PersistedTextMessage,
 } from '../lib/storage';
-import { Message, type MessagePart } from './Message';
+import { Message } from './Message';
+import { ToolPill, type ToolStatus } from './Message';
 
 interface ChatWindowProps {
   apiBase: string;
@@ -13,45 +19,116 @@ interface ChatWindowProps {
   onClose: () => void;
 }
 
+interface ToolEntry {
+  name: string;
+  status: ToolStatus;
+}
+
+const TEXTAREA_MAX_HEIGHT = 120;
+
+/**
+ * Greeting is shown when there's no persisted transcript. Wrapped so the
+ * hydration callback can recompute it if needed.
+ */
+function initialMessages(config: WidgetConfig): PersistedTextMessage[] {
+  const persisted = loadTranscript(config.siteId);
+  if (persisted.length > 0) return persisted;
+  return [{ role: 'bot', content: config.greeting }];
+}
+
 export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
-  const [parts, setParts] = useState<MessagePart[]>(() => [
-    { kind: 'text', role: 'bot', content: config.greeting },
-  ]);
+  const [messages, setMessages] = useState<PersistedTextMessage[]>(() => initialMessages(config));
+  const [streamingText, setStreamingText] = useState<string | null>(null);
+  const [tools, setTools] = useState<ToolEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+
   const conversationIdRef = useRef<string | null>(getConversationId(config.siteId));
   const visitorIdRef = useRef<string>(getOrCreateVisitorId());
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Auto-scroll to the latest message whenever the transcript changes.
+  // Stream batching: collect deltas into a ref + flush once per animation frame.
+  // The previous implementation did `parts.map(...)` per delta, allocating the
+  // full transcript array on every token. For long replies that was 90%+ of the
+  // widget's CPU time during streaming.
+  const bufferRef = useRef('');
+  const streamingRef = useRef('');
+  const frameRef = useRef<number | null>(null);
+
+  // Persist transcript whenever it changes.
+  useEffect(() => {
+    saveTranscript(config.siteId, messages);
+  }, [config.siteId, messages]);
+
+  // Auto-scroll on every visible change.
   useEffect(() => {
     const el = scrollerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [parts]);
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [messages, streamingText, tools, error, busy]);
 
-  // Focus the textarea when the window opens.
+  // Focus the textarea when the window first mounts.
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  async function submit() {
-    const text = input.trim();
+  // Auto-resize the textarea to fit its content (clamped by CSS max-height).
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT)}px`;
+  }, [input]);
+
+  function flushBuffer() {
+    if (bufferRef.current.length === 0) return;
+    streamingRef.current += bufferRef.current;
+    bufferRef.current = '';
+    setStreamingText(streamingRef.current);
+  }
+
+  function scheduleFlush() {
+    if (frameRef.current != null) return;
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = null;
+      flushBuffer();
+    });
+  }
+
+  function resetTurnState() {
+    bufferRef.current = '';
+    streamingRef.current = '';
+    if (frameRef.current != null) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+  }
+
+  function startNewChat() {
+    clearConversationId(config.siteId);
+    clearTranscript(config.siteId);
+    conversationIdRef.current = null;
+    resetTurnState();
+    setMessages([{ role: 'bot', content: config.greeting }]);
+    setStreamingText(null);
+    setTools([]);
+    setError(null);
+    inputRef.current?.focus();
+  }
+
+  async function submit(textInput?: string) {
+    const text = (textInput ?? input).trim();
     if (!text || busy) return;
 
     setInput('');
+    setError(null);
     setBusy(true);
-    setParts((prev) => [
-      ...prev,
-      { kind: 'text', role: 'user', content: text },
-    ]);
-
-    // Append a placeholder bot message we mutate as text deltas arrive.
-    let botIndex = -1;
-    setParts((prev) => {
-      botIndex = prev.length;
-      return [...prev, { kind: 'text', role: 'bot', content: '' }];
-    });
+    setTools([]);
+    streamingRef.current = '';
+    setStreamingText('');
+    setMessages((prev) => [...prev, { role: 'user', content: text }]);
 
     const handleEvent = (event: ChatEvent) => {
       if (event.type === 'meta') {
@@ -59,51 +136,33 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
         setConversationId(config.siteId, event.conversationId);
         return;
       }
-
       if (event.type === 'text') {
-        setParts((prev) =>
-          prev.map((p, i) =>
-            i === botIndex && p.kind === 'text' && p.role === 'bot'
-              ? { ...p, content: p.content + event.delta }
-              : p
-          )
-        );
+        bufferRef.current += event.delta;
+        scheduleFlush();
         return;
       }
-
       if (event.type === 'tool') {
-        // Insert the tool indicator just before the bot message we're building.
-        setParts((prev) => {
-          const next = [...prev];
-          const idx = botIndex;
+        setTools((prev) => {
           if (event.status === 'running') {
-            next.splice(idx, 0, {
-              kind: 'tool',
-              name: event.name,
-              status: 'running',
-            });
-            botIndex += 1;
-          } else {
-            // Mutate the most recent tool-running entry for this name.
-            for (let i = next.length - 1; i >= 0; i--) {
-              const p = next[i];
-              if (p && p.kind === 'tool' && p.name === event.name && p.status === 'running') {
-                next[i] = { kind: 'tool', name: event.name, status: event.status };
-                break;
-              }
+            return [...prev, { name: event.name, status: 'running' }];
+          }
+          // Update the most recent matching running entry.
+          let updated = false;
+          const next = [...prev];
+          for (let i = next.length - 1; i >= 0; i--) {
+            const entry = next[i];
+            if (entry && entry.name === event.name && entry.status === 'running') {
+              next[i] = { name: event.name, status: event.status };
+              updated = true;
+              break;
             }
           }
-          return next;
+          return updated ? next : prev;
         });
         return;
       }
-
       if (event.type === 'error') {
-        setParts((prev) => [
-          ...prev,
-          { kind: 'error', message: event.message },
-        ]);
-        return;
+        setError(event.message);
       }
     };
 
@@ -116,48 +175,91 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
         message: text,
         onEvent: handleEvent,
       });
-
-      // Drop the empty bot bubble if the model returned no text (pure tool flow).
-      setParts((prev) => {
-        const placeholder = prev[botIndex];
-        if (placeholder && placeholder.kind === 'text' && placeholder.role === 'bot' && placeholder.content === '') {
-          return prev.filter((_, i) => i !== botIndex);
-        }
-        return prev;
-      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
+      // Make sure any pending deltas land before we commit.
+      if (frameRef.current != null) {
+        cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+      flushBuffer();
+
+      const finalText = streamingRef.current;
+      streamingRef.current = '';
+      bufferRef.current = '';
+      setStreamingText(null);
+      if (finalText.length > 0) {
+        setMessages((prev) => [...prev, { role: 'bot', content: finalText }]);
+      }
+      setTools([]);
       setBusy(false);
       inputRef.current?.focus();
     }
   }
+
+  const showTypingDots = busy && (streamingText === null || streamingText.length === 0);
 
   return (
     <div
       class="ad-window"
       style={{ '--ad-primary': config.primaryColor } as Record<string, string>}
     >
-      <div class="ad-header" style={{ background: config.primaryColor }}>
-        <div>
-          <div class="ad-header-title">{config.botName}</div>
-          <div class="ad-header-sub">{config.siteName}</div>
+      <header class="ad-header">
+        <div class="ad-header-avatar" aria-hidden="true">
+          {config.botName.slice(0, 1).toUpperCase()}
         </div>
-        <button type="button" class="ad-close" onClick={onClose} aria-label="Close chat">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <div class="ad-header-meta">
+          <div class="ad-header-title">{config.botName}</div>
+          <div class="ad-header-sub">
+            <span class="ad-online-dot" aria-hidden="true" />
+            {config.siteName}
+          </div>
+        </div>
+        <button
+          type="button"
+          class="ad-icon-btn"
+          onClick={startNewChat}
+          aria-label="Start a new chat"
+          title="New chat"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+        <button type="button" class="ad-icon-btn" onClick={onClose} aria-label="Close chat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
-      </div>
+      </header>
 
       <div class="ad-messages" ref={scrollerRef}>
-        {parts.map((part, i) => (
-          <Message key={i} part={part} />
+        {messages.map((m, i) => (
+          <Message key={`m-${i}`} role={m.role} content={m.content} botName={config.botName} />
         ))}
-        {busy && parts[parts.length - 1]?.kind !== 'text' && (
-          <div class="ad-typing" aria-label="Bot is typing">
-            <span /><span /><span />
+
+        {tools.map((t, i) => (
+          <ToolPill key={`t-${i}`} name={t.name} status={t.status} />
+        ))}
+
+        {streamingText !== null && streamingText.length > 0 && (
+          <Message role="bot" content={streamingText} botName={config.botName} streaming />
+        )}
+
+        {showTypingDots && (
+          <div class="ad-msg-row ad-msg-row-bot">
+            <div class="ad-avatar" aria-hidden="true">
+              {config.botName.slice(0, 1).toUpperCase()}
+            </div>
+            <div class="ad-typing" aria-label="Bot is typing">
+              <span /><span /><span />
+            </div>
           </div>
         )}
+
+        {error && <div class="ad-msg-error" role="alert">{error}</div>}
       </div>
 
       <form
@@ -171,7 +273,7 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
           ref={inputRef}
           class="ad-input"
           rows={1}
-          placeholder="Ask me anything…"
+          placeholder="Type your message…"
           value={input}
           disabled={busy}
           onInput={(event) => setInput((event.target as HTMLTextAreaElement).value)}
@@ -185,7 +287,6 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
         <button
           type="submit"
           class="ad-send"
-          style={{ background: config.primaryColor }}
           disabled={busy || input.trim().length === 0}
           aria-label="Send"
         >
@@ -197,7 +298,8 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
       </form>
 
       <div class="ad-footer">
-        Powered by <a href="https://agentdesk.app" target="_blank" rel="noopener noreferrer">AgentDesk</a>
+        Powered by{' '}
+        <a href="https://agentdesk.app" target="_blank" rel="noopener noreferrer">AgentDesk</a>
       </div>
     </div>
   );

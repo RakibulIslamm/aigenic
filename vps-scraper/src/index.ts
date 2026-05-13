@@ -17,7 +17,7 @@ if (!API_KEY) {
 const crawlRequestSchema = z.object({
   siteId: z.string().uuid(),
   startUrl: z.string().url(),
-  maxPages: z.number().int().positive().max(500).default(100),
+  maxPages: z.number().int().positive().max(2000).default(100),
   webhookUrl: z.string().url(),
 });
 

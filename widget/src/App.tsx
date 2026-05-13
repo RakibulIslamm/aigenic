@@ -11,6 +11,7 @@ interface AppProps {
 export function App({ apiBase, siteId }: AppProps) {
   const [config, setConfig] = useState<WidgetConfig | null>(null);
   const [open, setOpen] = useState(false);
+  const [mountWindow, setMountWindow] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,8 +29,17 @@ export function App({ apiBase, siteId }: AppProps) {
     };
   }, [apiBase, siteId]);
 
-  // Don't render anything until we have config — keeps the bubble color and
-  // bot name correct from first paint.
+  // Keep the window mounted briefly after close so the exit animation can run.
+  useEffect(() => {
+    if (open) {
+      setMountWindow(true);
+      return;
+    }
+    if (!mountWindow) return;
+    const t = window.setTimeout(() => setMountWindow(false), 220);
+    return () => window.clearTimeout(t);
+  }, [open, mountWindow]);
+
   if (!config) {
     if (error) {
       console.warn('AgentDesk widget failed to load:', error);
@@ -39,11 +49,16 @@ export function App({ apiBase, siteId }: AppProps) {
 
   return (
     <div class="ad-host">
-      {open ? (
-        <ChatWindow apiBase={apiBase} config={config} onClose={() => setOpen(false)} />
-      ) : (
-        <ChatBubble onClick={() => setOpen(true)} primaryColor={config.primaryColor} />
+      {mountWindow && (
+        <div class={`ad-window-wrap ${open ? 'is-open' : 'is-closing'}`}>
+          <ChatWindow apiBase={apiBase} config={config} onClose={() => setOpen(false)} />
+        </div>
       )}
+      <ChatBubble
+        onClick={() => setOpen((v) => !v)}
+        primaryColor={config.primaryColor}
+        open={open}
+      />
     </div>
   );
 }

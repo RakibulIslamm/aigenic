@@ -4,6 +4,8 @@
 
 const VISITOR_KEY = 'ad:v';
 const CONVO_KEY_PREFIX = 'ad:c:';
+const TRANSCRIPT_KEY_PREFIX = 'ad:t:';
+const MAX_PERSISTED_MESSAGES = 50;
 
 function uuid(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -33,6 +35,14 @@ function safeSet(key: string, value: string): void {
   }
 }
 
+function safeRemove(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function getOrCreateVisitorId(): string {
   const existing = safeGet(VISITOR_KEY);
   if (existing) return existing;
@@ -50,9 +60,44 @@ export function setConversationId(siteId: string, conversationId: string): void 
 }
 
 export function clearConversationId(siteId: string): void {
+  safeRemove(CONVO_KEY_PREFIX + siteId);
+}
+
+export interface PersistedTextMessage {
+  role: 'user' | 'bot';
+  content: string;
+}
+
+/**
+ * Load the previously-saved transcript for a site so the user doesn't see a
+ * cold welcome screen on refresh. We only persist plain text turns — tool
+ * indicators are ephemeral.
+ */
+export function loadTranscript(siteId: string): PersistedTextMessage[] {
+  const raw = safeGet(TRANSCRIPT_KEY_PREFIX + siteId);
+  if (!raw) return [];
   try {
-    localStorage.removeItem(CONVO_KEY_PREFIX + siteId);
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (m): m is PersistedTextMessage =>
+          m &&
+          typeof m === 'object' &&
+          (m.role === 'user' || m.role === 'bot') &&
+          typeof m.content === 'string'
+      )
+      .slice(-MAX_PERSISTED_MESSAGES);
   } catch {
-    /* ignore */
+    return [];
   }
+}
+
+export function saveTranscript(siteId: string, messages: PersistedTextMessage[]): void {
+  const trimmed = messages.slice(-MAX_PERSISTED_MESSAGES);
+  safeSet(TRANSCRIPT_KEY_PREFIX + siteId, JSON.stringify(trimmed));
+}
+
+export function clearTranscript(siteId: string): void {
+  safeRemove(TRANSCRIPT_KEY_PREFIX + siteId);
 }
