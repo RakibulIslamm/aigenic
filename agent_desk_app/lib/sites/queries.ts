@@ -95,11 +95,48 @@ export async function getSiteStats(siteId: string) {
   };
 }
 
-export async function listArticlesForSite(siteId: string) {
-  return db.query.articles.findMany({
-    where: eq(articles.siteId, siteId),
-    orderBy: [desc(articles.createdAt)],
-  });
+export interface ArticlePage {
+  rows: Array<typeof articles.$inferSelect>;
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+/**
+ * Returns a single page of articles + the total count in one round trip via
+ * Promise.all. Used by the knowledge tab — full-list queries became a real
+ * cost once e-commerce sites started landing 300+ products in here.
+ */
+export async function listArticlesForSitePaged(
+  siteId: string,
+  { page, pageSize }: { page: number; pageSize: number }
+): Promise<ArticlePage> {
+  const safePage = Math.max(1, Math.floor(page) || 1);
+  const safePageSize = Math.max(1, Math.min(100, Math.floor(pageSize) || 25));
+  const offset = (safePage - 1) * safePageSize;
+
+  const [rows, [totalRow]] = await Promise.all([
+    db.query.articles.findMany({
+      where: eq(articles.siteId, siteId),
+      orderBy: [desc(articles.createdAt)],
+      limit: safePageSize,
+      offset,
+    }),
+    db
+      .select({ value: count() })
+      .from(articles)
+      .where(eq(articles.siteId, siteId)),
+  ]);
+
+  const total = totalRow?.value ?? 0;
+  return {
+    rows,
+    total,
+    page: safePage,
+    pageSize: safePageSize,
+    totalPages: total === 0 ? 1 : Math.ceil(total / safePageSize),
+  };
 }
 
 export async function listConversationsForSite(

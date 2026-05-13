@@ -70,7 +70,7 @@ Built on **Claude Sonnet 4.6** (via OpenRouter) with the Vercel AI SDK, **Next.j
 - **Framework:** Next.js 16 (App Router, Turbopack, React 19.2)
 - **Auth:** Clerk
 - **DB:** Neon Postgres + Drizzle ORM (`postgres-js` driver) + a generated `tsvector` column for full-text KB search
-- **AI:** Vercel AI SDK (`ai`, `@ai-sdk/openai`) pointed at OpenRouter, model `anthropic/claude-sonnet-4.6`, with three tools: `search_knowledge_base`, `get_article`, `escalate_to_human`
+- **AI:** Vercel AI SDK (`ai`, `@ai-sdk/openai`) pointed at OpenRouter, model `deepseek/deepseek-v4-flash`, with three tools: `search_knowledge_base`, `get_article`, `escalate_to_human`
 - **Widget:** Preact + Vite (IIFE bundle, ~9.5 KB gzipped, mounts in Shadow DOM)
 - **Crawler:** Playwright (headless Chromium) + `@mozilla/readability` + JSDOM + robots-parser, in [`../vps-scraper/`](../vps-scraper)
 - **Email:** Resend (escalation transcripts)

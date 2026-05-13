@@ -15,7 +15,9 @@ export const maxDuration = 60;
 
 const requestSchema = z.object({
   siteId: z.string().uuid(),
-  conversationId: z.string().uuid().optional(),
+  // Accept null too — the widget sends `null` on the first message of a
+  // session, before any conversation exists.
+  conversationId: z.string().uuid().nullish(),
   visitorId: z.string().min(8).max(128),
   message: z.string().trim().min(1).max(4000),
 });
@@ -45,7 +47,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { siteId, visitorId, message: userMessage } = parsed.data;
-  let conversationId = parsed.data.conversationId;
+  let conversationId = parsed.data.conversationId ?? undefined;
 
   // 1. Find the site so we have its widget config + name for the prompt.
   const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId) });

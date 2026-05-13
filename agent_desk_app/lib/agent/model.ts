@@ -21,6 +21,6 @@ const openrouter = createOpenAI({
   },
 });
 
-export const SUPPORT_MODEL_ID = 'anthropic/claude-sonnet-4.6';
+export const SUPPORT_MODEL_ID = 'deepseek/deepseek-v4-flash';
 
 export const supportModel = openrouter.chat(SUPPORT_MODEL_ID);

@@ -52,7 +52,12 @@ export async function sendMessage({
   const res = await fetch(`${apiBase}/api/widget/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ siteId, conversationId, visitorId, message }),
+    body: JSON.stringify({
+      siteId,
+      ...(conversationId ? { conversationId } : {}),
+      visitorId,
+      message,
+    }),
     signal: signal ?? null,
   });
 
