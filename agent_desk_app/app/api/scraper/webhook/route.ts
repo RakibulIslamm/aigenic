@@ -23,6 +23,12 @@ const completeEventSchema = z.object({
   totalPages: z.number().int().nonnegative().optional(),
 });
 
+const stoppedEventSchema = z.object({
+  event: z.literal('stopped'),
+  siteId: z.string().uuid(),
+  totalPages: z.number().int().nonnegative().optional(),
+});
+
 const errorEventSchema = z.object({
   event: z.literal('error'),
   siteId: z.string().uuid(),
@@ -32,6 +38,7 @@ const errorEventSchema = z.object({
 const webhookSchema = z.discriminatedUnion('event', [
   articleEventSchema,
   completeEventSchema,
+  stoppedEventSchema,
   errorEventSchema,
 ]);
 
@@ -92,6 +99,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
     case 'complete': {
+      await db
+        .update(sites)
+        .set({ kbStatus: 'ready', kbLastSyncedAt: new Date() })
+        .where(eq(sites.id, event.siteId));
+      return NextResponse.json({ ok: true });
+    }
+    case 'stopped': {
+      // User aborted the crawl. Partial articles are kept and the KB is
+      // marked ready so it can still be used. The optimistic update from the
+      // server action usually wins; this is the safety net.
       await db
         .update(sites)
         .set({ kbStatus: 'ready', kbLastSyncedAt: new Date() })

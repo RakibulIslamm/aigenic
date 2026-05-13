@@ -45,25 +45,38 @@ export async function fetchPage(opts: {
   url: string;
   userAgent: string;
   getContext: () => Promise<BrowserContext>;
+  signal: AbortSignal | undefined;
 }): Promise<FetchResult | null> {
-  const { url, userAgent, getContext } = opts;
+  const { url, userAgent, getContext, signal } = opts;
 
-  const httpResult = await tryHttp(url, userAgent);
+  if (signal?.aborted) return null;
+
+  const httpResult = await tryHttp(url, userAgent, signal);
   if (httpResult && looksRendered(httpResult.html)) {
     return httpResult;
   }
 
+  if (signal?.aborted) return httpResult;
+
   try {
     const context = await getContext();
-    return await tryPlaywright(context, url);
+    return await tryPlaywright(context, url, signal);
   } catch (err) {
-    logger.warn({ url, err }, 'browser escalation failed');
+    logger.debug(
+      { url, reason: err instanceof Error ? err.message.split('\n')[0] : 'unknown' },
+      'browser escalation failed'
+    );
     return httpResult; // fall back to whatever HTTP gave us, even if thin
   }
 }
 
-async function tryHttp(url: string, userAgent: string): Promise<FetchResult | null> {
+async function tryHttp(
+  url: string,
+  userAgent: string,
+  userSignal?: AbortSignal
+): Promise<FetchResult | null> {
   for (let attempt = 1; attempt <= HTTP_MAX_ATTEMPTS; attempt++) {
+    if (userSignal?.aborted) return null;
     try {
       const res = await fetch(url, {
         headers: {
@@ -79,7 +92,7 @@ async function tryHttp(url: string, userAgent: string): Promise<FetchResult | nu
           'Sec-Fetch-User': '?1',
         },
         redirect: 'follow',
-        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+        signal: combineSignals(AbortSignal.timeout(HTTP_TIMEOUT_MS), userSignal),
       });
 
       if (!res.ok) return null;
@@ -97,33 +110,62 @@ async function tryHttp(url: string, userAgent: string): Promise<FetchResult | nu
 
       return { finalUrl: res.url, html, rendered: false };
     } catch (err) {
-      if (attempt < HTTP_MAX_ATTEMPTS && isTransientError(err)) {
+      const code = transientCode(err);
+      if (attempt < HTTP_MAX_ATTEMPTS && code) {
         const backoff = HTTP_RETRY_BASE_MS * 2 ** (attempt - 1);
-        logger.debug({ url, attempt, backoff, err }, 'http fetch transient — retrying');
+        logger.debug({ url, attempt, code, backoff }, 'http transient, retrying');
         await sleep(backoff);
         continue;
       }
-      logger.debug({ url, attempt, err }, 'http fetch failed');
+      logger.debug(
+        { url, attempt, code: code ?? (err instanceof Error ? err.name : 'unknown') },
+        'http fetch gave up'
+      );
       return null;
     }
   }
   return null;
 }
 
-function isTransientError(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false;
-  // Walk the cause chain — undici wraps the underlying socket error.
+/**
+ * Returns the matching transient error code (`ECONNRESET`, `EPIPE`, etc.) if
+ * the error is retryable, or null otherwise. Walks the cause chain since
+ * undici wraps the underlying socket error.
+ */
+function transientCode(err: unknown): string | null {
   let cur: unknown = err;
   for (let i = 0; i < 5 && cur && typeof cur === 'object'; i++) {
     const code = (cur as { code?: unknown }).code;
-    if (typeof code === 'string' && TRANSIENT_ERROR_CODES.has(code)) return true;
+    if (typeof code === 'string' && TRANSIENT_ERROR_CODES.has(code)) return code;
     cur = (cur as { cause?: unknown }).cause;
   }
-  return false;
+  return null;
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Combine multiple AbortSignals into one. `undefined` entries are ignored.
+ * Node 20+ ships `AbortSignal.any` but we polyfill it defensively.
+ */
+function combineSignals(...signals: Array<AbortSignal | undefined>): AbortSignal {
+  const real = signals.filter((s): s is AbortSignal => s !== undefined);
+  if (real.length === 0) return new AbortController().signal;
+  if (real.length === 1) return real[0]!;
+  if (typeof (AbortSignal as { any?: unknown }).any === 'function') {
+    return (AbortSignal as { any: (s: AbortSignal[]) => AbortSignal }).any(real);
+  }
+  const controller = new AbortController();
+  for (const s of real) {
+    if (s.aborted) {
+      controller.abort(s.reason);
+      break;
+    }
+    s.addEventListener('abort', () => controller.abort(s.reason), { once: true });
+  }
+  return controller.signal;
 }
 
 async function readBodyCapped(res: Response, maxBytes: number): Promise<string | null> {
@@ -177,9 +219,17 @@ function looksRendered(html: string): boolean {
 
 async function tryPlaywright(
   context: BrowserContext,
-  url: string
+  url: string,
+  userSignal?: AbortSignal
 ): Promise<FetchResult | null> {
+  if (userSignal?.aborted) return null;
   const page = await context.newPage();
+  // If the crawl is stopped mid-navigation, close the page so `page.goto` rejects.
+  const onAbort = () => {
+    page.close().catch(() => undefined);
+  };
+  userSignal?.addEventListener('abort', onAbort, { once: true });
+
   try {
     const response = await page.goto(url, {
       timeout: PAGE_TIMEOUT_MS,
@@ -201,9 +251,13 @@ async function tryPlaywright(
     const finalUrl = page.url();
     return { finalUrl, html, rendered: true };
   } catch (err) {
-    logger.warn({ url, err }, 'playwright fetch failed');
+    logger.debug(
+      { url, reason: err instanceof Error ? err.message.split('\n')[0] : 'unknown' },
+      'playwright fetch failed'
+    );
     return null;
   } finally {
+    userSignal?.removeEventListener('abort', onAbort);
     await page.close().catch(() => undefined);
   }
 }

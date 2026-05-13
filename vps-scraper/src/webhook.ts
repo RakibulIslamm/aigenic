@@ -16,6 +16,11 @@ export type WebhookEvent =
       totalPages: number;
     }
   | {
+      event: 'stopped';
+      siteId: string;
+      totalPages: number;
+    }
+  | {
       event: 'error';
       siteId: string;
       error: string;

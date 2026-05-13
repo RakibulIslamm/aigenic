@@ -11,7 +11,7 @@ import {
   updateSiteSchema,
   DEFAULT_WIDGET_CONFIG,
 } from '@/lib/sites/schemas';
-import { startSiteCrawl, isScraperConfigured } from '@/lib/scraper/client';
+import { startSiteCrawl, stopSiteCrawl, isScraperConfigured } from '@/lib/scraper/client';
 import { getPlan } from '@/lib/billing/plans';
 import { count } from 'drizzle-orm';
 
@@ -220,6 +220,45 @@ export async function rescrapeSiteAction(siteId: string): Promise<ActionState> {
   revalidatePath(`/dashboard/sites/${siteId}`, 'layout');
   revalidatePath('/dashboard');
   return { ok: true, siteId, message: 'Re-crawl started' };
+}
+
+export async function stopCrawlAction(siteId: string): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  const site = await db.query.sites.findFirst({
+    where: and(eq(sites.id, siteId), eq(sites.userId, userId)),
+  });
+  if (!site) {
+    return { ok: false, error: 'Site not found' };
+  }
+
+  if (!isScraperConfigured()) {
+    return {
+      ok: false,
+      error: 'Scraper service is not configured (SCRAPER_API_URL / SCRAPER_API_KEY).',
+    };
+  }
+
+  try {
+    await stopSiteCrawl(siteId);
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not reach scraper',
+    };
+  }
+
+  // Optimistically flip status — the scraper will also send a `stopped`
+  // webhook that hits the same state, but updating here makes the UI feel
+  // instant. Partial articles are kept; the KB is still usable.
+  await db
+    .update(sites)
+    .set({ kbStatus: 'ready', kbLastSyncedAt: new Date() })
+    .where(eq(sites.id, siteId));
+
+  revalidatePath(`/dashboard/sites/${siteId}`, 'layout');
+  revalidatePath('/dashboard');
+  return { ok: true, siteId, message: 'Crawl stopped' };
 }
 
 export async function markConversationResolvedAction(

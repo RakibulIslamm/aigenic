@@ -53,7 +53,7 @@ export default async function KnowledgeBasePage({
               ` Last synced ${formatDistanceToNow(site.kbLastSyncedAt, { addSuffix: true })}.`}
           </p>
         </div>
-        <ResyncAllButton siteId={siteId} />
+        <ResyncAllButton siteId={siteId} kbStatus={site.kbStatus} />
       </section>
 
       {rows.length === 0 ? (
@@ -206,7 +206,7 @@ function EmptyState({ siteId, status }: { siteId: string; status: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex justify-center pb-8">
-        <ResyncAllButton siteId={siteId} />
+        <ResyncAllButton siteId={siteId} kbStatus={status} />
       </CardContent>
     </Card>
   );

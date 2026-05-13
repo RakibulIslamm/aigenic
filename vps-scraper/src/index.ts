@@ -21,6 +21,15 @@ const crawlRequestSchema = z.object({
   webhookUrl: z.string().url(),
 });
 
+/**
+ * In-memory registry of running crawls, keyed by siteId. Only one crawl per
+ * site can be active at a time — starting a new crawl aborts any existing
+ * one. Survives only the lifetime of this process; if the scraper restarts,
+ * any abandoned `crawling` kbStatus rows are reconciled via the app's normal
+ * webhook-timeout flow.
+ */
+const activeCrawls = new Map<string, AbortController>();
+
 const app = express();
 
 app.use(helmet());
@@ -40,6 +49,17 @@ app.post('/crawl', (req, res) => {
   const { siteId, startUrl, maxPages, webhookUrl } = parsed.data;
   const jobId = randomUUID();
 
+  // If a crawl is already running for this site (e.g. user hit "recrawl"
+  // before the previous one finished), abort it before starting the new one.
+  const existing = activeCrawls.get(siteId);
+  if (existing) {
+    logger.info({ siteId }, 'aborting prior crawl before starting new one');
+    existing.abort();
+  }
+
+  const controller = new AbortController();
+  activeCrawls.set(siteId, controller);
+
   logger.info({ jobId, siteId, startUrl, maxPages }, 'crawl job accepted');
 
   // Detach the crawl from the request lifecycle — the webhook is the result channel.
@@ -49,11 +69,32 @@ app.post('/crawl', (req, res) => {
     maxPages,
     webhookUrl,
     webhookApiKey: API_KEY,
-  }).catch((err) => {
-    logger.error({ jobId, siteId, err }, 'unhandled crawl error');
-  });
+    signal: controller.signal,
+  })
+    .catch((err) => {
+      logger.error({ jobId, siteId, err }, 'unhandled crawl error');
+    })
+    .finally(() => {
+      // Only clear if this is still the current controller — guards against
+      // a late finish overwriting a newer crawl.
+      if (activeCrawls.get(siteId) === controller) {
+        activeCrawls.delete(siteId);
+      }
+    });
 
   return res.status(202).json({ jobId, siteId, status: 'queued' });
+});
+
+app.post('/crawl/:siteId/stop', (req, res) => {
+  const siteId = req.params.siteId;
+  const controller = activeCrawls.get(siteId);
+  if (!controller) {
+    return res.status(200).json({ stopped: false, reason: 'no active crawl' });
+  }
+  controller.abort();
+  activeCrawls.delete(siteId);
+  logger.info({ siteId }, 'crawl stop requested');
+  return res.status(200).json({ stopped: true });
 });
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

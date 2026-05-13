@@ -47,6 +47,12 @@ export interface CrawlJob {
   maxPages: number;
   webhookUrl: string;
   webhookApiKey: string;
+  /**
+   * Optional signal used by the UI's "Stop crawling" feature. When aborted,
+   * the BFS loop exits at the next batch boundary, the browser is closed
+   * cleanly, and a `stopped` webhook is sent in place of `complete`.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -67,12 +73,14 @@ export interface CrawlJob {
  * launched lazily — fully static sites never pay the Chromium startup cost.
  */
 export async function runCrawl(job: CrawlJob): Promise<void> {
-  const { siteId, startUrl, maxPages, webhookUrl, webhookApiKey } = job;
+  const { siteId, startUrl, maxPages, webhookUrl, webhookApiKey, signal } = job;
 
   const startedAt = Date.now();
   let totalPages = 0;
   let renderedPages = 0;
   let httpPages = 0;
+  let failedFetches = 0;
+  let duplicateContent = 0;
   let browser: Browser | undefined;
   let context: BrowserContext | undefined;
 
@@ -149,6 +157,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     const limit = pLimit(CONCURRENCY);
 
     while (queue.length > 0 && totalPages < maxPages) {
+      if (signal?.aborted) break;
       const remaining = maxPages - totalPages;
       const batchSize = Math.min(CONCURRENCY, remaining, queue.length);
       const batch = queue.splice(0, batchSize);
@@ -156,19 +165,28 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
       const results = await Promise.all(
         batch.map((url) =>
           limit(async () => {
-            await rateLimiter.wait();
+            await rateLimiter.wait(signal);
+            if (signal?.aborted) return null;
             try {
-              return await crawlOne({ url, getContext });
+              return await crawlOne({ url, getContext, signal });
             } catch (err) {
-              logger.warn({ url, err }, 'page crawl failed');
+              logger.debug(
+                { url, reason: err instanceof Error ? err.message.split('\n')[0] : 'unknown' },
+                'page crawl failed'
+              );
               return null;
             }
           })
         )
       );
 
+      if (signal?.aborted) break;
+
       for (const result of results) {
-        if (!result) continue;
+        if (!result) {
+          failedFetches++;
+          continue;
+        }
         const { article, internalLinks, finalUrl, canonical, rendered } = result;
 
         if (rendered) renderedPages++;
@@ -206,7 +224,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
               logger.error({ url: sourceUrl, err }, 'webhook send failed');
             });
           } else {
-            logger.debug({ url: sourceUrl }, 'duplicate content — skipping webhook');
+            duplicateContent++;
           }
         }
 
@@ -218,10 +236,13 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
 
     if (context) await context.close().catch(() => undefined);
 
+    const stopped = signal?.aborted === true;
     await sendWebhook({
       url: webhookUrl,
       apiKey: webhookApiKey,
-      payload: { event: 'complete', siteId, totalPages } satisfies WebhookEvent,
+      payload: stopped
+        ? ({ event: 'stopped', siteId, totalPages } satisfies WebhookEvent)
+        : ({ event: 'complete', siteId, totalPages } satisfies WebhookEvent),
     });
 
     logger.info(
@@ -231,9 +252,11 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
         uniqueUrls: seenUrls.size,
         renderedPages,
         httpPages,
+        failedFetches,
+        duplicateContent,
         durationMs: Date.now() - startedAt,
       },
-      'crawl complete'
+      stopped ? 'crawl stopped' : 'crawl complete'
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown crawl error';
@@ -263,11 +286,13 @@ interface CrawlOneResult {
 async function crawlOne(opts: {
   url: string;
   getContext: () => Promise<BrowserContext>;
+  signal: AbortSignal | undefined;
 }): Promise<CrawlOneResult | null> {
   const fetched = await fetchPage({
     url: opts.url,
     userAgent: USER_AGENT,
     getContext: opts.getContext,
+    signal: opts.signal,
   });
   if (!fetched) return null;
 

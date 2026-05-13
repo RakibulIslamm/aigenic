@@ -1,12 +1,13 @@
 'use client';
 
 import { useTransition } from 'react';
-import { Loader2, RefreshCw, RotateCw } from 'lucide-react';
+import { Loader2, RefreshCw, RotateCw, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   rescrapeArticleAction,
   rescrapeSiteAction,
+  stopCrawlAction,
   type ActionState,
 } from '@/app/dashboard/actions';
 
@@ -18,7 +19,26 @@ function handleResult(result: ActionState, fallbackMessage: string) {
   }
 }
 
-export function ResyncAllButton({ siteId }: { siteId: string }) {
+/**
+ * Toggles between "Resync all" (idle) and "Stop crawl" (mid-crawl). We pick
+ * by `kbStatus` so the user can never trigger both actions simultaneously.
+ */
+export function ResyncAllButton({
+  siteId,
+  kbStatus,
+}: {
+  siteId: string;
+  kbStatus: string;
+}) {
+  const isCrawling = kbStatus === 'crawling' || kbStatus === 'pending';
+  return isCrawling ? (
+    <StopCrawlButton siteId={siteId} />
+  ) : (
+    <ResyncButton siteId={siteId} />
+  );
+}
+
+function ResyncButton({ siteId }: { siteId: string }) {
   const [pending, startTransition] = useTransition();
   return (
     <Button
@@ -38,6 +58,30 @@ export function ResyncAllButton({ siteId }: { siteId: string }) {
         <RefreshCw className="mr-1 h-4 w-4" />
       )}
       Resync all
+    </Button>
+  );
+}
+
+function StopCrawlButton({ siteId }: { siteId: string }) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <Button
+      size="sm"
+      variant="destructive"
+      disabled={pending}
+      onClick={() => {
+        startTransition(async () => {
+          const result = await stopCrawlAction(siteId);
+          handleResult(result, 'Crawl stopped');
+        });
+      }}
+    >
+      {pending ? (
+        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+      ) : (
+        <Square className="mr-1 h-4 w-4" />
+      )}
+      Stop crawl
     </Button>
   );
 }
