@@ -5,12 +5,12 @@
 FROM mcr.microsoft.com/playwright:latest AS base
 
 ENV NODE_ENV=production \
-    NPM_CONFIG_UPDATE_NOTIFIER=false \
-    PNPM_HOME=/usr/local/share/pnpm \
-    PATH=/usr/local/share/pnpm:$PATH
+    NPM_CONFIG_UPDATE_NOTIFIER=false
 
-# Enable pnpm via corepack so the lockfile stays the source of truth.
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install pnpm directly — corepack in the Playwright base image has stale
+# signing keys and rejects newer pnpm releases ("Cannot find matching keyid").
+# Pin to the same version used to generate pnpm-lock.yaml for reproducible builds.
+RUN npm install -g pnpm@10.33.0
 
 WORKDIR /app
 
