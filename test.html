@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AgentDesk widget — local embed test</title>
+    <title>Aigenic widget — local embed test</title>
     <style>
       * { box-sizing: border-box; }
       body {
@@ -71,7 +71,7 @@
   <body>
     <main class="wrap">
       <span class="pill">Local embed test</span>
-      <h1 style="margin-top:16px;">AgentDesk widget</h1>
+      <h1 style="margin-top:16px;">Aigenic widget</h1>
       <p>
         This page mounts the production widget script the same way a tenant would: a single
         <code>&lt;script src="/widget.js" data-site="…"&gt;</code> tag at the bottom of the page.
@@ -82,11 +82,11 @@
       <div class="card">
         <h3 style="margin-top:0;">Use it</h3>
         <ol>
-          <li>Run the Next.js app: <code>cd agent_desk_app &amp;&amp; pnpm dev</code></li>
+          <li>Run the Next.js app: <code>cd aigenic_app &amp;&amp; pnpm dev</code></li>
           <li>Build the widget if you haven't: <code>cd widget &amp;&amp; pnpm build</code></li>
           <li>Open this file with a static server pointed at the Next.js origin so the widget can
               hit <code>/api/widget/*</code>:
-              <pre>cd agent_desk &amp;&amp; npx --yes serve -p 4173 .</pre>
+              <pre>cd aigenic &amp;&amp; npx --yes serve -p 4173 .</pre>
               then visit <code>http://localhost:4173/test.html</code>.</li>
           <li>Make sure the script tag below uses a <strong>real</strong> site id from the
               dashboard. Click the bubble, ask a question — you should see the agent
@@ -99,7 +99,7 @@
         <p>
           The same one your tenants paste into their site:
         </p>
-        <pre>&lt;script src="https://agentdesk.app/widget.js" data-site="YOUR_SITE_ID" async&gt;&lt;/script&gt;</pre>
+        <pre>&lt;script src="https://aigenic.app/widget.js" data-site="YOUR_SITE_ID" async&gt;&lt;/script&gt;</pre>
         <p class="small">
           Locally we point the script at <code>/widget.js</code> so it loads from the dev server's
           <code>public/</code> folder, and the widget infers the API origin from the script's URL
@@ -116,7 +116,7 @@
 
     <!--
       The actual embed. In production this is exactly what tenants drop on their site,
-      pointed at https://agentdesk.app/widget.js. Here we use a relative path so it loads
+      pointed at https://aigenic.app/widget.js. Here we use a relative path so it loads
       from whichever origin is serving this HTML.
     -->
     <script

@@ -188,7 +188,7 @@ export function buildSupportTools(ctx: SupportToolContext) {
               from: ESCALATION_FROM_ADDRESS,
               to: site.escalationEmail,
               replyTo: visitorEmail ?? undefined,
-              subject: `[AgentDesk] Escalation from ${site.name}`,
+              subject: `[Aigenic] Escalation from ${site.name}`,
               html: renderEscalationEmail({
                 siteName: site.name,
                 reason,
@@ -249,7 +249,7 @@ function renderEscalationEmail(args: {
 <html>
   <body style="font-family: ui-sans-serif, system-ui, sans-serif; color:#18181b; max-width:640px; margin:0 auto; padding:24px;">
     <h2 style="margin:0 0 8px; font-weight:600;">New escalation from ${escapeHtml(args.siteName)}</h2>
-    <p style="margin:0 0 16px; color:#71717a;">An AgentDesk visitor was escalated to your team.</p>
+    <p style="margin:0 0 16px; color:#71717a;">A Aigenic visitor was escalated to your team.</p>
 
     <div style="border:1px solid #e4e4e7; border-radius:12px; padding:16px; margin:16px 0;">
       <p style="margin:0 0 6px;"><strong>Reason:</strong> ${escapeHtml(args.reason)}</p>
@@ -262,7 +262,7 @@ function renderEscalationEmail(args: {
       ${args.transcriptHtml}
     </div>
 
-    <p style="margin:24px 0 0; font-size:12px; color:#a1a1aa;">Sent by AgentDesk · visitorId ${escapeHtml(args.visitorId)}</p>
+    <p style="margin:24px 0 0; font-size:12px; color:#a1a1aa;">Sent by Aigenic · visitorId ${escapeHtml(args.visitorId)}</p>
   </body>
 </html>`;
 }

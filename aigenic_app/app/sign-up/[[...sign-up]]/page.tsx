@@ -8,7 +8,7 @@ export default function SignUpPage() {
         href="/"
         className="mb-10 font-serif text-2xl tracking-tight text-foreground"
       >
-        AgentDesk
+        Aigenic
       </Link>
       <SignUp />
     </div>

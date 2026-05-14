@@ -33,7 +33,7 @@ const FEATURES = [
   {
     icon: BookOpen,
     title: 'Trained on your website',
-    body: 'Point it at your URL — AgentDesk crawls your entire site (pages, help center, blog, FAQs) to build a private knowledge base in minutes.',
+    body: 'Point it at your URL — Aigenic crawls your entire site (pages, help center, blog, FAQs) to build a private knowledge base in minutes.',
   },
   {
     icon: Quote,
@@ -63,13 +63,13 @@ const FEATURES = [
 ];
 
 const COMPARE = [
-  { feature: 'Trained on your own knowledge base', agentdesk: true, intercom: true },
-  { feature: 'Setup in under a minute', agentdesk: true, intercom: false },
-  { feature: 'One-line embed (no SDK)', agentdesk: true, intercom: false },
-  { feature: 'Streaming responses', agentdesk: true, intercom: true },
-  { feature: 'Per-site widget customization', agentdesk: true, intercom: true },
-  { feature: 'Email handoff on uncertainty', agentdesk: true, intercom: false },
-  { feature: 'Starts at $0/mo', agentdesk: true, intercom: false },
+  { feature: 'Trained on your own knowledge base', aigenic: true, intercom: true },
+  { feature: 'Setup in under a minute', aigenic: true, intercom: false },
+  { feature: 'One-line embed (no SDK)', aigenic: true, intercom: false },
+  { feature: 'Streaming responses', aigenic: true, intercom: true },
+  { feature: 'Per-site widget customization', aigenic: true, intercom: true },
+  { feature: 'Email handoff on uncertainty', aigenic: true, intercom: false },
+  { feature: 'Starts at $0/mo', aigenic: true, intercom: false },
 ];
 
 const FAQS = [
@@ -79,7 +79,7 @@ const FAQS = [
   },
   {
     q: 'Where does the knowledge base live?',
-    a: 'In your AgentDesk workspace, on Neon Postgres. You can re-sync, edit, or delete articles any time from the dashboard.',
+    a: 'In your Aigenic workspace, on Neon Postgres. You can re-sync, edit, or delete articles any time from the dashboard.',
   },
   {
     q: 'What model does it use?',
@@ -128,7 +128,7 @@ function Header() {
           <div className="grid h-7 w-7 place-items-center rounded-md bg-foreground text-background">
             <Sparkles className="h-4 w-4" />
           </div>
-          <span className="font-serif text-xl tracking-tight">AgentDesk</span>
+          <span className="font-serif text-xl tracking-tight">Aigenic</span>
         </Link>
         <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
           <a href="#features" className="transition hover:text-foreground">Features</a>
@@ -172,7 +172,7 @@ function Hero() {
         Add an AI support agent to your site in&nbsp;60&nbsp;seconds.
       </h1>
       <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground">
-        AgentDesk crawls your entire website, embeds a chat bubble on it, and answers customer questions
+        Aigenic crawls your entire website, embeds a chat bubble on it, and answers customer questions
         with citations — escalating to your support inbox when it isn&apos;t sure.
       </p>
       <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -261,7 +261,7 @@ function Features() {
       <div className="mx-auto max-w-2xl text-center">
         <h2 className="font-serif text-4xl tracking-tight md:text-5xl">Built for teams who hate chatbots.</h2>
         <p className="mt-4 text-muted-foreground">
-          Most &ldquo;AI support&rdquo; widgets are dressed-up FAQ bots — they pattern-match keywords and pray. AgentDesk reads every page
+          Most &ldquo;AI support&rdquo; widgets are dressed-up FAQ bots — they pattern-match keywords and pray. Aigenic reads every page
           on your site, cites its sources, and hands the conversation to a human the moment it isn&apos;t sure.
         </p>
       </div>
@@ -302,7 +302,7 @@ function EmbedPreview() {
             </div>
             <pre className="overflow-x-auto whitespace-pre text-[13px] leading-relaxed text-foreground/90">
 {`<script
-  src="https://agentdesk.app/widget.js"
+  src="https://aigenic.app/widget.js"
   data-site="{siteId}"
   async
 ></script>`}
@@ -318,7 +318,7 @@ function Comparison() {
   return (
     <section id="compare" className="mx-auto max-w-5xl px-6 py-24">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-serif text-4xl tracking-tight md:text-5xl">AgentDesk vs. Intercom Fin</h2>
+        <h2 className="font-serif text-4xl tracking-tight md:text-5xl">Aigenic vs. Intercom Fin</h2>
         <p className="mt-3 text-muted-foreground">
           Same job. A lot less setup. A lot less invoice.
         </p>
@@ -326,7 +326,7 @@ function Comparison() {
       <Card className="mt-12 overflow-hidden border-border/60">
         <div className="grid grid-cols-[1fr_120px_120px] items-center border-b border-border/60 bg-card/60 px-6 py-4 text-sm font-medium">
           <div className="text-muted-foreground">Feature</div>
-          <div className="text-center">AgentDesk</div>
+          <div className="text-center">Aigenic</div>
           <div className="text-center text-muted-foreground">Intercom Fin</div>
         </div>
         {COMPARE.map((row, i) => (
@@ -339,7 +339,7 @@ function Comparison() {
           >
             <div>{row.feature}</div>
             <div className="flex justify-center">
-              {row.agentdesk ? <Check className="h-4 w-4 text-foreground" /> : <Minus className="h-4 w-4 text-muted-foreground" />}
+              {row.aigenic ? <Check className="h-4 w-4 text-foreground" /> : <Minus className="h-4 w-4 text-muted-foreground" />}
             </div>
             <div className="flex justify-center">
               {row.intercom ? <Check className="h-4 w-4 text-muted-foreground" /> : <Minus className="h-4 w-4 text-muted-foreground" />}
@@ -455,7 +455,7 @@ function Footer() {
           <div className="grid h-6 w-6 place-items-center rounded-md bg-foreground text-background">
             <Sparkles className="h-3 w-3" />
           </div>
-          <span className="font-serif text-base text-foreground">AgentDesk</span>
+          <span className="font-serif text-base text-foreground">Aigenic</span>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
           <a href="#features" className="transition hover:text-foreground">Features</a>
@@ -463,7 +463,7 @@ function Footer() {
           <a href="#pricing" className="transition hover:text-foreground">Pricing</a>
           <a href="#faq" className="transition hover:text-foreground">FAQ</a>
         </div>
-        <div>© {new Date().getFullYear()} AgentDesk</div>
+        <div>© {new Date().getFullYear()} Aigenic</div>
       </div>
     </footer>
   );

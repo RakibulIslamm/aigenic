@@ -12,7 +12,7 @@ export function getStripeClient(): Stripe | null {
   const apiKey = process.env.STRIPE_SECRET_KEY;
   if (!apiKey) return null;
   cachedClient = new Stripe(apiKey, {
-    appInfo: { name: 'AgentDesk', version: '0.1.0' },
+    appInfo: { name: 'Aigenic', version: '0.1.0' },
   });
   return cachedClient;
 }

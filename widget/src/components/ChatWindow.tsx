@@ -299,7 +299,7 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
 
       <div class="ad-footer">
         Powered by{' '}
-        <a href="https://agentdesk.app" target="_blank" rel="noopener noreferrer">AgentDesk</a>
+        <a href="https://aigenic.app" target="_blank" rel="noopener noreferrer">Aigenic</a>
       </div>
     </div>
   );

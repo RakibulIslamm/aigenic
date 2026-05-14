@@ -1,4 +1,4 @@
-# Deploying AgentDesk Scraper on a Contabo VPS
+# Deploying Aigenic Scraper on a Contabo VPS
 
 This walkthrough takes you from a fresh Ubuntu 22.04+ VPS to `https://scraper.yourdomain.com/health` returning `{"status":"ok"}`. Total time: 15–20 minutes.
 
@@ -61,8 +61,8 @@ docker compose version
 
 ```bash
 cd ~
-git clone https://github.com/<you>/agent_desk.git
-cd agent_desk/vps-scraper
+git clone https://github.com/<you>/aigenic.git
+cd aigenic/vps-scraper
 ```
 
 (If you don't have the repo on GitHub yet, `scp` the `vps-scraper/` directory up: `scp -r vps-scraper deploy@<vps-ip>:~/`.)
@@ -107,7 +107,7 @@ docker compose logs -f
 You should see something like:
 
 ```
-agentdesk-scraper {"level":30,"port":3001,"msg":"agentdesk-scraper listening"}
+aigenic-scraper {"level":30,"port":3001,"msg":"aigenic-scraper listening"}
 ```
 
 The container is bound to `127.0.0.1:3001` — it isn't reachable from the internet yet. That's intentional. We let Caddy terminate TLS and proxy to it.
@@ -116,7 +116,7 @@ Quick local check:
 
 ```bash
 curl http://127.0.0.1:3001/health
-# {"status":"ok","service":"agentdesk-scraper","uptime":...}
+# {"status":"ok","service":"aigenic-scraper","uptime":...}
 ```
 
 ---
@@ -189,7 +189,7 @@ From your laptop:
 
 ```bash
 curl https://scraper.yourdomain.com/health
-# {"status":"ok","service":"agentdesk-scraper","uptime":12.3}
+# {"status":"ok","service":"aigenic-scraper","uptime":12.3}
 ```
 
 Bad-key check:
@@ -222,7 +222,7 @@ Watch `webhook.site` — `article` events should arrive, followed by `complete`.
 
 ---
 
-## 9. Wire it into the AgentDesk app
+## 9. Wire it into the Aigenic app
 
 In your Next.js project's Vercel env vars (Production and Preview):
 
@@ -243,7 +243,7 @@ Redeploy. Adding a new site from the dashboard should now trigger a real crawl.
 | Follow logs                | `docker compose logs -f --tail=200 scraper`       |
 | Restart                    | `docker compose restart scraper`                  |
 | Pull latest code + rebuild | `git pull && docker compose up -d --build`        |
-| See resource use           | `docker stats agentdesk-scraper`                  |
+| See resource use           | `docker stats aigenic-scraper`                  |
 | Update Caddy config        | `sudo caddy reload --config /etc/caddy/Caddyfile` |
 
 If the box runs out of memory during a large crawl, raise `deploy.resources.limits.memory` in `docker-compose.yml` (Contabo's smallest plan handles ~1.5 GB comfortably) or lower `CONCURRENCY` in `src/crawler.ts`.

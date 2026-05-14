@@ -34,7 +34,7 @@ interface SendWebhookOptions {
 }
 
 /**
- * Sends a single webhook event back to the AgentDesk app. The receiver expects
+ * Sends a single webhook event back to the Aigenic app. The receiver expects
  * an X-API-Key header that matches its SCRAPER_API_KEY env var. We retry up to
  * three times on transient failures (network/5xx) with exponential backoff.
  */

@@ -1,8 +1,8 @@
 {
-  "name": "agentdesk-scraper",
+  "name": "aigenic-scraper",
   "version": "0.1.0",
   "private": true,
-  "description": "VPS-hosted Playwright crawler for AgentDesk. Crawls a tenant site and streams clean article content back via webhook.",
+  "description": "VPS-hosted Playwright crawler for Aigenic. Crawls a tenant site and streams clean article content back via webhook.",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

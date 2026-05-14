@@ -66,7 +66,7 @@ export default async function WidgetPage({
         <CardContent>
           <div className="overflow-hidden rounded-lg border border-border/60 bg-background">
             <iframe
-              title="AgentDesk widget preview"
+              title="Aigenic widget preview"
               srcDoc={previewHtml(site.id, widgetUrl)}
               className="h-[480px] w-full"
               sandbox="allow-scripts allow-same-origin"
@@ -97,7 +97,7 @@ function previewHtml(siteId: string, widgetUrl: string): string {
   <body>
     <div class="card">
       <h2>Your site (preview)</h2>
-      <p>The AgentDesk chat bubble mounts in the bottom-right corner. Click it to open the widget.</p>
+      <p>The Aigenic chat bubble mounts in the bottom-right corner. Click it to open the widget.</p>
     </div>
     <script src="${widgetUrl}/widget.js" data-site="${siteId}" async></script>
   </body>

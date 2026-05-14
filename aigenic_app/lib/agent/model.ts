@@ -17,7 +17,7 @@ const openrouter = createOpenAI({
   headers: {
     // Optional but recommended by OpenRouter for usage attribution.
     'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
-    'X-Title': 'AgentDesk',
+    'X-Title': 'Aigenic',
   },
 });
 

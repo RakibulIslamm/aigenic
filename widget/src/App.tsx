@@ -42,7 +42,7 @@ export function App({ apiBase, siteId }: AppProps) {
 
   if (!config) {
     if (error) {
-      console.warn('AgentDesk widget failed to load:', error);
+      console.warn('Aigenic widget failed to load:', error);
     }
     return null;
   }

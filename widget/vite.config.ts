@@ -15,10 +15,10 @@ export default defineConfig({
     minify: 'oxc',
     sourcemap: false,
     emptyOutDir: false,
-    outDir: resolve(__dirname, '../agent_desk_app/public'),
+    outDir: resolve(__dirname, '../aigenic_app/public'),
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
-      name: 'AgentDesk',
+      name: 'Aigenic',
       formats: ['iife'],
       fileName: () => 'widget.js',
     },

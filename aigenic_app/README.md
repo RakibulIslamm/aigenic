@@ -1,4 +1,4 @@
-# AgentDesk
+# Aigenic
 
 > An embeddable, multi-tenant AI customer support agent. Sign up, paste your URL, drop a one-line script on your site, and your visitors get a chat bubble trained on your entire website — with citations, tool use, and graceful escalation to a human. Works for any company: SaaS, e-commerce, marketing sites, agencies.
 
@@ -18,7 +18,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `an
 ## What you get
 
 - **One-line embed.** A single `<script>` tag, anywhere a script can load — Next, Astro, Webflow, Shopify, WordPress. Mounts in a Shadow DOM so your host CSS can't reach in.
-- **Auto-crawl.** Point AgentDesk at your URL and a separate Playwright service walks the site, respects `robots.txt`, dedupes by content hash, and streams articles back over a webhook. Static sites skip the Chromium startup tax.
+- **Auto-crawl.** Point Aigenic at your URL and a separate Playwright service walks the site, respects `robots.txt`, dedupes by content hash, and streams articles back over a webhook. Static sites skip the Chromium startup tax.
 - **Full-text search over your KB.** Postgres `tsvector` + GIN index, `plainto_tsquery` + `ts_rank` for ordering.
 - **Streaming chat with tool use.** Custom SSE protocol (`meta | text | tool | error | done`). Three tools bound per request: `search_knowledge_base`, `get_article`, `escalate_to_human`. Tool calls render inline in the dashboard with friendly labels and a JSON drill-down.
 - **Graceful escalation.** When the agent isn't sure it calls the escalate tool. Resend delivers the full transcript to the inbox set on the site — idempotent via DB constraint.
@@ -32,7 +32,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `an
 ┌────────────────────────────────────────────────────────────────────────────┐
 │                          User's product website                            │
 │ ┌──────────────────────────────────────────────────────────────────────┐ │
-│ │ <script src="https://agentdesk.app/widget.js" data-site="…" async>   │ │
+│ │ <script src="https://aigenic.app/widget.js" data-site="…" async>      │ │
 │ │   • mounts Preact app inside Shadow DOM (~9.5 KB gzip)               │ │
 │ │   • sessionStorage: visitorId + per-site conversationId                │ │
 │ └──────────────────────────────┬───────────────────────────────────────┘ │
@@ -121,7 +121,7 @@ Plan + usage cards (sites used / monthly conversations vs. included allowance), 
 
 ### Embeddable widget
 
-Lives in [`../widget/`](../widget). Built via `pnpm build` → writes directly to `public/widget.js`. Bootstraps from a `<script data-site="…">` tag (or `window.AgentDeskConfig` fallback), opens a Shadow DOM, fetches `/api/widget/config?siteId=…`, streams chats over SSE, persists `visitorId` + `conversationId` in `sessionStorage`.
+Lives in [`../widget/`](../widget). Built via `pnpm build` → writes directly to `public/widget.js`. Bootstraps from a `<script data-site="…">` tag (or `window.AigenicConfig` fallback), opens a Shadow DOM, fetches `/api/widget/config?siteId=…`, streams chats over SSE, persists `visitorId` + `conversationId` in `sessionStorage`.
 
 ## Project layout
 
@@ -277,7 +277,7 @@ All scripts are prefixed with `cross-env MallocNanoZone=` — a macOS workaround
 
 The full punch-list:
 
-1. **Push to GitHub**, then **import into Vercel**. Set the project root to `agent_desk_app/`.
+1. **Push to GitHub**, then **import into Vercel**. Set the project root to `aigenic_app/`.
 2. Add every env var from `.env.local` to Vercel (Production + Preview).
 3. **Clerk:** in the Clerk dashboard, add the Vercel domain to **Allowed Origins** and **Sign-in/Sign-up URLs**, switch the production instance to use the new domain.
 4. **Stripe:** create the $19/mo Starter and $49/mo Pro recurring prices (each generates a `price_...` id — paste them into `STRIPE_STARTER_PRICE_ID` and `STRIPE_PRO_PRICE_ID`), then a webhook endpoint pointed at `https://your-app.vercel.app/api/stripe/webhook` listening to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`. The webhook handler reverse-looks-up the active price id to set the plan, so you don't need to repeat plan names anywhere.

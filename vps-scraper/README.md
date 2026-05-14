@@ -1,12 +1,12 @@
-# AgentDesk Scraper
+# Aigenic Scraper
 
-> Standalone HTTP service that crawls a tenant's site with Playwright, extracts clean article content with Mozilla Readability, and streams results back to the AgentDesk Next.js app via webhook.
+> Standalone HTTP service that crawls a tenant's site with Playwright, extracts clean article content with Mozilla Readability, and streams results back to the Aigenic Next.js app via webhook.
 
 This is **not** part of the Next.js app — it's a small Express service designed to run on a VPS (Contabo, Hetzner, anywhere with Docker). The Next.js app talks to it over HTTPS using an API key.
 
 ```
 ┌────────────────────┐                ┌──────────────────────┐
-│  AgentDesk (Vercel) │  POST /crawl  │  vps-scraper         │
+│  Aigenic (Vercel)    │  POST /crawl  │  vps-scraper         │
 │                     │ ─────────────▶│  (this service)      │
 │  /api/scraper/      │               │                      │
 │   webhook  ◀────────│   article…    │  Playwright + JSDOM  │
@@ -48,7 +48,7 @@ X-API-Key: <SCRAPER_API_KEY>
   "siteId":     "11111111-2222-3333-4444-555555555555",
   "startUrl":   "https://docs.example.com",
   "maxPages":   100,
-  "webhookUrl": "https://agentdesk.app/api/scraper/webhook"
+  "webhookUrl": "https://aigenic.app/api/scraper/webhook"
 }
 ```
 
@@ -65,7 +65,7 @@ Smoke test:
 
 ```bash
 curl http://localhost:3001/health
-# {"status":"ok","service":"agentdesk-scraper","uptime":1.23}
+# {"status":"ok","service":"aigenic-scraper","uptime":1.23}
 
 curl -X POST http://localhost:3001/crawl \
   -H "Content-Type: application/json" \
@@ -109,9 +109,9 @@ DEPLOY.md             VPS deployment guide (Contabo + Caddy)
 | `SCRAPER_API_KEY`    | yes      | —                                             | Shared secret with the Next.js app. Refuse to start without it.   |
 | `PORT`               | no       | `3001`                                        | Express bind port.                                                 |
 | `LOG_LEVEL`          | no       | `info`                                        | Pino log level.                                                    |
-| `SCRAPER_USER_AGENT` | no       | `AgentDeskBot/0.1 (+https://agentdesk.app/bot)` | What the crawler advertises in HTTP and robots.txt lookups.       |
+| `SCRAPER_USER_AGENT` | no       | `AigenicBot/0.1 (+https://aigenic.app/bot)`     | What the crawler advertises in HTTP and robots.txt lookups.       |
 | `NODE_ENV`           | no       | `production` in container, `development` in `pnpm dev` | Switches pino between JSON and pretty.                  |
 
 ## License
 
-MIT — for use inside the AgentDesk project.
+MIT — for use inside the Aigenic project.

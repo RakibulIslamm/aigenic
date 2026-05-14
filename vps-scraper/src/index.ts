@@ -36,7 +36,7 @@ app.use(helmet());
 app.use(express.json({ limit: MAX_BODY }));
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'agentdesk-scraper', uptime: process.uptime() });
+  res.json({ status: 'ok', service: 'aigenic-scraper', uptime: process.uptime() });
 });
 
 app.use('/crawl', requireApiKey);
@@ -103,7 +103,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 const server = app.listen(PORT, () => {
-  logger.info({ port: PORT }, 'agentdesk-scraper listening');
+  logger.info({ port: PORT }, 'aigenic-scraper listening');
 });
 
 function shutdown(signal: string) {

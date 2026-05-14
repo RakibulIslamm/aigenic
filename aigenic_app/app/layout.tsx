@@ -24,7 +24,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: 'AgentDesk — AI customer support for any site',
+  title: 'Aigenic — AI customer support for any site',
   description:
     'Add a trained AI support agent to your site in 60 seconds. Knowledge-base aware, multi-tenant, embeddable.',
 };

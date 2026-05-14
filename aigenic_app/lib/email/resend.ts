@@ -12,4 +12,4 @@ export function getResendClient(): Resend | null {
 }
 
 export const ESCALATION_FROM_ADDRESS =
-  process.env.RESEND_FROM_ADDRESS ?? 'AgentDesk <agent@notifications.agentdesk.app>';
+  process.env.RESEND_FROM_ADDRESS ?? 'Aigenic <agent@notifications.aigenic.app>';

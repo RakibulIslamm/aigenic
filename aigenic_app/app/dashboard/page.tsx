@@ -38,7 +38,7 @@ export default async function DashboardPage() {
             Your sites
           </h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            A site is one website you&apos;ve connected AgentDesk to. Each has its own knowledge base, widget config, and escalation inbox.
+            A site is one website you&apos;ve connected Aigenic to. Each has its own knowledge base, widget config, and escalation inbox.
           </p>
         </div>
         <AddSiteDialog

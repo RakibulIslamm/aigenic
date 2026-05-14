@@ -3,7 +3,7 @@ import { App } from './App';
 // Vite inlines the CSS as a string when imported with the ?inline query.
 import styles from './styles.css?inline';
 
-const HOST_ID = 'agentdesk-widget-host';
+const HOST_ID = 'aigenic-widget-host';
 const SCRIPT_NAME = 'widget.js';
 
 interface BootOptions {
@@ -34,7 +34,7 @@ function readBootOptions(): BootOptions | null {
 
   // Fallback for environments where the script tag isn't discoverable
   // (e.g. injected via fetch + eval, or programmatic loaders).
-  const globalCfg = (window as unknown as { AgentDeskConfig?: { siteId?: string; apiBase?: string } }).AgentDeskConfig;
+  const globalCfg = (window as unknown as { AigenicConfig?: { siteId?: string; apiBase?: string } }).AigenicConfig;
   if (!siteId && globalCfg?.siteId) siteId = globalCfg.siteId;
   if (globalCfg?.apiBase) apiBase = globalCfg.apiBase;
 
@@ -66,7 +66,7 @@ function mount(options: BootOptions) {
 function boot() {
   const options = readBootOptions();
   if (!options) {
-    console.warn('AgentDesk widget: missing data-site attribute on <script> tag');
+    console.warn('Aigenic widget: missing data-site attribute on <script> tag');
     return;
   }
 
