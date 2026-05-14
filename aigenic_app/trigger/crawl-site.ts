@@ -42,17 +42,29 @@ export const crawlSiteTask = task({
   run: async (payload: CrawlSitePayload) => {
     const { siteId, userId, domain, kind, maxPages } = payload;
 
+    logger.log('Starting crawl', { siteId, userId, domain, kind, maxPages });
+
     if (!isScraperConfigured()) {
-      logger.warn('Scraper not configured — skipping', { siteId });
-      return { siteId, dispatched: false, reason: 'scraper-not-configured' as const };
+      // Throw instead of returning success-shaped data so the run shows up
+      // as Failed in cloud.trigger.dev — otherwise the user sees "task
+      // completed" and assumes the crawl ran, when in fact nothing happened.
+      // Most likely cause: SCRAPER_API_URL / SCRAPER_API_KEY are missing
+      // from the Trigger.dev project's environment variables.
+      throw new Error(
+        'Scraper not configured in this Trigger.dev environment. ' +
+          'Set SCRAPER_API_URL and SCRAPER_API_KEY in the Trigger.dev project env.'
+      );
     }
 
     const result = await dispatchSiteCrawl({ siteId, domain, maxPages });
     if (!result.dispatched) {
-      logger.log('Skipping crawl', { siteId, reason: result.reason });
+      // `site-deleted` and `already-crawling` are legitimate no-ops — log them
+      // visibly but don't fail the run (retrying won't help).
+      logger.warn('Crawl skipped', { siteId, reason: result.reason });
       return { siteId, dispatched: false, reason: result.reason };
     }
 
+    logger.log('Crawl dispatched to scraper', { siteId });
     return { siteId, userId, dispatched: true, kind };
   },
 });

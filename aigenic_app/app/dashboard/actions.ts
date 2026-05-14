@@ -111,11 +111,28 @@ export async function createSiteAction(
     return { ok: false, error: 'Could not create site' };
   }
 
-  // Initial crawl: synchronous dispatch is fine — there's no fan-out and no
-  // quota to claim. `dispatchSiteCrawl` flips `kbStatus → crawling` before
-  // POSTing and to `failed` if the scraper rejects.
+  // Route the initial crawl through the Trigger.dev queue (same as a manual
+  // re-sync) so it respects `scraper-dispatch`'s `concurrencyLimit: 3` and
+  // shows up in the cloud.trigger.dev dashboard alongside every other crawl.
+  // No `crawl_runs` row is recorded — site creation doesn't count against
+  // the manual-crawl quota. Falls back to a synchronous dispatch when
+  // Trigger.dev isn't configured (local dev without TRIGGER_API_KEY).
   let scraperMessage: string | undefined;
-  if (isScraperConfigured()) {
+  if (isTriggerConfigured()) {
+    ensureTriggerConfigured();
+    try {
+      await crawlSiteTask.trigger({
+        siteId: site.id,
+        userId: user.id,
+        domain: site.domain,
+        kind: 'manual',
+        maxPages: parsed.data.maxPages,
+      });
+    } catch (err) {
+      scraperMessage =
+        err instanceof Error ? err.message : 'Could not enqueue crawl';
+    }
+  } else if (isScraperConfigured()) {
     try {
       await dispatchSiteCrawl({
         siteId: site.id,
