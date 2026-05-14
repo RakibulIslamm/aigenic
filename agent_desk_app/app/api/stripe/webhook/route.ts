@@ -6,7 +6,9 @@ import { users } from '@/db/schema';
 import {
   getStripeClient,
   STRIPE_WEBHOOK_SECRET,
+  planForPriceId,
 } from '@/lib/billing/stripe';
+import { isPlanId, type PlanId } from '@/lib/billing/plans';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,6 +55,7 @@ export async function POST(request: NextRequest) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.userId;
+        const sessionPlan = session.metadata?.plan;
         const customerId =
           typeof session.customer === 'string' ? session.customer : session.customer?.id;
         const subscriptionId =
@@ -60,11 +63,16 @@ export async function POST(request: NextRequest) {
             ? session.subscription
             : session.subscription?.id;
 
+        // Trust the session metadata if it labelled the plan; otherwise default
+        // to 'pro' for backward compatibility with pre-Starter checkouts.
+        const targetPlan: PlanId =
+          sessionPlan && isPlanId(sessionPlan) && sessionPlan !== 'free' ? sessionPlan : 'pro';
+
         if (userId) {
           await db
             .update(users)
             .set({
-              plan: 'pro',
+              plan: targetPlan,
               stripeCustomerId: customerId ?? null,
               stripeSubscriptionId: subscriptionId ?? null,
             })
@@ -79,10 +87,19 @@ export async function POST(request: NextRequest) {
         const userId = sub.metadata?.userId ?? null;
         const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
-        // Active-ish statuses keep them on Pro; anything else demotes.
+        // Map the active price back to a plan id. Stripe puts the purchased
+        // price under items.data[0].price.id. Falls back to metadata when set.
+        const priceId = sub.items.data[0]?.price?.id;
+        const planFromPrice = planForPriceId(priceId);
+        const planFromMeta =
+          sub.metadata?.plan && isPlanId(sub.metadata.plan) && sub.metadata.plan !== 'free'
+            ? (sub.metadata.plan as PlanId)
+            : null;
+
+        // Active-ish statuses keep them on their paid plan; anything else demotes.
         const isActive =
           sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due';
-        const targetPlan = isActive ? 'pro' : 'free';
+        const targetPlan: PlanId = isActive ? (planFromPrice ?? planFromMeta ?? 'pro') : 'free';
 
         if (userId) {
           await db

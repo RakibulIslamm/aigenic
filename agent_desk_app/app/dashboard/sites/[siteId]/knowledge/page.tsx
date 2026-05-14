@@ -68,7 +68,7 @@ export default async function KnowledgeBasePage({
         <ResyncAllButton siteId={siteId} kbStatus={site.kbStatus} />
       </section>
 
-      <ArticleSearch key={trimmedQ} defaultValue={trimmedQ} />
+      <ArticleSearch urlQuery={trimmedQ} />
 
       {rows.length === 0 ? (
         trimmedQ ? (

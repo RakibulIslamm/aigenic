@@ -7,19 +7,29 @@ import { Input } from '@/components/ui/input';
 
 const DEBOUNCE_MS = 250;
 
-/**
- * The parent passes a `key={defaultValue}` so a URL-driven change (e.g. the
- * "Clear search" link in the NoMatchesState) remounts this component with the
- * fresh initial value — avoiding the setState-in-effect pattern.
- */
-export function ArticleSearch({ defaultValue }: { defaultValue: string }) {
+export function ArticleSearch({ urlQuery }: { urlQuery: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [value, setValue] = useState(defaultValue);
+  const [value, setValue] = useState(urlQuery);
+  const [prevUrlQuery, setPrevUrlQuery] = useState(urlQuery);
   const [, startTransition] = useTransition();
 
+  // Adjust state during render when the URL changes from outside this input
+  // (e.g. the "Clear search" link in the NoMatchesState). React bails out and
+  // re-renders without ever flashing the stale value — no remount, no effect,
+  // so the <input> keeps focus while the user types.
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  if (urlQuery !== prevUrlQuery) {
+    setPrevUrlQuery(urlQuery);
+    setValue(urlQuery);
+  }
+
   useEffect(() => {
+    // No-op if the input already matches the URL — prevents the effect from
+    // re-firing after we sync from an external URL change.
+    if (value === urlQuery) return;
+
     const handle = window.setTimeout(() => {
       const params = new URLSearchParams(searchParams.toString());
       const trimmed = value.trim();
@@ -33,7 +43,7 @@ export function ArticleSearch({ defaultValue }: { defaultValue: string }) {
     }, DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [value, urlQuery]);
 
   return (
     <div className="relative">

@@ -9,8 +9,8 @@ import {
   Mail,
   MessageSquare,
   Minus,
+  Quote,
   Sparkles,
-  Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,9 +30,9 @@ const FEATURES = [
     body: 'Point it at your URL — AgentDesk crawls your entire site (pages, help center, blog, FAQs) to build a private knowledge base in minutes.',
   },
   {
-    icon: MessageSquare,
-    title: 'Streaming chat, on-brand',
-    body: 'A clean chat bubble that matches your colors, copy, and bot name. No "Powered by" badges in the way.',
+    icon: Quote,
+    title: 'Cites every answer',
+    body: 'Every reply links back to the page it came from, so visitors can verify and you can audit. No silent hallucinations, no "the AI made it up" tickets.',
   },
   {
     icon: Mail,
@@ -45,14 +45,14 @@ const FEATURES = [
     body: 'See live conversations, escalations, resolution rate, and what your visitors keep asking. Built for support, marketing, and product teams.',
   },
   {
+    icon: MessageSquare,
+    title: 'On-brand widget',
+    body: 'A clean chat bubble that matches your colors, copy, and bot name. Streaming responses, no "Powered by" badges in the way.',
+  },
+  {
     icon: Code2,
     title: 'One line to ship',
     body: 'A single <script> tag. No SDK, no React peer-dep tango. Works on Next, Astro, Webflow, Shopify, anywhere a script can load.',
-  },
-  {
-    icon: Zap,
-    title: 'Built on Claude sonnet',
-    body: 'Frontier reasoning behind every reply, with structured tool use to look up articles before it answers.',
   },
 ];
 
@@ -180,7 +180,7 @@ function Hero() {
           <a href="#features">See how it works</a>
         </Button>
       </div>
-      <p className="mt-4 text-xs text-muted-foreground">No credit card · 1 site free forever · 100 conversations/mo</p>
+      <p className="mt-4 text-xs text-muted-foreground">No credit card · 1 site free forever · 30 conversations/mo</p>
 
       <div className="mx-auto mt-16 max-w-3xl">
         <div className="rounded-2xl border border-border/70 bg-card/60 p-1 shadow-2xl shadow-black/40">
@@ -255,8 +255,8 @@ function Features() {
       <div className="mx-auto max-w-2xl text-center">
         <h2 className="font-serif text-4xl tracking-tight md:text-5xl">Built for teams who hate chatbots.</h2>
         <p className="mt-4 text-muted-foreground">
-          Most &ldquo;AI support&rdquo; widgets are dressed-up FAQ bots. AgentDesk reads your actual website and reasons through requests
-          like a thoughtful teammate.
+          Most &ldquo;AI support&rdquo; widgets are dressed-up FAQ bots — they pattern-match keywords and pray. AgentDesk reads every page
+          on your site, cites its sources, and hands the conversation to a human the moment it isn&apos;t sure.
         </p>
       </div>
       <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -352,7 +352,7 @@ function Pricing() {
         <h2 className="font-serif text-4xl tracking-tight md:text-5xl">Pricing that scales with you, not against you.</h2>
         <p className="mt-3 text-muted-foreground">Start free. Upgrade when your visitors won't stop talking.</p>
       </div>
-      <div className="mt-14 grid gap-6 md:grid-cols-2">
+      <div className="mt-14 grid gap-6 md:grid-cols-3">
         <PricingCard
           name="Free"
           price="$0"
@@ -360,12 +360,26 @@ function Pricing() {
           description="For solo founders and small businesses getting started."
           features={[
             '1 site',
-            '100 conversations / month',
+            '30 conversations / month',
             'Knowledge base auto-crawl',
             'Email escalation',
             'Community support',
           ]}
           cta={{ label: 'Start free', href: '/sign-up' }}
+        />
+        <PricingCard
+          name="Starter"
+          price="$19"
+          period="per month"
+          description="For small sites that outgrew the free tier."
+          features={[
+            '2 sites',
+            '300 conversations / month',
+            'Then $0.15 per additional conversation',
+            'Custom widget colors & copy',
+            'Email support',
+          ]}
+          cta={{ label: 'Start with Starter', href: '/sign-up' }}
         />
         <PricingCard
           name="Pro"
@@ -375,13 +389,13 @@ function Pricing() {
           highlighted
           features={[
             '5 sites',
-            'Unlimited conversations',
+            '1,000 conversations / month',
+            'Then $0.10 per additional conversation',
             'Priority knowledge base re-syncs',
-            'Custom widget colors & copy',
             'Analytics & escalation rules',
             'Email support',
           ]}
-          cta={{ label: 'Start 14-day trial', href: '/sign-up' }}
+          cta={{ label: 'Start with Pro', href: '/sign-up' }}
         />
       </div>
     </section>

@@ -62,14 +62,18 @@ export async function POST(request: NextRequest) {
       return jsonError('Conversation does not belong to this site', 403);
     }
   } else {
-    // Free-plan cap: refuse to create a new conversation once the site owner
-    // has hit their per-month allowance. Existing conversations keep working.
+    // Hard-cap conversations only for plans that opt into enforcement (Free).
+    // Paid plans allow overage — those conversations are metered, not blocked,
+    // so existing customers never get a "limit reached" surprise mid-month.
     const owner = await db.query.users.findFirst({
       where: eq(users.id, site.userId),
     });
     if (owner) {
       const plan = getPlan(owner.plan);
-      if (plan.limits.conversationsPerMonth !== Number.POSITIVE_INFINITY) {
+      if (
+        plan.limits.enforceConversationLimit &&
+        Number.isFinite(plan.limits.conversationsPerMonth)
+      ) {
         const used = await countConversationsThisMonthForUser(owner.id);
         if (used >= plan.limits.conversationsPerMonth) {
           return jsonError(

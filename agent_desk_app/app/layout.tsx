@@ -59,6 +59,11 @@ export default function RootLayout({
           {children}
           <Toaster richColors position="top-right" theme="dark" />
         </body>
+        <script
+  src="http://localhost:3000/widget.js"
+  data-site="38474717-63f9-4511-8360-757391b75a77"
+  async
+></script>
       </html>
     </ClerkProvider>
   );

@@ -5,30 +5,51 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, Loader2, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import type { PlanId } from '@/lib/billing/plans';
 
-async function postToStripeRoute(path: string): Promise<string> {
-  const res = await fetch(path, { method: 'POST' });
+async function postToStripeRoute(
+  path: string,
+  body?: Record<string, unknown>
+): Promise<string> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Request failed (${res.status})`);
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `Request failed (${res.status})`);
   }
   const data = (await res.json()) as { url?: string };
   if (!data.url) throw new Error('Stripe did not return a URL');
   return data.url;
 }
 
-export function UpgradeButton({ disabled, disabledReason }: { disabled?: boolean; disabledReason?: string }) {
+export function UpgradeButton({
+  plan,
+  label,
+  disabled,
+  disabledReason,
+  variant,
+}: {
+  plan: Extract<PlanId, 'starter' | 'pro'>;
+  label: string;
+  disabled?: boolean;
+  disabledReason?: string;
+  variant?: 'default' | 'outline';
+}) {
   const [pending, setPending] = useState(false);
 
   return (
     <Button
       size="lg"
+      variant={variant}
       disabled={disabled || pending}
       title={disabled ? disabledReason : undefined}
       onClick={async () => {
         setPending(true);
         try {
-          const url = await postToStripeRoute('/api/stripe/checkout');
+          const url = await postToStripeRoute('/api/stripe/checkout', { plan });
           window.location.href = url;
         } catch (err) {
           toast.error(err instanceof Error ? err.message : 'Could not start checkout');
@@ -43,7 +64,7 @@ export function UpgradeButton({ disabled, disabledReason }: { disabled?: boolean
         </>
       ) : (
         <>
-          Upgrade to Pro
+          {label}
           <ArrowRight className="ml-1 h-4 w-4" />
         </>
       )}

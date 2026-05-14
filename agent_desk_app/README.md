@@ -1,6 +1,6 @@
 # AgentDesk
 
-> An embeddable, multi-tenant AI customer support agent. Sign up, paste your URL, drop a one-line script on your site, and your visitors get a chat bubble trained on your docs — with citations, tool use, and graceful escalation to a human.
+> An embeddable, multi-tenant AI customer support agent. Sign up, paste your URL, drop a one-line script on your site, and your visitors get a chat bubble trained on your entire website — with citations, tool use, and graceful escalation to a human. Works for any company: SaaS, e-commerce, marketing sites, agencies.
 
 Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `anthropic/claude-sonnet-4.6`, marketed against **Claude Sonnet 4.6**), **Next.js 16** App Router, **Drizzle ORM** on Neon Postgres, and **Clerk** for auth. The chat widget is a 9.5 KB Preact bundle that mounts inside a Shadow DOM. Crawling runs in a separate **Playwright** service on a Contabo VPS.
 
@@ -23,7 +23,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `an
 - **Streaming chat with tool use.** Custom SSE protocol (`meta | text | tool | error | done`). Three tools bound per request: `search_knowledge_base`, `get_article`, `escalate_to_human`. Tool calls render inline in the dashboard with friendly labels and a JSON drill-down.
 - **Graceful escalation.** When the agent isn't sure it calls the escalate tool. Resend delivers the full transcript to the inbox set on the site — idempotent via DB constraint.
 - **6-tab site detail.** Overview · Knowledge base (paginated, per-article re-scrape) · Conversations (status-filtered: All/Active/Escalated/Resolved, mark-as-resolved, transcript view, escalation panel) · Analytics (4 stats + 30-day chart + top topics) · Widget code (copy snippet + live `srcDoc` preview) · Settings (rename, escalation email, widget color picker, greeting, delete-with-confirm).
-- **Plan-aware limits.** Free = 1 site / 100 conversations / month. Pro ($49/mo) = 5 sites / unlimited. Enforced server-side; Stripe Checkout + Customer Portal wired through webhooks.
+- **Plan-aware limits.** Free = 1 site / 30 conversations / month (hard cap). Starter ($19/mo) = 2 sites / 300 included + $0.15 per extra. Pro ($49/mo) = 5 sites / 1,000 included + $0.10 per extra. Hard cap enforced server-side on Free; paid plans allow overage. Stripe Checkout + Customer Portal wired through webhooks; the active subscription price id maps back to the plan.
 - **Stop-mid-crawl.** Big-site overrun? Hit the **Stop crawl** button — the optimistic UI flips immediately and the VPS aborts the in-flight job.
 
 ## Architecture
@@ -86,7 +86,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `an
 - **Widget:** Preact + Vite (IIFE bundle, ~9.5 KB gzipped, mounts in Shadow DOM, inlined CSS)
 - **Crawler:** Playwright (headless Chromium) + `@mozilla/readability` + JSDOM + robots-parser, in [`../vps-scraper/`](../vps-scraper). Same-site BFS, sitemap-seeded, per-host rate limit, two-tier fetcher (plain `fetch` → escalate to Playwright only for JS shells), `AbortController`-based stop, exponential-backoff webhook delivery.
 - **Email:** Resend (escalation transcripts, idempotent via `escalations` unique constraint)
-- **Billing:** Stripe (Free vs $49/mo Pro, Checkout + Customer Portal)
+- **Billing:** Stripe (Free / $19 Starter / $49 Pro, Checkout + Customer Portal; per-plan price IDs)
 - **Charts:** Recharts (analytics tab)
 - **UI:** shadcn/ui + Tailwind v4 + Lucide + Sonner (toasts) + Instrument Serif display font
 - **Package manager:** pnpm
@@ -95,7 +95,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `an
 
 ### Landing page (`/`)
 
-Hero · social-proof strip · 6-feature grid · embed-code preview · vs-Intercom comparison · 2-tier pricing · FAQ accordion · final CTA. Dark theme, sticky header with `<Show when="signed-in">` to surface the **Open dashboard** button when authenticated.
+Hero · social-proof strip · 6-feature grid · embed-code preview · vs-Intercom comparison · 3-tier pricing (Free / Starter / Pro) · FAQ accordion · final CTA. Dark theme, sticky header with `<Show when="signed-in">` to surface the **Open dashboard** button when authenticated.
 
 ### Dashboard (`/dashboard`)
 
@@ -117,7 +117,7 @@ Sticky top nav with active-state highlight (Sites / Billing). Sites grid shows p
 
 ### Billing (`/dashboard/billing`)
 
-Plan + usage cards (sites used / monthly conversations used), success / cancelled / not-configured banners, two plan cards with **Current plan** badge and **Upgrade to Pro** / **Manage subscription** actions.
+Plan + usage cards (sites used / monthly conversations vs. included allowance), success / cancelled / not-configured banners, three plan cards (Free / Starter / Pro) with **Current plan** / **Most popular** badges and **Upgrade to Starter** / **Upgrade to Pro** / **Manage subscription** actions. The conversations card shows overage in dollars when a paid plan exceeds its included count.
 
 ### Embeddable widget
 
@@ -219,7 +219,8 @@ To wire billing:
 | ------------------------- | ------------------------------------------------------------ |
 | `STRIPE_SECRET_KEY`       | `sk_live_...` or `sk_test_...`                               |
 | `STRIPE_WEBHOOK_SECRET`   | `whsec_...` from the webhook endpoint in the Stripe dashboard |
-| `STRIPE_PRO_PRICE_ID`     | `price_...` for the $49/mo recurring price                   |
+| `STRIPE_STARTER_PRICE_ID` | `price_...` for the $19/mo Starter recurring price (optional — if unset, the Starter upgrade button is disabled) |
+| `STRIPE_PRO_PRICE_ID`     | `price_...` for the $49/mo Pro recurring price (optional — if unset, the Pro upgrade button is disabled)         |
 
 To wire escalation email: set `RESEND_API_KEY` (and optionally `RESEND_FROM_ADDRESS`).
 
@@ -279,26 +280,27 @@ The full punch-list:
 1. **Push to GitHub**, then **import into Vercel**. Set the project root to `agent_desk_app/`.
 2. Add every env var from `.env.local` to Vercel (Production + Preview).
 3. **Clerk:** in the Clerk dashboard, add the Vercel domain to **Allowed Origins** and **Sign-in/Sign-up URLs**, switch the production instance to use the new domain.
-4. **Stripe:** create the $49/mo recurring price, then a webhook endpoint pointed at `https://your-app.vercel.app/api/stripe/webhook` listening to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+4. **Stripe:** create the $19/mo Starter and $49/mo Pro recurring prices (each generates a `price_...` id — paste them into `STRIPE_STARTER_PRICE_ID` and `STRIPE_PRO_PRICE_ID`), then a webhook endpoint pointed at `https://your-app.vercel.app/api/stripe/webhook` listening to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`. The webhook handler reverse-looks-up the active price id to set the plan, so you don't need to repeat plan names anywhere.
 5. **Migrations:** run `pnpm db:migrate` once against the production `DATABASE_URL`.
 6. **Scraper:** SSH into the Contabo VPS and follow [../vps-scraper/DEPLOY.md](../vps-scraper/DEPLOY.md). End-state: `https://scraper.yourdomain.com/health` returns `{"status":"ok"}` with a Let's Encrypt cert from Caddy. Set `SCRAPER_API_URL` and `SCRAPER_API_KEY` in Vercel to match.
 7. **Smoke test on prod:**
    - Sign up via Clerk
-   - Add a small docs site, watch the KB land (page polls every 15 s, KB status flips `pending → crawling → ready`)
+   - Add a site (any kind — a marketing site, an e-commerce store, a docs site) and watch the KB land (page polls every 15 s with a live "X pages indexed so far" banner; KB status flips `pending → crawling → ready`)
    - Open the **Widget code** tab, copy the snippet, paste into a test HTML file, open in a browser
    - Chat — verify a friendly tool-call label appears (e.g. "Searched knowledge base") and text streams
    - Trigger an escalation ("I want to talk to a human about a refund") → check the inbox set as `escalationEmail`
    - **Mark as resolved** on the resulting conversation, confirm the status badge + filter count update
-   - Click **Upgrade to Pro** → complete a Stripe Checkout in test mode → confirm `users.plan` flips to `pro`, the conversation cap disappears, and **Manage subscription** opens the Customer Portal
+   - Click **Upgrade to Starter** (or **Pro**) → complete a Stripe Checkout in test mode → confirm `users.plan` flips to the right tier (the webhook reverse-looks-up the price id), the conversation hard cap disappears, and **Manage subscription** opens the Customer Portal
 
 ## Plan limits
 
-| Plan | Sites | Conversations / month |
-| ---- | ----- | --------------------- |
-| Free | 1     | 100                   |
-| Pro  | 5     | Unlimited             |
+| Plan        | Price        | Sites | Conversations / month | Overage                              |
+| ----------- | ------------ | ----- | --------------------- | ------------------------------------ |
+| **Free**    | $0           | 1     | 30 (hard cap)         | —                                    |
+| **Starter** | $19 / month  | 2     | 300 included          | $0.15 per additional conversation    |
+| **Pro**     | $49 / month  | 5     | 1,000 included        | $0.10 per additional conversation    |
 
-Both limits are enforced server-side: site count in [`createSiteAction`](./app/dashboard/actions.ts), conversation count in [`/api/widget/chat`](./app/api/widget/chat/route.ts) before a new conversation is created. The Stripe webhook drives the user's `plan` column.
+Site count is hard-enforced server-side in [`createSiteAction`](./app/dashboard/actions.ts). Conversation limits behave per-plan: **Free** hard-caps in [`/api/widget/chat`](./app/api/widget/chat/route.ts) (`enforceConversationLimit: true` in [`lib/billing/plans.ts`](./lib/billing/plans.ts)), while **Starter** and **Pro** allow overage — new conversations keep flowing past the included count and are surfaced as a dollar amount on the Billing tab. The actual overage billing meter is not yet wired to Stripe; included counts and overage rates are stored on the plan for future metering. The Stripe webhook reverse-maps `items.data[0].price.id` → plan id via [`planForPriceId`](./lib/billing/stripe.ts), so adding a fourth tier later is just a price-id + a plan entry.
 
 ---
 
