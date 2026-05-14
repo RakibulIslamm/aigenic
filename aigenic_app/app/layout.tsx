@@ -53,11 +53,6 @@ export default function RootLayout({
           {children}
           <Toaster richColors position="top-right" theme="dark" />
         </body>
-        <script
-          src="https://aigenicapp.vercel.app/widget.js"
-          data-site="05880e43-fd91-4cb3-8ad0-1667073f5980"
-          async
-        ></script>
       </html>
     </ClerkProvider>
   );

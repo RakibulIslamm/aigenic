@@ -29,5 +29,11 @@ export function runSupportAgent({
     stopWhen: stepCountIs(8),
     temperature: 0.3,
     abortSignal,
+    // OpenRouter's deepseek-v4-flash routing is flaky on cold first calls
+    // (EPIPE/ECONNRESET from a stale upstream). The default of 2 retries
+    // often isn't enough to escape a bad provider — bumping to 4 trades a
+    // few seconds of worst-case latency for a much higher success rate on
+    // the first message of a session.
+    maxRetries: 4,
   });
 }
