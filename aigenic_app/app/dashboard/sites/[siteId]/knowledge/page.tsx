@@ -82,30 +82,35 @@ export default async function KnowledgeBasePage({
             {rows.map((article) => (
               <li key={article.id}>
                 <Card className="group border-border/60 bg-card/40 transition hover:border-border">
-                  <CardContent className="flex items-start justify-between gap-3 py-4 sm:gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="min-w-0 flex-1 truncate text-sm font-medium">{article.title}</h3>
-                        {article.sourceUrl && (
-                          <a
-                            href={article.sourceUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex shrink-0 items-center text-muted-foreground transition hover:text-foreground"
-                            title={article.sourceUrl}
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
+                  <CardContent className="px-4! py-4 sm:px-6!">
+                    {/* Stack on phones (title block on top, action on its own row at the right);
+                        switch to side-by-side at sm+. */}
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="min-w-0 flex-1 truncate text-sm font-medium">{article.title}</h3>
+                          {article.sourceUrl && (
+                            <a
+                              href={article.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex shrink-0 items-center text-muted-foreground transition hover:text-foreground"
+                              title={article.sourceUrl}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
+                        <p className="mt-1 line-clamp-2 wrap-break-word text-xs text-muted-foreground">
+                          {article.content.slice(0, 240)}
+                          {article.content.length > 240 ? '…' : ''}
+                        </p>
                       </div>
-                      <p className="mt-1 line-clamp-2 wrap-break-word text-xs text-muted-foreground">
-                        {article.content.slice(0, 240)}
-                        {article.content.length > 240 ? '…' : ''}
-                      </p>
-                    </div>
-                    {/* Always visible on touch devices (no hover); fades in on hover for pointer devices. */}
-                    <div className="shrink-0 opacity-100 transition md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
-                      <RescrapeArticleButton siteId={siteId} articleId={article.id} />
+                      {/* On phones: own row, right-aligned, always visible.
+                          On pointer devices (sm+): fades in on hover. */}
+                      <div className="-mr-2 flex shrink-0 justify-end sm:m-0 sm:opacity-0 sm:transition sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                        <RescrapeArticleButton siteId={siteId} articleId={article.id} />
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
