@@ -284,23 +284,23 @@ function Features() {
 
 function EmbedPreview() {
   return (
-    <section className="mx-auto max-w-6xl px-6 pb-24">
+    <section className="mx-auto max-w-6xl px-4 pb-24 sm:px-6">
       <Card className="overflow-hidden border-border/60 bg-card/40">
-        <div className="grid items-center gap-10 p-8 md:grid-cols-2 md:p-12">
-          <div>
+        <div className="grid items-center gap-8 p-6 md:grid-cols-2 md:gap-10 md:p-12">
+          <div className="min-w-0">
             <Badge variant="secondary" className="mb-4 rounded-full">One line of code</Badge>
-            <h3 className="font-heading text-3xl tracking-tight md:text-4xl">Paste this. That's the install.</h3>
-            <p className="mt-3 text-muted-foreground">
+            <h3 className="font-heading text-2xl tracking-tight sm:text-3xl md:text-4xl">Paste this. That&apos;s the install.</h3>
+            <p className="mt-3 text-sm text-muted-foreground sm:text-base">
               Drop the script before <code className="rounded bg-muted px-1 py-0.5 text-xs">&lt;/body&gt;</code>. The bubble appears,
               connected to your KB. No build step, no SDK — works on Webflow, Shopify, WordPress, Next.js, anywhere.
             </p>
           </div>
-          <div className="rounded-xl border border-border/60 bg-background p-5 font-mono text-sm shadow-inner">
+          <div className="min-w-0 rounded-xl border border-border/60 bg-background p-4 font-mono text-sm shadow-inner sm:p-5">
             <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
               <span>index.html</span>
               <span>copy</span>
             </div>
-            <pre className="overflow-x-auto whitespace-pre text-[13px] leading-relaxed text-foreground/90">
+            <pre className="overflow-x-auto whitespace-pre text-[12px] leading-relaxed text-foreground/90 sm:text-[13px]">
 {`<script
   src="https://aigenic.app/widget.js"
   data-site="{siteId}"
@@ -316,15 +316,15 @@ function EmbedPreview() {
 
 function Comparison() {
   return (
-    <section id="compare" className="mx-auto max-w-5xl px-6 py-24">
+    <section id="compare" className="mx-auto max-w-5xl px-4 py-24 sm:px-6">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-heading text-4xl tracking-tight md:text-5xl">Aigenic vs. Intercom Fin</h2>
-        <p className="mt-3 text-muted-foreground">
+        <h2 className="font-heading text-3xl tracking-tight sm:text-4xl md:text-5xl">Aigenic vs. Intercom Fin</h2>
+        <p className="mt-3 text-sm text-muted-foreground sm:text-base">
           Same job. A lot less setup. A lot less invoice.
         </p>
       </div>
-      <Card className="mt-12 overflow-hidden border-border/60">
-        <div className="grid grid-cols-[1fr_120px_120px] items-center border-b border-border/60 bg-card/60 px-6 py-4 text-sm font-medium">
+      <Card className="mt-10 overflow-hidden border-border/60 sm:mt-12">
+        <div className="grid grid-cols-[1fr_80px_96px] items-center gap-2 border-b border-border/60 bg-card/60 px-4 py-3 text-xs font-medium sm:grid-cols-[1fr_120px_120px] sm:gap-0 sm:px-6 sm:py-4 sm:text-sm">
           <div className="text-muted-foreground">Feature</div>
           <div className="text-center">Aigenic</div>
           <div className="text-center text-muted-foreground">Intercom Fin</div>
@@ -333,11 +333,11 @@ function Comparison() {
           <div
             key={row.feature}
             className={[
-              'grid grid-cols-[1fr_120px_120px] items-center px-6 py-4 text-sm',
+              'grid grid-cols-[1fr_80px_96px] items-center gap-2 px-4 py-3 text-xs sm:grid-cols-[1fr_120px_120px] sm:gap-0 sm:px-6 sm:py-4 sm:text-sm',
               i % 2 === 0 ? 'bg-background/30' : '',
             ].join(' ')}
           >
-            <div>{row.feature}</div>
+            <div className="min-w-0 pr-2">{row.feature}</div>
             <div className="flex justify-center">
               {row.aigenic ? <Check className="h-4 w-4 text-foreground" /> : <Minus className="h-4 w-4 text-muted-foreground" />}
             </div>
@@ -463,8 +463,54 @@ function Footer() {
           <a href="#pricing" className="transition hover:text-foreground">Pricing</a>
           <a href="#faq" className="transition hover:text-foreground">FAQ</a>
         </div>
-        <div>© {new Date().getFullYear()} Aigenic</div>
+        <div className="flex items-center gap-4">
+          <a
+            href="https://github.com/RakibulIslamm/aigenic"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="GitHub repository"
+            className="transition hover:text-foreground"
+          >
+            <GithubIcon className="h-4 w-4" />
+          </a>
+          <a
+            href="https://www.linkedin.com/in/d-rakibul-islam/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="LinkedIn profile"
+            className="transition hover:text-foreground"
+          >
+            <LinkedinIcon className="h-4 w-4" />
+          </a>
+          <span>© {new Date().getFullYear()} Aigenic</span>
+        </div>
       </div>
     </footer>
+  );
+}
+
+function GithubIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55v-1.94c-3.2.69-3.87-1.54-3.87-1.54-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.18 1.18a11.04 11.04 0 0 1 5.79 0c2.21-1.49 3.18-1.18 3.18-1.18.62 1.58.23 2.75.11 3.04.74.81 1.18 1.84 1.18 3.1 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.07.78 2.16v3.21c0 .31.21.66.79.55C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5Z" />
+    </svg>
+  );
+}
+
+function LinkedinIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M20.45 20.45h-3.55v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.13 1.45-2.13 2.94v5.67H9.37V9h3.41v1.56h.05c.47-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29ZM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12Zm1.78 13.02H3.56V9h3.56v11.45ZM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0Z" />
+    </svg>
   );
 }

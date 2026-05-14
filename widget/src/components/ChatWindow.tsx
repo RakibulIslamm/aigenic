@@ -166,6 +166,13 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
       }
     };
 
+    let sawError = false;
+    const errEvent = handleEvent;
+    const wrappedHandleEvent = (event: ChatEvent) => {
+      if (event.type === 'error') sawError = true;
+      errEvent(event);
+    };
+
     try {
       await sendMessage({
         apiBase,
@@ -173,9 +180,10 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
         conversationId: conversationIdRef.current,
         visitorId: visitorIdRef.current,
         message: text,
-        onEvent: handleEvent,
+        onEvent: wrappedHandleEvent,
       });
     } catch (err) {
+      sawError = true;
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       // Make sure any pending deltas land before we commit.
@@ -191,6 +199,11 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
       setStreamingText(null);
       if (finalText.length > 0) {
         setMessages((prev) => [...prev, { role: 'bot', content: finalText }]);
+      } else if (!sawError) {
+        // Stream ended without text and without an explicit error — most often
+        // a cold-start hiccup or the model returning tool-only output. Surface
+        // a soft fallback so the conversation doesn't look frozen.
+        setError("I didn't catch that — could you try sending your message again?");
       }
       setTools([]);
       setBusy(false);

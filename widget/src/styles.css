@@ -125,7 +125,7 @@
   width: 380px;
   max-width: calc(100vw - 24px);
   height: 600px;
-  max-height: calc(100vh - 100px);
+  max-height: calc(100dvh - 100px);
   background: var(--ad-bg);
   border-radius: var(--ad-radius-lg);
   box-shadow: var(--ad-shadow-lg);
@@ -466,9 +466,19 @@
 @media (max-width: 480px) {
   .ad-host { bottom: 12px; right: 12px; }
   .ad-window {
+    /* Use dvh (dynamic viewport height) so the chat fills the *visible*
+       viewport — 100vh on mobile is taller than what's actually visible
+       because it doesn't subtract the browser address bar, which pushes
+       the chat header off-screen under the address bar.
+       svh is the fallback for browsers without dvh support. */
     width: calc(100vw - 24px);
-    height: calc(100vh - 84px);
+    height: calc(100svh - 84px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - 84px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100svh - 84px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - 84px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     border-radius: 16px;
   }
   .ad-window-wrap { bottom: 68px; }
+  .ad-bubble { width: 52px; height: 52px; }
+  .ad-bubble-icon { width: 22px; height: 22px; }
 }

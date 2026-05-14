@@ -82,28 +82,29 @@ export default async function KnowledgeBasePage({
             {rows.map((article) => (
               <li key={article.id}>
                 <Card className="group border-border/60 bg-card/40 transition hover:border-border">
-                  <CardContent className="flex items-start justify-between gap-4 py-4">
-                    <div className="min-w-0">
+                  <CardContent className="flex items-start justify-between gap-3 py-4 sm:gap-4">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="truncate text-sm font-medium">{article.title}</h3>
+                        <h3 className="min-w-0 flex-1 truncate text-sm font-medium">{article.title}</h3>
                         {article.sourceUrl && (
                           <a
                             href={article.sourceUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center text-muted-foreground transition hover:text-foreground"
+                            className="inline-flex shrink-0 items-center text-muted-foreground transition hover:text-foreground"
                             title={article.sourceUrl}
                           >
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         )}
                       </div>
-                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                      <p className="mt-1 line-clamp-2 wrap-break-word text-xs text-muted-foreground">
                         {article.content.slice(0, 240)}
                         {article.content.length > 240 ? '…' : ''}
                       </p>
                     </div>
-                    <div className="opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+                    {/* Always visible on touch devices (no hover); fades in on hover for pointer devices. */}
+                    <div className="shrink-0 opacity-100 transition md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                       <RescrapeArticleButton siteId={siteId} articleId={article.id} />
                     </div>
                   </CardContent>
