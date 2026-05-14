@@ -11,6 +11,7 @@ import {
 } from '@/lib/billing/plans';
 import { countManualCrawlsForUserSince } from '@/lib/sites/crawl-runs';
 import { isPlanPurchasable, isStripeConfigured } from '@/lib/billing/stripe';
+import { syncUserFromCheckoutSession } from '@/lib/billing/sync';
 import {
   Card,
   CardContent,
@@ -25,11 +26,18 @@ import { UpgradeButton, ManageBillingButton } from './_components/billing-action
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; session_id?: string }>;
 }) {
-  const { status } = await searchParams;
+  const { status, session_id: sessionId } = await searchParams;
 
-  const user = await getOrCreateUser();
+  let user = await getOrCreateUser();
+  // Fallback when the Stripe webhook hasn't (or can't) reach this deployment
+  // yet — read the truth straight from the Checkout Session and flip the plan
+  // before we render, so the banner reflects what was just purchased.
+  if (status === 'success' && sessionId && user.plan === 'free') {
+    const synced = await syncUserFromCheckoutSession(sessionId, user.id);
+    if (synced) user = { ...user, plan: synced };
+  }
   const plan = getPlan(user.plan);
   const [sites, monthlyConversations, manualCrawlsUsed] = await Promise.all([
     listSitesForUser(user.id),
