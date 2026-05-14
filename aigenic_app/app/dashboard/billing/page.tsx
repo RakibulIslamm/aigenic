@@ -47,7 +47,7 @@ export default async function BillingPage({
   return (
     <div className="flex flex-col gap-8">
       <header>
-        <h1 className="font-serif text-4xl tracking-tight md:text-5xl">Billing</h1>
+        <h1 className="font-heading text-4xl tracking-tight md:text-5xl">Billing</h1>
         <p className="mt-2 max-w-xl text-sm text-muted-foreground">
           You&apos;re on the <span className="font-medium text-foreground">{plan.name}</span> plan.
           {plan.id === 'free'
@@ -122,7 +122,7 @@ export default async function BillingPage({
             <Sparkles className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="font-serif text-3xl tracking-tight">{plan.name}</div>
+            <div className="font-heading text-3xl tracking-tight">{plan.name}</div>
             <p className="mt-1 text-xs text-muted-foreground">
               {user.plan !== 'free' && user.stripeSubscriptionId
                 ? 'Subscription active via Stripe'
@@ -184,7 +184,7 @@ function PlanCard({
           {plan.name}
         </CardTitle>
         <div className="mt-2 flex items-baseline gap-2">
-          <span className="font-serif text-5xl tracking-tight">{plan.priceLabel}</span>
+          <span className="font-heading text-5xl tracking-tight">{plan.priceLabel}</span>
           <span className="text-sm text-muted-foreground">{plan.pricePeriod}</span>
         </div>
         <CardDescription className="mt-2">{plan.description}</CardDescription>
@@ -244,7 +244,7 @@ function UsageCard({
         {icon ?? <CreditCard className="h-4 w-4 text-muted-foreground" />}
       </CardHeader>
       <CardContent>
-        <div className="font-serif text-2xl tracking-tight">{value}</div>
+        <div className="font-heading text-2xl tracking-tight">{value}</div>
         <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
       </CardContent>
     </Card>

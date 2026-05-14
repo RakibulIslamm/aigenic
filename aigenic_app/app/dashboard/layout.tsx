@@ -16,7 +16,7 @@ export default function DashboardLayout({
             <div className="grid h-7 w-7 place-items-center rounded-md bg-foreground text-background">
               <Sparkles className="h-4 w-4" />
             </div>
-            <span className="font-serif text-xl tracking-tight">Aigenic</span>
+            <span className="font-heading text-xl tracking-tight">Aigenic</span>
           </Link>
           <TopNav />
           <UserButton />

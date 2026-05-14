@@ -43,7 +43,7 @@ export default async function SiteLayout({
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="truncate font-serif text-3xl tracking-tight md:text-4xl">
+            <h1 className="truncate font-heading text-3xl tracking-tight md:text-4xl">
               {site.name}
             </h1>
             <KbStatusBadge status={site.kbStatus} />

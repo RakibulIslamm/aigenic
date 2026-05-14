@@ -6,7 +6,7 @@ export default function SignInPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6">
       <Link
         href="/"
-        className="mb-10 font-serif text-2xl tracking-tight text-foreground"
+        className="mb-10 font-heading text-2xl tracking-tight text-foreground"
       >
         Aigenic
       </Link>

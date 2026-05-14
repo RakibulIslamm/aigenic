@@ -48,7 +48,7 @@ export default async function KnowledgeBasePage({
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="font-serif text-2xl tracking-tight">Knowledge base</h2>
+          <h2 className="font-heading text-2xl tracking-tight">Knowledge base</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {trimmedQ ? (
               <>
@@ -214,7 +214,7 @@ function EmptyState({ siteId, status }: { siteId: string; status: string }) {
         <div className="grid h-12 w-12 place-items-center rounded-xl border border-border/60 bg-background">
           <BookOpen className="h-5 w-5" />
         </div>
-        <CardTitle className="font-serif text-2xl tracking-tight">
+        <CardTitle className="font-heading text-2xl tracking-tight">
           {status === 'crawling' || status === 'pending'
             ? 'Crawling your site'
             : status === 'failed'
@@ -243,7 +243,7 @@ function NoMatchesState({ siteId, query }: { siteId: string; query: string }) {
         <div className="grid h-12 w-12 place-items-center rounded-xl border border-border/60 bg-background">
           <BookOpen className="h-5 w-5" />
         </div>
-        <CardTitle className="font-serif text-2xl tracking-tight">No matches</CardTitle>
+        <CardTitle className="font-heading text-2xl tracking-tight">No matches</CardTitle>
         <CardDescription className="max-w-md">
           Nothing in your knowledge base has &ldquo;{query}&rdquo; in the title. Try a shorter or broader keyword.
         </CardDescription>

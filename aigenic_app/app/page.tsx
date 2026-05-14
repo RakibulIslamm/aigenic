@@ -128,7 +128,7 @@ function Header() {
           <div className="grid h-7 w-7 place-items-center rounded-md bg-foreground text-background">
             <Sparkles className="h-4 w-4" />
           </div>
-          <span className="font-serif text-xl tracking-tight">Aigenic</span>
+          <span className="font-heading text-xl tracking-tight">Aigenic</span>
         </Link>
         <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
           <a href="#features" className="transition hover:text-foreground">Features</a>
@@ -168,7 +168,7 @@ function Hero() {
       <Badge variant="secondary" className="mb-6 rounded-full border border-border/60 px-3 py-1 text-xs font-normal text-muted-foreground">
         Powered by Claude Sonnet · Tool-use enabled
       </Badge>
-      <h1 className="mx-auto max-w-3xl font-serif text-5xl leading-[1.05] tracking-tight md:text-6xl">
+      <h1 className="mx-auto max-w-3xl font-heading text-5xl leading-[1.05] tracking-tight md:text-6xl">
         Add an AI support agent to your site in&nbsp;60&nbsp;seconds.
       </h1>
       <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground">
@@ -249,7 +249,7 @@ function SocialProof() {
 function Metric({ value, label }: { value: string; label: string }) {
   return (
     <div>
-      <div className="font-serif text-3xl tracking-tight md:text-4xl">{value}</div>
+      <div className="font-heading text-3xl tracking-tight md:text-4xl">{value}</div>
       <div className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
     </div>
   );
@@ -259,7 +259,7 @@ function Features() {
   return (
     <section id="features" className="mx-auto max-w-6xl px-6 py-24">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-serif text-4xl tracking-tight md:text-5xl">Built for teams who hate chatbots.</h2>
+        <h2 className="font-heading text-4xl tracking-tight md:text-5xl">Built for teams who hate chatbots.</h2>
         <p className="mt-4 text-muted-foreground">
           Most &ldquo;AI support&rdquo; widgets are dressed-up FAQ bots — they pattern-match keywords and pray. Aigenic reads every page
           on your site, cites its sources, and hands the conversation to a human the moment it isn&apos;t sure.
@@ -289,7 +289,7 @@ function EmbedPreview() {
         <div className="grid items-center gap-10 p-8 md:grid-cols-2 md:p-12">
           <div>
             <Badge variant="secondary" className="mb-4 rounded-full">One line of code</Badge>
-            <h3 className="font-serif text-3xl tracking-tight md:text-4xl">Paste this. That's the install.</h3>
+            <h3 className="font-heading text-3xl tracking-tight md:text-4xl">Paste this. That's the install.</h3>
             <p className="mt-3 text-muted-foreground">
               Drop the script before <code className="rounded bg-muted px-1 py-0.5 text-xs">&lt;/body&gt;</code>. The bubble appears,
               connected to your KB. No build step, no SDK — works on Webflow, Shopify, WordPress, Next.js, anywhere.
@@ -318,7 +318,7 @@ function Comparison() {
   return (
     <section id="compare" className="mx-auto max-w-5xl px-6 py-24">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-serif text-4xl tracking-tight md:text-5xl">Aigenic vs. Intercom Fin</h2>
+        <h2 className="font-heading text-4xl tracking-tight md:text-5xl">Aigenic vs. Intercom Fin</h2>
         <p className="mt-3 text-muted-foreground">
           Same job. A lot less setup. A lot less invoice.
         </p>
@@ -355,7 +355,7 @@ function Pricing() {
   return (
     <section id="pricing" className="mx-auto max-w-6xl px-6 py-24">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-serif text-4xl tracking-tight md:text-5xl">{BILLING_MARKETING.heading}</h2>
+        <h2 className="font-heading text-4xl tracking-tight md:text-5xl">{BILLING_MARKETING.heading}</h2>
         <p className="mt-3 text-muted-foreground">{BILLING_MARKETING.subheading}</p>
       </div>
       <div className="mt-14 grid gap-6 md:grid-cols-3">
@@ -381,7 +381,7 @@ function PricingCard({ plan }: { plan: Plan }) {
       <CardHeader className="p-0">
         <CardTitle className="text-base font-medium uppercase tracking-wider text-muted-foreground">{plan.name}</CardTitle>
         <div className="mt-2 flex items-baseline gap-2">
-          <span className="font-serif text-5xl tracking-tight">{plan.priceLabel}</span>
+          <span className="font-heading text-5xl tracking-tight">{plan.priceLabel}</span>
           <span className="text-sm text-muted-foreground">{plan.pricePeriod}</span>
         </div>
         <CardDescription className="mt-2">{plan.description}</CardDescription>
@@ -405,7 +405,7 @@ function PricingCard({ plan }: { plan: Plan }) {
 function FAQ() {
   return (
     <section id="faq" className="mx-auto max-w-3xl px-6 py-24">
-      <h2 className="text-center font-serif text-4xl tracking-tight md:text-5xl">Frequently asked</h2>
+      <h2 className="text-center font-heading text-4xl tracking-tight md:text-5xl">Frequently asked</h2>
       <div className="mt-12 divide-y divide-border/60 rounded-2xl border border-border/60 bg-card/30">
         {FAQS.map(({ q, a }) => (
           <details key={q} className="group px-6 py-5">
@@ -425,7 +425,7 @@ function CTA() {
   return (
     <section className="mx-auto max-w-5xl px-6 pb-24">
       <Card className="overflow-hidden border-border/60 bg-linear-to-b from-card/60 to-background p-12 text-center md:p-16">
-        <h2 className="mx-auto max-w-2xl font-serif text-4xl tracking-tight md:text-5xl">
+        <h2 className="mx-auto max-w-2xl font-heading text-4xl tracking-tight md:text-5xl">
           Ship a support agent before your coffee gets cold.
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
@@ -455,7 +455,7 @@ function Footer() {
           <div className="grid h-6 w-6 place-items-center rounded-md bg-foreground text-background">
             <Sparkles className="h-3 w-3" />
           </div>
-          <span className="font-serif text-base text-foreground">Aigenic</span>
+          <span className="font-heading text-base text-foreground">Aigenic</span>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
           <a href="#features" className="transition hover:text-foreground">Features</a>

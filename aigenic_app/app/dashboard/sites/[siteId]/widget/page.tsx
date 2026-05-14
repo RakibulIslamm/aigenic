@@ -34,7 +34,7 @@ export default async function WidgetPage({
       <Card className="border-border/60 bg-card/40">
         <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
           <div>
-            <CardTitle className="font-serif text-2xl tracking-tight">Embed code</CardTitle>
+            <CardTitle className="font-heading text-2xl tracking-tight">Embed code</CardTitle>
             <CardDescription>
               Paste this before <code className="rounded bg-muted px-1 py-0.5 text-xs">&lt;/body&gt;</code> on every page you want the chat bubble to appear.
             </CardDescription>

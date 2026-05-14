@@ -52,7 +52,7 @@ export default async function ConversationsPage({
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="font-serif text-2xl tracking-tight">Conversations</h2>
+          <h2 className="font-heading text-2xl tracking-tight">Conversations</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Every visitor session, with full transcripts and one-click escalation hand-off.
           </p>
@@ -127,7 +127,7 @@ function EmptyState({ filter }: { filter: ConversationStatusFilter }) {
         <div className="grid h-12 w-12 place-items-center rounded-xl border border-border/60 bg-background">
           <MessageSquare className="h-5 w-5" />
         </div>
-        <CardTitle className="font-serif text-2xl tracking-tight">No conversations</CardTitle>
+        <CardTitle className="font-heading text-2xl tracking-tight">No conversations</CardTitle>
         <CardDescription className="max-w-md">{blurb}</CardDescription>
       </CardHeader>
     </Card>

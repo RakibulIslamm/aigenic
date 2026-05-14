@@ -54,7 +54,7 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-serif text-2xl">Add a site</DialogTitle>
+          <DialogTitle className="font-heading text-2xl">Add a site</DialogTitle>
           <DialogDescription>
             We&apos;ll crawl your URL to build a private knowledge base. The chat bubble appears as soon as the first articles land.
           </DialogDescription>

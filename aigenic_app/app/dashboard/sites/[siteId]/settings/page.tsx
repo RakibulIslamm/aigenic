@@ -21,7 +21,7 @@ export default async function SiteSettingsPage({
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <h2 className="font-serif text-2xl tracking-tight">Settings</h2>
+        <h2 className="font-heading text-2xl tracking-tight">Settings</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Edit how this site is named, where escalations go, and how the widget looks.
         </p>

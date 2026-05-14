@@ -34,7 +34,7 @@ export default async function DashboardPage() {
       <section className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="text-sm text-muted-foreground">Welcome back</p>
-          <h1 className="mt-1 font-serif text-4xl tracking-tight md:text-5xl">
+          <h1 className="mt-1 font-heading text-4xl tracking-tight md:text-5xl">
             Your sites
           </h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
@@ -98,7 +98,7 @@ function StatCard({
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="font-serif text-3xl tracking-tight">{value}</div>
+        <div className="font-heading text-3xl tracking-tight">{value}</div>
         <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
       </CardContent>
     </Card>
@@ -148,7 +148,7 @@ function SiteCard({ site }: { site: SiteListItem }) {
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
     <div>
-      <div className="font-serif text-2xl tracking-tight">{value}</div>
+      <div className="font-heading text-2xl tracking-tight">{value}</div>
       <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
     </div>
   );
@@ -162,7 +162,7 @@ function EmptyState() {
           <Globe className="h-5 w-5" />
         </div>
         <div>
-          <h3 className="font-serif text-2xl tracking-tight">No sites yet</h3>
+          <h3 className="font-heading text-2xl tracking-tight">No sites yet</h3>
           <p className="mt-1 max-w-md text-sm text-muted-foreground">
             Add your website&apos;s URL — we&apos;ll crawl it to build a knowledge base, and hand you a one-line embed code.
           </p>

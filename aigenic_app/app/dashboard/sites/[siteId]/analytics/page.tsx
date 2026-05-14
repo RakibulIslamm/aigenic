@@ -28,7 +28,7 @@ export default async function AnalyticsPage({
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <h2 className="font-serif text-2xl tracking-tight">Analytics</h2>
+        <h2 className="font-heading text-2xl tracking-tight">Analytics</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Month-to-date performance for the agent on this site, plus a 30-day conversation trend.
         </p>
@@ -133,7 +133,7 @@ function StatCard({
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="font-serif text-3xl tracking-tight">{value}</div>
+        <div className="font-heading text-3xl tracking-tight">{value}</div>
         <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
       </CardContent>
     </Card>
