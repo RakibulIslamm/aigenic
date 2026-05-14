@@ -31,5 +31,10 @@
     "@types/node": "latest",
     "tsx": "latest",
     "typescript": "latest"
+  },
+  "pnpm": {
+    "overrides": {
+      "html-encoding-sniffer": "^4.0.0"
+    }
   }
 }

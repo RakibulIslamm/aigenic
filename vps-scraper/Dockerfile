@@ -34,14 +34,14 @@ COPY package.json ./
 # Strip dev dependencies for a leaner final image.
 RUN pnpm prune --prod
 
-ENV PORT=3001 \
+ENV PORT=3007 \
     LOG_LEVEL=info
-EXPOSE 3001
+EXPOSE 3007
 
 # Playwright base image runs as non-root user "pwuser" — keep it.
 USER pwuser
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3001/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:3007/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
 CMD ["node", "dist/index.js"]
