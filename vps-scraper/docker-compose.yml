@@ -8,20 +8,20 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      PORT: 3006
+      PORT: 3007
       LOG_LEVEL: info
       SCRAPER_API_KEY: ${SCRAPER_API_KEY:?SCRAPER_API_KEY is required}
       SCRAPER_USER_AGENT: ${SCRAPER_USER_AGENT:-AigenicBot/0.1 (+https://aigenic.app/bot)}
     # Bind to localhost only — Caddy/Nginx terminates TLS and proxies to us.
     # If you don't run a reverse proxy, change this to "3001:3001".
     ports:
-      - "127.0.0.1:3006:3006"
+      - "127.0.0.1:3007:3007"
     # Playwright Chromium needs more shared memory than the Docker default.
     shm_size: '1gb'
     security_opt:
       - seccomp:unconfined
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3006/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:7/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
