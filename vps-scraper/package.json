@@ -18,7 +18,6 @@
     "@mozilla/readability": "latest",
     "express": "latest",
     "helmet": "latest",
-    "jsdom": "latest",
     "p-limit": "latest",
     "pino": "latest",
     "pino-pretty": "latest",
