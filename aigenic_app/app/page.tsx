@@ -368,15 +368,21 @@ function Pricing() {
 }
 
 function PricingCard({ plan }: { plan: Plan }) {
+  const disabled = plan.comingSoon === true;
   return (
     <Card
       className={[
         'relative flex flex-col gap-6 border-border/60 p-8',
         plan.highlighted ? 'border-foreground/40 bg-card/80 shadow-2xl shadow-black/30' : 'bg-card/30',
+        disabled ? 'opacity-70' : '',
       ].join(' ')}
     >
-      {plan.highlighted && (
-        <Badge className="absolute right-6 top-6 rounded-full bg-foreground text-background">Most popular</Badge>
+      {disabled ? (
+        <Badge variant="secondary" className="absolute right-6 top-6 rounded-full">Coming soon</Badge>
+      ) : (
+        plan.highlighted && (
+          <Badge className="absolute right-6 top-6 rounded-full bg-foreground text-background">Most popular</Badge>
+        )
       )}
       <CardHeader className="p-0">
         <CardTitle className="text-base font-medium uppercase tracking-wider text-muted-foreground">{plan.name}</CardTitle>
@@ -395,9 +401,22 @@ function PricingCard({ plan }: { plan: Plan }) {
           </div>
         ))}
       </CardContent>
-      <Button asChild size="lg" variant={plan.highlighted ? 'default' : 'outline'} className="w-full">
-        <Link href="/sign-up">{plan.landingCtaLabel}</Link>
-      </Button>
+      {disabled ? (
+        <Button
+          size="lg"
+          variant={plan.highlighted ? 'default' : 'outline'}
+          className="w-full"
+          disabled
+          aria-disabled="true"
+          title="This plan is coming soon"
+        >
+          Coming soon
+        </Button>
+      ) : (
+        <Button asChild size="lg" variant={plan.highlighted ? 'default' : 'outline'} className="w-full">
+          <Link href="/sign-up">{plan.landingCtaLabel}</Link>
+        </Button>
+      )}
     </Card>
   );
 }

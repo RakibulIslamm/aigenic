@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import type { PlanId } from './plans';
+import { PLANS, type PlanId } from './plans';
 
 let cachedClient: Stripe | null = null;
 
@@ -45,6 +45,7 @@ export function isStripeConfigured(): boolean {
 
 /** True when this specific paid plan can be purchased on this deployment. */
 export function isPlanPurchasable(plan: PlanId): boolean {
+  if (PLANS[plan]?.comingSoon) return false;
   if (!process.env.STRIPE_SECRET_KEY) return false;
   return Boolean(priceIdForPlan(plan));
 }

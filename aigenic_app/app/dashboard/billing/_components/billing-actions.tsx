@@ -65,7 +65,7 @@ export function UpgradeButton({
       ) : (
         <>
           {label}
-          <ArrowRight className="ml-1 h-4 w-4" />
+          {!disabled && <ArrowRight className="ml-1 h-4 w-4" />}
         </>
       )}
     </Button>

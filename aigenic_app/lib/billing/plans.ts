@@ -40,6 +40,12 @@ export interface Plan {
   landingCtaLabel: string;
   /** Visually emphasized as "Most popular" on landing + dashboard. */
   highlighted: boolean;
+  /**
+   * When true, the plan is hidden from the landing & dashboard pricing UIs
+   * and Stripe checkout refuses to start a session for it. Use this to
+   * temporarily disable paid plans without deleting their config.
+   */
+  comingSoon?: boolean;
 }
 
 export interface BillingMarketingCopy {
@@ -105,6 +111,7 @@ export const PLANS: Record<PlanId, Plan> = {
     },
     landingCtaLabel: 'Start with Starter',
     highlighted: false,
+    comingSoon: true,
   },
   pro: {
     id: 'pro',
@@ -132,6 +139,7 @@ export const PLANS: Record<PlanId, Plan> = {
     },
     landingCtaLabel: 'Start with Pro',
     highlighted: true,
+    comingSoon: true,
   },
 };
 

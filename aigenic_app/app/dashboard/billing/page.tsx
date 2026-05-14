@@ -169,23 +169,30 @@ function PlanCard({
   const isCurrent = currentPlan === plan.id;
   const isPaid = plan.id !== 'free';
   const highlighted = plan.highlighted;
+  const isComingSoon = plan.comingSoon === true;
 
   return (
     <Card
       className={[
         'relative flex flex-col gap-6 border-border/60 p-8',
         highlighted ? 'border-foreground/40 bg-card/80 shadow-2xl shadow-black/30' : 'bg-card/30',
+        isComingSoon && !isCurrent ? 'opacity-70' : '',
       ].join(' ')}
     >
-      {isCurrent && (
+      {isCurrent ? (
         <Badge className="absolute right-6 top-6 rounded-full bg-foreground text-background">
           Current plan
         </Badge>
-      )}
-      {!isCurrent && highlighted && (
-        <Badge className="absolute right-6 top-6 rounded-full bg-foreground text-background">
-          Most popular
+      ) : isComingSoon ? (
+        <Badge variant="secondary" className="absolute right-6 top-6 rounded-full">
+          Coming soon
         </Badge>
+      ) : (
+        highlighted && (
+          <Badge className="absolute right-6 top-6 rounded-full bg-foreground text-background">
+            Most popular
+          </Badge>
+        )
       )}
       <CardHeader className="space-y-1 p-0">
         <CardTitle className="text-base font-medium uppercase tracking-wider text-muted-foreground">
@@ -213,10 +220,14 @@ function PlanCard({
         ) : (
           <UpgradeButton
             plan={plan.id as 'starter' | 'pro'}
-            label={`Upgrade to ${plan.name}`}
+            label={isComingSoon ? 'Coming soon' : `Upgrade to ${plan.name}`}
             variant={highlighted ? 'default' : 'outline'}
-            disabled={!purchasable}
-            disabledReason="Stripe is not configured for this plan on this deployment"
+            disabled={isComingSoon || !purchasable}
+            disabledReason={
+              isComingSoon
+                ? 'This plan is coming soon'
+                : 'Stripe is not configured for this plan on this deployment'
+            }
           />
         )
       ) : isCurrent ? (
