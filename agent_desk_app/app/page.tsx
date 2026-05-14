@@ -22,6 +22,12 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import {
+  BILLING_MARKETING,
+  PLANS,
+  PLAN_ORDER,
+  type Plan,
+} from '@/lib/billing/plans';
 
 const FEATURES = [
   {
@@ -349,105 +355,48 @@ function Pricing() {
   return (
     <section id="pricing" className="mx-auto max-w-6xl px-6 py-24">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-serif text-4xl tracking-tight md:text-5xl">Pricing that scales with you, not against you.</h2>
-        <p className="mt-3 text-muted-foreground">Start free. Upgrade when your visitors won't stop talking.</p>
+        <h2 className="font-serif text-4xl tracking-tight md:text-5xl">{BILLING_MARKETING.heading}</h2>
+        <p className="mt-3 text-muted-foreground">{BILLING_MARKETING.subheading}</p>
       </div>
       <div className="mt-14 grid gap-6 md:grid-cols-3">
-        <PricingCard
-          name="Free"
-          price="$0"
-          period="forever"
-          description="For solo founders and small businesses getting started."
-          features={[
-            '1 site',
-            '30 conversations / month',
-            'Knowledge base auto-crawl',
-            'Email escalation',
-            'Community support',
-          ]}
-          cta={{ label: 'Start free', href: '/sign-up' }}
-        />
-        <PricingCard
-          name="Starter"
-          price="$19"
-          period="per month"
-          description="For small sites that outgrew the free tier."
-          features={[
-            '2 sites',
-            '300 conversations / month',
-            'Then $0.15 per additional conversation',
-            'Custom widget colors & copy',
-            'Email support',
-          ]}
-          cta={{ label: 'Start with Starter', href: '/sign-up' }}
-        />
-        <PricingCard
-          name="Pro"
-          price="$49"
-          period="per month"
-          description="For growing teams that live in the dashboard."
-          highlighted
-          features={[
-            '5 sites',
-            '1,000 conversations / month',
-            'Then $0.10 per additional conversation',
-            'Priority knowledge base re-syncs',
-            'Analytics & escalation rules',
-            'Email support',
-          ]}
-          cta={{ label: 'Start with Pro', href: '/sign-up' }}
-        />
+        {PLAN_ORDER.map((id) => (
+          <PricingCard key={id} plan={PLANS[id]} />
+        ))}
       </div>
     </section>
   );
 }
 
-function PricingCard({
-  name,
-  price,
-  period,
-  description,
-  features,
-  highlighted,
-  cta,
-}: {
-  name: string;
-  price: string;
-  period: string;
-  description: string;
-  features: string[];
-  highlighted?: boolean;
-  cta: { label: string; href: string };
-}) {
+function PricingCard({ plan }: { plan: Plan }) {
   return (
     <Card
       className={[
         'relative flex flex-col gap-6 border-border/60 p-8',
-        highlighted ? 'border-foreground/40 bg-card/80 shadow-2xl shadow-black/30' : 'bg-card/30',
+        plan.highlighted ? 'border-foreground/40 bg-card/80 shadow-2xl shadow-black/30' : 'bg-card/30',
       ].join(' ')}
     >
-      {highlighted && (
+      {plan.highlighted && (
         <Badge className="absolute right-6 top-6 rounded-full bg-foreground text-background">Most popular</Badge>
       )}
       <CardHeader className="p-0">
-        <CardTitle className="text-base font-medium uppercase tracking-wider text-muted-foreground">{name}</CardTitle>
+        <CardTitle className="text-base font-medium uppercase tracking-wider text-muted-foreground">{plan.name}</CardTitle>
         <div className="mt-2 flex items-baseline gap-2">
-          <span className="font-serif text-5xl tracking-tight">{price}</span>
-          <span className="text-sm text-muted-foreground">{period}</span>
+          <span className="font-serif text-5xl tracking-tight">{plan.priceLabel}</span>
+          <span className="text-sm text-muted-foreground">{plan.pricePeriod}</span>
         </div>
-        <CardDescription className="mt-2">{description}</CardDescription>
+        <CardDescription className="mt-2">{plan.description}</CardDescription>
       </CardHeader>
       <Separator />
       <CardContent className="flex flex-1 flex-col gap-3 p-0">
-        {features.map((f) => (
+        {plan.features.map((f) => (
           <div key={f} className="flex items-start gap-2 text-sm">
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-foreground" />
             <span>{f}</span>
           </div>
         ))}
       </CardContent>
-      <Button asChild size="lg" variant={highlighted ? 'default' : 'outline'} className="w-full">
-        <Link href={cta.href}>{cta.label}</Link>
+      <Button asChild size="lg" variant={plan.highlighted ? 'default' : 'outline'} className="w-full">
+        <Link href="/sign-up">{plan.landingCtaLabel}</Link>
       </Button>
     </Card>
   );

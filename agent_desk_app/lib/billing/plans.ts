@@ -15,6 +15,16 @@ export interface PlanLimits {
    * avoid floating-point money math.
    */
   overageCentsPerConversation?: number;
+  /**
+   * Manual rescrape quota — counted per user across all their sites.
+   * `period` defines the rolling window the `count` applies to.
+   */
+  manualCrawls: { count: number; period: 'day' | 'week' };
+  /**
+   * Whether a Trigger.dev-driven auto-crawl runs for this plan's sites.
+   * `null` = no scheduled crawl, `'daily'` = runs once a day.
+   */
+  scheduledCrawl: 'daily' | null;
 }
 
 export interface Plan {
@@ -26,7 +36,24 @@ export interface Plan {
   description: string;
   features: string[];
   limits: PlanLimits;
+  /** CTA label shown on the public landing page pricing card. */
+  landingCtaLabel: string;
+  /** Visually emphasized as "Most popular" on landing + dashboard. */
+  highlighted: boolean;
 }
+
+export interface BillingMarketingCopy {
+  heading: string;
+  subheading: string;
+}
+
+export const BILLING_MARKETING: BillingMarketingCopy = {
+  heading: 'Pricing that scales with you, not against you.',
+  subheading: "Start free. Upgrade when your visitors won't stop talking.",
+};
+
+/** Stable ordered list of plans for rendering pricing tables. */
+export const PLAN_ORDER: readonly PlanId[] = ['free', 'starter', 'pro'];
 
 export const PLANS: Record<PlanId, Plan> = {
   free: {
@@ -38,7 +65,8 @@ export const PLANS: Record<PlanId, Plan> = {
     features: [
       '1 site',
       '30 conversations / month',
-      'Knowledge base auto-crawl',
+      'Initial knowledge base crawl',
+      '1 manual re-crawl / week',
       'Email escalation',
       'Community support',
     ],
@@ -46,7 +74,11 @@ export const PLANS: Record<PlanId, Plan> = {
       sites: 1,
       conversationsPerMonth: 30,
       enforceConversationLimit: true,
+      manualCrawls: { count: 1, period: 'week' },
+      scheduledCrawl: null,
     },
+    landingCtaLabel: 'Start free',
+    highlighted: false,
   },
   starter: {
     id: 'starter',
@@ -58,6 +90,8 @@ export const PLANS: Record<PlanId, Plan> = {
       '2 sites',
       '300 conversations / month',
       'Then $0.15 per additional conversation',
+      'Daily auto-scheduled re-crawl',
+      '1 manual re-crawl / day',
       'Custom widget colors & copy',
       'Email support',
     ],
@@ -66,7 +100,11 @@ export const PLANS: Record<PlanId, Plan> = {
       conversationsPerMonth: 300,
       enforceConversationLimit: false,
       overageCentsPerConversation: 15,
+      manualCrawls: { count: 1, period: 'day' },
+      scheduledCrawl: 'daily',
     },
+    landingCtaLabel: 'Start with Starter',
+    highlighted: false,
   },
   pro: {
     id: 'pro',
@@ -78,6 +116,8 @@ export const PLANS: Record<PlanId, Plan> = {
       '5 sites',
       '1,000 conversations / month',
       'Then $0.10 per additional conversation',
+      'Daily auto-scheduled re-crawl',
+      '5 manual re-crawls / day',
       'Priority knowledge base re-syncs',
       'Analytics & escalation rules',
       'Email support',
@@ -87,7 +127,11 @@ export const PLANS: Record<PlanId, Plan> = {
       conversationsPerMonth: 1000,
       enforceConversationLimit: false,
       overageCentsPerConversation: 10,
+      manualCrawls: { count: 5, period: 'day' },
+      scheduledCrawl: 'daily',
     },
+    landingCtaLabel: 'Start with Pro',
+    highlighted: true,
   },
 };
 
@@ -99,4 +143,16 @@ export function getPlan(plan: string | null | undefined): Plan {
 
 export function isPlanId(value: string): value is PlanId {
   return value === 'free' || value === 'starter' || value === 'pro';
+}
+
+/**
+ * Start of the rolling window for a plan's manual-crawl quota.
+ * `day` = 24 hours ago, `week` = 7 days ago. Use this as the lower bound when
+ * counting `crawl_runs` rows for rate-limiting.
+ */
+export function manualCrawlWindowStart(plan: Plan, now: Date = new Date()): Date {
+  const ms = plan.limits.manualCrawls.period === 'week'
+    ? 7 * 24 * 60 * 60 * 1000
+    : 24 * 60 * 60 * 1000;
+  return new Date(now.getTime() - ms);
 }

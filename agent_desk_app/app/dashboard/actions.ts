@@ -12,7 +12,13 @@ import {
   DEFAULT_WIDGET_CONFIG,
 } from '@/lib/sites/schemas';
 import { startSiteCrawl, stopSiteCrawl, isScraperConfigured } from '@/lib/scraper/client';
-import { getPlan } from '@/lib/billing/plans';
+import { getPlan, manualCrawlWindowStart } from '@/lib/billing/plans';
+import {
+  countManualCrawlsForUserSince,
+  deleteCrawlRun,
+  recordCrawlRun,
+} from '@/lib/sites/crawl-runs';
+import { crawlSiteTask } from '@/trigger/crawl-site';
 import { count } from 'drizzle-orm';
 
 export type ActionState =
@@ -184,10 +190,10 @@ export async function deleteSiteAction(siteId: string): Promise<void> {
 }
 
 export async function rescrapeSiteAction(siteId: string): Promise<ActionState> {
-  const userId = await requireUserId();
+  const user = await getOrCreateUser();
 
   const site = await db.query.sites.findFirst({
-    where: and(eq(sites.id, siteId), eq(sites.userId, userId)),
+    where: and(eq(sites.id, siteId), eq(sites.userId, user.id)),
   });
   if (!site) {
     return { ok: false, error: 'Site not found' };
@@ -200,30 +206,58 @@ export async function rescrapeSiteAction(siteId: string): Promise<ActionState> {
     };
   }
 
-  // Wipe existing articles so the next crawl reflects the current site.
-  await db.delete(articles).where(eq(articles.siteId, siteId));
-
-  await db
-    .update(sites)
-    .set({ kbStatus: 'crawling' })
-    .where(eq(sites.id, siteId));
-
-  try {
-    await startSiteCrawl({ siteId, domain: site.domain });
-  } catch (err) {
-    await db
-      .update(sites)
-      .set({ kbStatus: 'failed' })
-      .where(eq(sites.id, siteId));
+  // Enforce the per-plan manual-crawl quota (per user, rolling window).
+  // The dashboard hides the button when at the cap, but a direct form post
+  // would otherwise bypass it.
+  const plan = getPlan(user.plan);
+  const used = await countManualCrawlsForUserSince(
+    user.id,
+    manualCrawlWindowStart(plan)
+  );
+  if (used >= plan.limits.manualCrawls.count) {
+    const { count: max, period } = plan.limits.manualCrawls;
     return {
       ok: false,
-      error: err instanceof Error ? err.message : 'Could not reach scraper',
+      error: `You've used your ${max} manual re-crawl${max === 1 ? '' : 's'} for this ${period} on the ${plan.name} plan. ${plan.id === 'pro' ? 'Quota refills 24h after each crawl.' : 'Upgrade for more.'}`,
+    };
+  }
+
+  // Claim a quota slot synchronously *before* triggering the task, so a
+  // rapid double-click can't sneak past the count check while the task is
+  // still queued.
+  const claimId = await recordCrawlRun({
+    userId: user.id,
+    siteId,
+    kind: 'manual',
+  });
+
+  // Hand off to the Trigger.dev queue (concurrencyLimit: 3) — the task
+  // wipes articles, flips kbStatus, and POSTs to the VPS. Sharing the queue
+  // with scheduled crawls means the VPS never sees more than 3 concurrent
+  // dispatches regardless of where they originated.
+  try {
+    await crawlSiteTask.trigger({
+      siteId,
+      userId: user.id,
+      domain: site.domain,
+      kind: 'manual',
+    });
+  } catch (err) {
+    // Trigger.dev call failed — release the quota slot so the user isn't
+    // punished for our infra hiccup.
+    await deleteCrawlRun(claimId);
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? `Could not enqueue crawl: ${err.message}`
+          : 'Could not enqueue crawl',
     };
   }
 
   revalidatePath(`/dashboard/sites/${siteId}`, 'layout');
   revalidatePath('/dashboard');
-  return { ok: true, siteId, message: 'Re-crawl started' };
+  return { ok: true, siteId, message: 'Re-crawl queued' };
 }
 
 export async function stopCrawlAction(siteId: string): Promise<ActionState> {

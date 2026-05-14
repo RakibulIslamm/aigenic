@@ -95,6 +95,30 @@ export const messages = pgTable(
   ]
 );
 
+export const crawlRuns = pgTable(
+  'crawl_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    siteId: uuid('site_id')
+      .references(() => sites.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: text('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    // 'manual' = user-initiated rescrape, 'scheduled' = Trigger.dev daily job.
+    kind: text('kind').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    index('crawl_runs_user_id_kind_created_at_idx').on(
+      t.userId,
+      t.kind,
+      t.createdAt
+    ),
+    index('crawl_runs_site_id_created_at_idx').on(t.siteId, t.createdAt),
+  ]
+);
+
 export const escalations = pgTable('escalations', {
   id: uuid('id').primaryKey().defaultRandom(),
   conversationId: uuid('conversation_id')
@@ -152,6 +176,17 @@ export const escalationsRelations = relations(escalations, ({ one }) => ({
   }),
 }));
 
+export const crawlRunsRelations = relations(crawlRuns, ({ one }) => ({
+  site: one(sites, {
+    fields: [crawlRuns.siteId],
+    references: [sites.id],
+  }),
+  user: one(users, {
+    fields: [crawlRuns.userId],
+    references: [users.id],
+  }),
+}));
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Site = typeof sites.$inferSelect;
@@ -164,3 +199,5 @@ export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type Escalation = typeof escalations.$inferSelect;
 export type NewEscalation = typeof escalations.$inferInsert;
+export type CrawlRun = typeof crawlRuns.$inferSelect;
+export type NewCrawlRun = typeof crawlRuns.$inferInsert;

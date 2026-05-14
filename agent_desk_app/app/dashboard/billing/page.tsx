@@ -1,8 +1,15 @@
-import { Check, CreditCard, Sparkles } from 'lucide-react';
+import { Check, CreditCard, RefreshCw, Sparkles } from 'lucide-react';
 import { getOrCreateUser } from '@/lib/auth/user';
 import { listSitesForUser } from '@/lib/sites/queries';
 import { countConversationsThisMonthForUser } from '@/lib/sites/conversations';
-import { PLANS, getPlan, type Plan } from '@/lib/billing/plans';
+import {
+  PLANS,
+  PLAN_ORDER,
+  getPlan,
+  manualCrawlWindowStart,
+  type Plan,
+} from '@/lib/billing/plans';
+import { countManualCrawlsForUserSince } from '@/lib/sites/crawl-runs';
 import { isPlanPurchasable, isStripeConfigured } from '@/lib/billing/stripe';
 import {
   Card,
@@ -23,12 +30,12 @@ export default async function BillingPage({
   const { status } = await searchParams;
 
   const user = await getOrCreateUser();
-  const [sites, monthlyConversations] = await Promise.all([
+  const plan = getPlan(user.plan);
+  const [sites, monthlyConversations, manualCrawlsUsed] = await Promise.all([
     listSitesForUser(user.id),
     countConversationsThisMonthForUser(user.id),
+    countManualCrawlsForUserSince(user.id, manualCrawlWindowStart(plan)),
   ]);
-
-  const plan = getPlan(user.plan);
   const stripeReady = isStripeConfigured();
   const isOverIncluded =
     !plan.limits.enforceConversationLimit &&
@@ -72,7 +79,7 @@ export default async function BillingPage({
         />
       )}
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <UsageCard
           label="Sites"
           value={`${sites.length} / ${plan.limits.sites}`}
@@ -96,6 +103,19 @@ export default async function BillingPage({
             monthlyConversations >= plan.limits.conversationsPerMonth
           }
         />
+        <UsageCard
+          label={`Manual crawls / ${plan.limits.manualCrawls.period}`}
+          icon={<RefreshCw className="h-4 w-4 text-muted-foreground" />}
+          value={`${manualCrawlsUsed} / ${plan.limits.manualCrawls.count}`}
+          hint={
+            manualCrawlsUsed >= plan.limits.manualCrawls.count
+              ? `Quota used. ${plan.limits.scheduledCrawl ? 'Daily auto-crawl still runs at 03:00 UTC.' : 'Resets a week after each crawl.'}`
+              : plan.limits.scheduledCrawl
+                ? 'Plus a daily auto-crawl at 03:00 UTC.'
+                : 'Within your plan limit'
+          }
+          warn={manualCrawlsUsed >= plan.limits.manualCrawls.count}
+        />
         <Card className="border-border/60 bg-card/40">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardDescription className="text-xs uppercase tracking-wider">Plan</CardDescription>
@@ -113,18 +133,17 @@ export default async function BillingPage({
       </section>
 
       <section className="grid gap-6 md:grid-cols-3">
-        <PlanCard plan={PLANS.free} currentPlan={user.plan} />
-        <PlanCard
-          plan={PLANS.starter}
-          currentPlan={user.plan}
-          purchasable={isPlanPurchasable('starter')}
-        />
-        <PlanCard
-          plan={PLANS.pro}
-          currentPlan={user.plan}
-          highlighted
-          purchasable={isPlanPurchasable('pro')}
-        />
+        {PLAN_ORDER.map((id) => {
+          const planEntry = PLANS[id];
+          return (
+            <PlanCard
+              key={id}
+              plan={planEntry}
+              currentPlan={user.plan}
+              purchasable={id === 'free' ? undefined : isPlanPurchasable(id)}
+            />
+          );
+        })}
       </section>
     </div>
   );
@@ -133,16 +152,15 @@ export default async function BillingPage({
 function PlanCard({
   plan,
   currentPlan,
-  highlighted,
   purchasable,
 }: {
   plan: Plan;
   currentPlan: string;
-  highlighted?: boolean;
   purchasable?: boolean;
 }) {
   const isCurrent = currentPlan === plan.id;
   const isPaid = plan.id !== 'free';
+  const highlighted = plan.highlighted;
 
   return (
     <Card
@@ -211,17 +229,19 @@ function UsageCard({
   value,
   hint,
   warn,
+  icon,
 }: {
   label: string;
   value: string;
   hint: string;
   warn?: boolean;
+  icon?: React.ReactNode;
 }) {
   return (
     <Card className={`border-border/60 bg-card/40 ${warn ? 'border-amber-500/40' : ''}`}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardDescription className="text-xs uppercase tracking-wider">{label}</CardDescription>
-        <CreditCard className="h-4 w-4 text-muted-foreground" />
+        {icon ?? <CreditCard className="h-4 w-4 text-muted-foreground" />}
       </CardHeader>
       <CardContent>
         <div className="font-serif text-2xl tracking-tight">{value}</div>
