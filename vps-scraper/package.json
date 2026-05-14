@@ -14,19 +14,16 @@
     "playwright:install": "playwright install chromium --with-deps"
   },
   "dependencies": {
-    "html-encoding-sniffer": "4.0.0",
     "@mozilla/readability": "latest",
     "express": "latest",
     "helmet": "latest",
+    "jsdom": "latest",
     "p-limit": "latest",
     "pino": "latest",
     "pino-pretty": "latest",
     "playwright": "latest",
     "robots-parser": "latest",
     "zod": "latest"
-  },
-  "overrides": {
-    "html-encoding-sniffer": "4.0.0"
   },
   "devDependencies": {
     "@types/express": "latest",
