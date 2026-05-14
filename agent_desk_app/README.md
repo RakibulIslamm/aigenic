@@ -34,7 +34,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `an
 │ ┌──────────────────────────────────────────────────────────────────────┐ │
 │ │ <script src="https://agentdesk.app/widget.js" data-site="…" async>   │ │
 │ │   • mounts Preact app inside Shadow DOM (~9.5 KB gzip)               │ │
-│ │   • localStorage: visitorId + per-site conversationId                │ │
+│ │   • sessionStorage: visitorId + per-site conversationId                │ │
 │ └──────────────────────────────┬───────────────────────────────────────┘ │
 └────────────────────────────────┼───────────────────────────────────────────┘
                                  │ GET /api/widget/config?siteId
@@ -121,7 +121,7 @@ Plan + usage cards (sites used / monthly conversations vs. included allowance), 
 
 ### Embeddable widget
 
-Lives in [`../widget/`](../widget). Built via `pnpm build` → writes directly to `public/widget.js`. Bootstraps from a `<script data-site="…">` tag (or `window.AgentDeskConfig` fallback), opens a Shadow DOM, fetches `/api/widget/config?siteId=…`, streams chats over SSE, persists `visitorId` + `conversationId` in `localStorage`.
+Lives in [`../widget/`](../widget). Built via `pnpm build` → writes directly to `public/widget.js`. Bootstraps from a `<script data-site="…">` tag (or `window.AgentDeskConfig` fallback), opens a Shadow DOM, fetches `/api/widget/config?siteId=…`, streams chats over SSE, persists `visitorId` + `conversationId` in `sessionStorage`.
 
 ## Project layout
 

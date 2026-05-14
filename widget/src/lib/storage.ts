@@ -1,4 +1,4 @@
-// LocalStorage isolated under per-site keys so multi-tenant pages don't share
+// SessionStorage isolated under per-site keys so multi-tenant pages don't share
 // visitor identities accidentally. Keys are intentionally short to keep the
 // bundle small.
 
@@ -21,7 +21,7 @@ function uuid(): string {
 
 function safeGet(key: string): string | null {
   try {
-    return localStorage.getItem(key);
+    return sessionStorage.getItem(key);
   } catch {
     return null;
   }
@@ -29,7 +29,7 @@ function safeGet(key: string): string | null {
 
 function safeSet(key: string, value: string): void {
   try {
-    localStorage.setItem(key, value);
+    sessionStorage.setItem(key, value);
   } catch {
     /* private browsing / quota — fine, we'll regenerate next session */
   }
@@ -37,7 +37,7 @@ function safeSet(key: string, value: string): void {
 
 function safeRemove(key: string): void {
   try {
-    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
   } catch {
     /* ignore */
   }

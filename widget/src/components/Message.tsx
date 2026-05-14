@@ -68,66 +68,102 @@ function humanizeTool(name: string): string {
 }
 
 /**
- * Lightweight inline renderer: turns http(s) URLs into clickable links and
- * preserves line breaks. We deliberately don't pull in a markdown lib — the
- * agent's responses are plain prose with the occasional link.
+ * Lightweight inline renderer for bot messages. Supports a small, fixed
+ * subset of markdown that the support agent actually emits:
  *
- * URL boundary rules:
- *   - The character class excludes `*`, `[`, `]` so markdown emphasis
- *     (`**url**`) and link syntax (`[label](url)`) don't get pulled in.
- *   - After matching, trailing sentence punctuation is stripped onto the
- *     text run, but a closing `)` is kept if it balances an opening `(`
- *     inside the URL (e.g. Wikipedia `Foo_(bar)`).
+ *   • [label](https://url)   → clickable link with custom label
+ *   • **bold**               → emphasized text (used for item names in lists)
+ *   • bare http(s) URLs      → auto-linked
+ *   • \n                     → <br />
+ *
+ * Anything else (headings, tables, images, code fences) passes through as
+ * plain text — by design. The agent is told not to use them.
+ *
+ * Implementation: one regex matches every token shape we care about; we walk
+ * the matches in order and emit a span / link / bold for each, with plain
+ * spans for the gaps between tokens.
  */
+const TOKEN_RE =
+  /(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\))|(\*\*([^*]+)\*\*)|(https?:\/\/[^\s<>"'*[\]]+)/g;
+const URL_TRAIL_RE = /[).,;:!?'"]+$/;
+
 function renderRichText(text: string): JSX.Element[] {
-  const URL_RE = /(https?:\/\/[^\s<>"'*[\]]+)/g;
-  const TRAIL_RE = /[).,;:!?'"]+$/;
   const out: JSX.Element[] = [];
 
   text.split(/\n/).forEach((line, lineIdx, all) => {
     let cursor = 0;
-    for (const match of line.matchAll(URL_RE)) {
+    for (const match of line.matchAll(TOKEN_RE)) {
       const start = match.index ?? 0;
-      let url = match[0];
-      let trail = '';
-
-      const trailMatch = url.match(TRAIL_RE);
-      if (trailMatch) {
-        trail = trailMatch[0];
-        url = url.slice(0, -trail.length);
-      }
-      // Restore a trailing `)` that closes an opening `(` inside the URL.
-      while (trail.startsWith(')')) {
-        const opens = (url.match(/\(/g) ?? []).length;
-        const closes = (url.match(/\)/g) ?? []).length;
-        if (opens > closes) {
-          url += ')';
-          trail = trail.slice(1);
-        } else {
-          break;
-        }
-      }
+      // match[1] = [label](url) whole, match[2] = label, match[3] = url
+      // match[4] = **bold** whole,    match[5] = bold inner
+      // match[6] = bare URL
+      const mdLink = match[1];
+      const mdLabel = match[2];
+      const mdHref = match[3];
+      const boldText = match[5];
+      const bareUrl = match[6];
 
       if (start > cursor) {
         out.push(
           <span key={`s-${lineIdx}-${cursor}`}>{line.slice(cursor, start)}</span>
         );
       }
-      out.push(
-        <a
-          key={`l-${lineIdx}-${start}`}
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="ad-link"
-        >
-          {url}
-        </a>
-      );
-      if (trail) {
-        out.push(<span key={`t-${lineIdx}-${start}`}>{trail}</span>);
+
+      if (mdLink) {
+        out.push(
+          <a
+            key={`ml-${lineIdx}-${start}`}
+            href={mdHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ad-link"
+          >
+            {mdLabel}
+          </a>
+        );
+        cursor = start + mdLink.length;
+      } else if (boldText !== undefined) {
+        out.push(
+          <strong key={`b-${lineIdx}-${start}`} class="ad-bold">
+            {boldText}
+          </strong>
+        );
+        cursor = start + match[4]!.length;
+      } else if (bareUrl) {
+        let url = bareUrl;
+        let trail = '';
+        const trailMatch = url.match(URL_TRAIL_RE);
+        if (trailMatch) {
+          trail = trailMatch[0];
+          url = url.slice(0, -trail.length);
+        }
+        // Restore a trailing `)` that closes an opening `(` inside the URL.
+        while (trail.startsWith(')')) {
+          const opens = (url.match(/\(/g) ?? []).length;
+          const closes = (url.match(/\)/g) ?? []).length;
+          if (opens > closes) {
+            url += ')';
+            trail = trail.slice(1);
+          } else {
+            break;
+          }
+        }
+        out.push(
+          <a
+            key={`l-${lineIdx}-${start}`}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="ad-link"
+          >
+            {url}
+          </a>
+        );
+        if (trail) {
+          out.push(<span key={`t-${lineIdx}-${start}`}>{trail}</span>);
+        }
+        cursor = start + bareUrl.length;
       }
-      cursor = start + match[0].length;
     }
     if (cursor < line.length) {
       out.push(<span key={`s-${lineIdx}-${cursor}`}>{line.slice(cursor)}</span>);

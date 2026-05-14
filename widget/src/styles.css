@@ -281,6 +281,10 @@
 }
 .ad-link:hover { text-decoration-thickness: 2px; }
 
+.ad-bold {
+  font-weight: 600;
+}
+
 .ad-cursor {
   display: inline-block;
   width: 2px;
