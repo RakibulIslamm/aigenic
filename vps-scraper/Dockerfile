@@ -1,8 +1,11 @@
 # syntax=docker/dockerfile:1.7
 
-# The official Playwright image already ships Node 20+, Chromium, and every
-# system dep Chromium needs (libnss3, fonts, etc.) — saves us 200+ MB of apt.
-FROM mcr.microsoft.com/playwright:latest AS base
+# The official Playwright image ships Chromium and every system dep it needs
+# (libnss3, fonts, etc.) — saves us 200+ MB of apt. The `-noble` variant runs
+# Ubuntu 24.04 + Node 22, which is required: jsdom@29 → whatwg-url@16 →
+# @exodus/bytes (ESM), and only Node 22.12+ can require() an ESM module.
+# Pin to the same Playwright version as the npm package for reproducibility.
+FROM mcr.microsoft.com/playwright:v1.59.1-noble AS base
 
 ENV NODE_ENV=production \
     NPM_CONFIG_UPDATE_NOTIFIER=false
