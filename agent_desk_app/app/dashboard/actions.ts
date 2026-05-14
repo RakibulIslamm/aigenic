@@ -4,14 +4,15 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { articles, conversations, sites } from '@/db/schema';
+import { conversations, sites } from '@/db/schema';
 import { getOrCreateUser, requireUserId } from '@/lib/auth/user';
 import {
   createSiteSchema,
   updateSiteSchema,
   DEFAULT_WIDGET_CONFIG,
 } from '@/lib/sites/schemas';
-import { startSiteCrawl, stopSiteCrawl, isScraperConfigured } from '@/lib/scraper/client';
+import { stopSiteCrawl, isScraperConfigured } from '@/lib/scraper/client';
+import { dispatchSiteCrawl } from '@/lib/sites/dispatch';
 import { getPlan, manualCrawlWindowStart } from '@/lib/billing/plans';
 import {
   countManualCrawlsForUserSince,
@@ -19,6 +20,10 @@ import {
   recordCrawlRun,
 } from '@/lib/sites/crawl-runs';
 import { crawlSiteTask } from '@/trigger/crawl-site';
+import {
+  ensureTriggerConfigured,
+  isTriggerConfigured,
+} from '@/lib/trigger/config';
 import { count } from 'drizzle-orm';
 
 export type ActionState =
@@ -106,25 +111,18 @@ export async function createSiteAction(
     return { ok: false, error: 'Could not create site' };
   }
 
-  // Fire-and-forget the crawl. We don't await the network call beyond the
-  // initial accept response — webhooks update kbStatus as articles arrive.
+  // Initial crawl: synchronous dispatch is fine — there's no fan-out and no
+  // quota to claim. `dispatchSiteCrawl` flips `kbStatus → crawling` before
+  // POSTing and to `failed` if the scraper rejects.
   let scraperMessage: string | undefined;
   if (isScraperConfigured()) {
     try {
-      await startSiteCrawl({
+      await dispatchSiteCrawl({
         siteId: site.id,
         domain: site.domain,
         maxPages: parsed.data.maxPages,
       });
-      await db
-        .update(sites)
-        .set({ kbStatus: 'crawling' })
-        .where(eq(sites.id, site.id));
     } catch (err) {
-      await db
-        .update(sites)
-        .set({ kbStatus: 'failed' })
-        .where(eq(sites.id, site.id));
       scraperMessage =
         err instanceof Error ? err.message : 'Could not reach scraper';
     }
@@ -206,6 +204,16 @@ export async function rescrapeSiteAction(siteId: string): Promise<ActionState> {
     };
   }
 
+  // Reject up front if a crawl is already in progress. Without this, we'd
+  // record a manual `crawl_runs` row and the task would skip with
+  // `already-crawling` — the user would lose a quota slot for no work.
+  if (site.kbStatus === 'crawling') {
+    return {
+      ok: false,
+      error: 'A crawl is already in progress for this site.',
+    };
+  }
+
   // Enforce the per-plan manual-crawl quota (per user, rolling window).
   // The dashboard hides the button when at the cap, but a direct form post
   // would otherwise bypass it.
@@ -231,20 +239,25 @@ export async function rescrapeSiteAction(siteId: string): Promise<ActionState> {
     kind: 'manual',
   });
 
-  // Hand off to the Trigger.dev queue (concurrencyLimit: 3) — the task
-  // wipes articles, flips kbStatus, and POSTs to the VPS. Sharing the queue
-  // with scheduled crawls means the VPS never sees more than 3 concurrent
-  // dispatches regardless of where they originated.
+  // Prefer the Trigger.dev queue (concurrencyLimit: 3) so the VPS never sees
+  // more than 3 concurrent dispatches regardless of origin. Fall back to a
+  // synchronous dispatch in environments that haven't wired up Trigger.dev
+  // (local dev without TRIGGER_API_KEY).
   try {
-    await crawlSiteTask.trigger({
-      siteId,
-      userId: user.id,
-      domain: site.domain,
-      kind: 'manual',
-    });
+    if (isTriggerConfigured()) {
+      ensureTriggerConfigured();
+      await crawlSiteTask.trigger({
+        siteId,
+        userId: user.id,
+        domain: site.domain,
+        kind: 'manual',
+      });
+    } else {
+      await dispatchSiteCrawl({ siteId, domain: site.domain });
+    }
   } catch (err) {
-    // Trigger.dev call failed — release the quota slot so the user isn't
-    // punished for our infra hiccup.
+    // Dispatch failed — release the quota slot so the user isn't punished
+    // for our infra hiccup.
     await deleteCrawlRun(claimId);
     return {
       ok: false,
@@ -342,11 +355,10 @@ export async function rescrapeArticleAction(
     return { ok: false, error: 'Site not found' };
   }
 
-  // Phase 2: per-article re-scrape isn't supported by the worker yet — it
-  // re-runs the full crawl, which will overwrite this article.
-  await db
-    .delete(articles)
-    .where(and(eq(articles.id, articleId), eq(articles.siteId, siteId)));
-
+  // Per-article re-scrape isn't supported by the worker yet — it re-runs the
+  // full crawl, which wipes every article for the site anyway. Defer straight
+  // to the full rescrape (which enforces the manual-crawl quota); deleting
+  // this one article first would just leave it gone if the quota check failed.
+  void articleId;
   return rescrapeSiteAction(siteId);
 }
