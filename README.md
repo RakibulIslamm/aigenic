@@ -32,7 +32,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `an
 ┌────────────────────────────────────────────────────────────────────────────┐
 │                          User's product website                            │
 │ ┌──────────────────────────────────────────────────────────────────────┐ │
-│ │ <script src="https://aigenic.app/widget.js" data-site="…" async>      │ │
+│ │ <script src="https://your-domain.app/widget.js" data-site="…" async>      │ │
 │ │   • mounts Preact app inside Shadow DOM (~9.5 KB gzip)               │ │
 │ │   • sessionStorage: visitorId + per-site conversationId                │ │
 │ └──────────────────────────────┬───────────────────────────────────────┘ │
