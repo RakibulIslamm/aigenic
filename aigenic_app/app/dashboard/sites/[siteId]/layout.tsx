@@ -31,7 +31,7 @@ export default async function SiteLayout({
 
   return (
     <div className="flex flex-col gap-6">
-      <CrawlProgress status={site.kbStatus} pageCount={liveCount} siteId={site.id} />
+      {/* <CrawlProgress status={site.kbStatus} pageCount={liveCount} siteId={site.id} /> */}
 
       {isCrawlPhase && (
         <CrawlActivityFeed
