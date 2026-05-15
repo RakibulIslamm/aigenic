@@ -221,10 +221,12 @@ export async function rescrapeSiteAction(siteId: string): Promise<ActionState> {
     };
   }
 
-  // Reject up front if a crawl is already in progress. Without this, we'd
-  // record a manual `crawl_runs` row and the task would skip with
+  // Reject up front if a crawl is already in progress (or queued). Without
+  // this, we'd record a manual `crawl_runs` row and the task would skip with
   // `already-crawling` — the user would lose a quota slot for no work.
-  if (site.kbStatus === 'crawling') {
+  // `pending` covers the window between "we enqueued the task" and "the
+  // worker picked it up and flipped to crawling".
+  if (site.kbStatus === 'crawling' || site.kbStatus === 'pending') {
     return {
       ok: false,
       error: 'A crawl is already in progress for this site.',
@@ -269,7 +271,21 @@ export async function rescrapeSiteAction(siteId: string): Promise<ActionState> {
         domain: site.domain,
         kind: 'manual',
       });
+      // Optimistically flip to 'pending' so the dashboard reacts *immediately*
+      // — banner appears, button switches to "Stop crawl", SSE subscribes,
+      // activity feed mounts. Without this, `kbStatus` stays at its previous
+      // terminal value ('ready'/'failed'/'stopped') until the Trigger.dev
+      // worker picks up the queued job and `dispatchSiteCrawl` flips it to
+      // 'crawling' — which can be seconds-to-minutes of frozen UI.
+      // `dispatchSiteCrawl` accepts 'pending' (the skip-check only fires on
+      // 'crawling') and will transition 'pending' → 'crawling' when it runs.
+      await db
+        .update(sites)
+        .set({ kbStatus: 'pending' })
+        .where(eq(sites.id, siteId));
     } else {
+      // Synchronous fallback already flips status to 'crawling' inside
+      // dispatchSiteCrawl, so no optimistic update needed here.
       await dispatchSiteCrawl({ siteId, domain: site.domain });
     }
   } catch (err) {

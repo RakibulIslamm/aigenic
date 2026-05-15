@@ -5,6 +5,7 @@ import { requireUserId } from '@/lib/auth/user';
 import { getSiteForUser, getSiteStats } from '@/lib/sites/queries';
 import { KbStatusBadge } from '../../_components/kb-status-badge';
 import { CrawlProgress } from '../../_components/crawl-progress';
+import { CrawlActivityFeed } from '../../_components/crawl-activity-feed';
 import { TabNav } from './_components/tab-nav';
 
 export default async function SiteLayout({
@@ -26,9 +27,19 @@ export default async function SiteLayout({
   // ready/failed the banner doesn't render anyway.
   const liveCount = isCrawling ? (await getSiteStats(siteId)).articleCount : undefined;
 
+  const isCrawlPhase = isCrawling || site.kbStatus === 'failed' || site.kbStatus === 'stopped';
+
   return (
     <div className="flex flex-col gap-6">
-      <CrawlProgress status={site.kbStatus} pageCount={liveCount} />
+      <CrawlProgress status={site.kbStatus} pageCount={liveCount} siteId={site.id} />
+
+      {isCrawlPhase && (
+        <CrawlActivityFeed
+          siteId={site.id}
+          initialStatus={site.kbStatus}
+          initialCount={liveCount}
+        />
+      )}
 
       <div>
         <Link
