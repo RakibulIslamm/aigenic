@@ -16,7 +16,7 @@
     "@ai-sdk/openai": "^3.0.63",
     "@clerk/nextjs": "^7.3.3",
     "@hookform/resolvers": "^5.2.2",
-    "@trigger.dev/sdk": "^4.4.5",
+    "@trigger.dev/sdk": "4.4.6",
     "@uploadthing/react": "^7.3.3",
     "ai": "^6.0.177",
     "class-variance-authority": "^0.7.1",
