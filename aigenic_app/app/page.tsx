@@ -302,7 +302,7 @@ function EmbedPreview() {
             </div>
             <pre className="overflow-x-auto whitespace-pre text-[12px] leading-relaxed text-foreground/90 sm:text-[13px]">
 {`<script
-  src="https://aigenic.app/widget.js"
+  src="https://aigenicapp.vercel.app/widget.js"
   data-site="{siteId}"
   async
 ></script>`}
