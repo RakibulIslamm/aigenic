@@ -28,6 +28,7 @@ import {
   PLAN_ORDER,
   type Plan,
 } from '@/lib/billing/plans';
+import { SUPPORT_MODEL_NAME, WIDGET_GZIP_KB } from '@/lib/marketing';
 
 const FEATURES = [
   {
@@ -83,7 +84,7 @@ const FAQS = [
   },
   {
     q: 'What model does it use?',
-    a: 'Claude sonnet via OpenRouter, with tool-use enabled so it can search your KB before answering.',
+    a: `${SUPPORT_MODEL_NAME} via OpenRouter, with tool-use enabled so it can search your KB before answering. The model is swappable server-side, so it can improve without you touching your embed.`,
   },
   {
     q: 'What happens when the AI doesn\'t know the answer?',
@@ -166,7 +167,7 @@ function Hero() {
   return (
     <section className="mx-auto max-w-6xl px-6 pb-24 pt-20 text-center md:pt-28">
       <Badge variant="secondary" className="mb-6 rounded-full border border-border/60 px-3 py-1 text-xs font-normal text-muted-foreground">
-        Powered by Claude Sonnet · Tool-use enabled
+        Powered by {SUPPORT_MODEL_NAME} · Tool-use enabled
       </Badge>
       <h1 className="mx-auto max-w-3xl font-heading text-5xl leading-[1.05] tracking-tight md:text-6xl">
         Add an AI support agent to your site in&nbsp;60&nbsp;seconds.
@@ -238,9 +239,12 @@ function SocialProof() {
     <section className="border-y border-border/60 bg-card/30">
       <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-6 py-12 text-center md:grid-cols-4">
         <Metric value="< 60s" label="time to embed" />
-        <Metric value="92%" label="self-serve resolution" />
+        <Metric value={`${WIDGET_GZIP_KB} KB`} label="widget, gzipped" />
         <Metric value="$0" label="to start" />
-        <Metric value="∞" label="conversations on Pro" />
+        <Metric
+          value={PLANS.pro.limits.conversationsPerMonth.toLocaleString('en-US')}
+          label="conversations included on Pro"
+        />
       </div>
     </section>
   );

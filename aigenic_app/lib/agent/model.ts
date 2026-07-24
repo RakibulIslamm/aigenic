@@ -1,4 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai';
+import { SUPPORT_MODEL_ID } from '@/lib/marketing';
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 const baseURL =
@@ -47,6 +48,6 @@ const openrouter = createOpenAI({
   fetch: routedFetch,
 });
 
-export const SUPPORT_MODEL_ID = 'deepseek/deepseek-v4-flash';
+export { SUPPORT_MODEL_ID };
 
 export const supportModel = openrouter.chat(SUPPORT_MODEL_ID);

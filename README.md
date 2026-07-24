@@ -2,7 +2,7 @@
 
 > An embeddable, multi-tenant AI customer support agent. Sign up, paste your URL, drop a one-line script on your site, and your visitors get a chat bubble trained on your entire website — with citations, tool use, and graceful escalation to a human. Works for any company: SaaS, e-commerce, marketing sites, agencies.
 
-Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `anthropic/claude-sonnet-4.6`, marketed against **Claude Sonnet 4.6**), **Next.js 16** App Router, **Drizzle ORM** on Neon Postgres, and **Clerk** for auth. The chat widget is a 9.5 KB Preact bundle that mounts inside a Shadow DOM. Crawling runs in a separate **Playwright** service on a Contabo VPS.
+Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `deepseek/deepseek-v4-flash` — see [`aigenic_app/lib/marketing.ts`](./aigenic_app/lib/marketing.ts), the single source for model/marketing facts), **Next.js 16** App Router, **Drizzle ORM** on Neon Postgres, and **Clerk** for auth. The chat widget is a ~12 KB (gzipped) Preact bundle that mounts inside a Shadow DOM. Crawling runs in a separate **Playwright** service on a Contabo VPS.
 
 ## Status
 
@@ -23,7 +23,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `an
 - **Streaming chat with tool use.** Custom SSE protocol (`meta | text | tool | error | done`). Three tools bound per request: `search_knowledge_base`, `get_article`, `escalate_to_human`. Tool calls render inline in the dashboard with friendly labels and a JSON drill-down.
 - **Graceful escalation.** When the agent isn't sure it calls the escalate tool. Resend delivers the full transcript to the inbox set on the site — idempotent via DB constraint.
 - **6-tab site detail.** Overview · Knowledge base (paginated, per-article re-scrape) · Conversations (status-filtered: All/Active/Escalated/Resolved, mark-as-resolved, transcript view, escalation panel) · Analytics (4 stats + 30-day chart + top topics) · Widget code (copy snippet + live `srcDoc` preview) · Settings (rename, escalation email, widget color picker, greeting, delete-with-confirm).
-- **Plan-aware limits.** Free = 1 site / 30 conversations / month (hard cap). Starter ($19/mo) = 2 sites / 300 included + $0.15 per extra. Pro ($49/mo) = 5 sites / 1,000 included + $0.10 per extra. Hard cap enforced server-side on Free; paid plans allow overage. Stripe Checkout + Customer Portal wired through webhooks; the active subscription price id maps back to the plan.
+- **Plan-aware limits.** Free = 1 site / 30 conversations / month (hard cap). Starter ($19/mo) = 2 sites / 300 included + $0.15 per extra. Pro ($49/mo) = 5 sites / 1,000 included + $0.10 per extra. Hard cap enforced server-side on Free; paid plans allow overage. Stripe Checkout + Customer Portal wired through webhooks; the active subscription price id maps back to the plan. **Starter and Pro currently ship `comingSoon: true`** — the landing/billing pages show them as "Coming soon" and the upgrade buttons are disabled until the flags flip.
 - **Stop-mid-crawl.** Big-site overrun? Hit the **Stop crawl** button — the optimistic UI flips immediately and the VPS aborts the in-flight job.
 
 ## Architecture
@@ -32,8 +32,8 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `an
 ┌────────────────────────────────────────────────────────────────────────────┐
 │                          User's product website                            │
 │ ┌──────────────────────────────────────────────────────────────────────┐ │
-│ │ <script src="https://your-domain.app/widget.js" data-site="…" async>      │ │
-│ │   • mounts Preact app inside Shadow DOM (~9.5 KB gzip)               │ │
+│ │ <script src="https://aigenicapp.vercel.app/widget.js" data-site="…" async> │ │
+│ │   • mounts Preact app inside Shadow DOM (~12 KB gzip)                │ │
 │ │   • sessionStorage: visitorId + per-site conversationId                │ │
 │ └──────────────────────────────┬───────────────────────────────────────┘ │
 └────────────────────────────────┼───────────────────────────────────────────┘
@@ -74,7 +74,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `an
 | Postgres (with FTS)     | Neon                                | the Next.js app only                                    |
 | Embeddable widget       | Served from Vercel `public/`        | `/api/widget/*` on the same Next.js app                 |
 | Crawler                 | Contabo VPS (Docker + Caddy + TLS)  | Receives `POST /crawl`, posts back to `/api/scraper/webhook` |
-| Auth                    | Clerk                               | `clerkMiddleware()` in [`proxy.ts`](./proxy.ts)         |
+| Auth                    | Clerk                               | `clerkMiddleware()` in [`proxy.ts`](./aigenic_app/proxy.ts) |
 | Billing                 | Stripe                              | Checkout sessions + webhooks → flips `users.plan`       |
 
 ## Stack
@@ -82,13 +82,13 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `an
 - **Framework:** Next.js 16 (App Router, Turbopack, React 19.2)
 - **Auth:** Clerk
 - **DB:** Neon Postgres + Drizzle ORM (`postgres-js` driver) + a generated `tsvector` column for full-text KB search
-- **AI:** Vercel AI SDK (`ai`, `@ai-sdk/openai`) pointed at OpenRouter — model is set in [`lib/agent/model.ts`](./lib/agent/model.ts) as `SUPPORT_MODEL_ID` (currently `anthropic/claude-sonnet-4.6`; swap for any OpenRouter model). Three tools: `search_knowledge_base`, `get_article`, `escalate_to_human`. `stepCountIs(8)`, temp 0.3.
-- **Widget:** Preact + Vite (IIFE bundle, ~9.5 KB gzipped, mounts in Shadow DOM, inlined CSS)
-- **Crawler:** Playwright (headless Chromium) + `@mozilla/readability` + JSDOM + robots-parser, in [`../vps-scraper/`](../vps-scraper). Same-site BFS, sitemap-seeded, per-host rate limit, two-tier fetcher (plain `fetch` → escalate to Playwright only for JS shells), `AbortController`-based stop, exponential-backoff webhook delivery.
+- **AI:** Vercel AI SDK (`ai`, `@ai-sdk/openai`) pointed at OpenRouter — model is set as `SUPPORT_MODEL_ID` in [`lib/marketing.ts`](./aigenic_app/lib/marketing.ts) (currently `deepseek/deepseek-v4-flash`; swap for any OpenRouter model) and wired in [`lib/agent/model.ts`](./aigenic_app/lib/agent/model.ts). Three tools: `search_knowledge_base`, `get_article`, `escalate_to_human`. `stepCountIs(8)`, temp 0.3.
+- **Widget:** Preact + Vite (IIFE bundle, ~12 KB gzipped, mounts in Shadow DOM, inlined CSS)
+- **Crawler:** Playwright (headless Chromium) + `@mozilla/readability` + JSDOM + robots-parser, in [`vps-scraper/`](./vps-scraper/). Same-site BFS, sitemap-seeded, per-host rate limit, two-tier fetcher (plain `fetch` → escalate to Playwright only for JS shells), `AbortController`-based stop, exponential-backoff webhook delivery.
 - **Email:** Resend (escalation transcripts, idempotent via `escalations` unique constraint)
 - **Billing:** Stripe (Free / $19 Starter / $49 Pro, Checkout + Customer Portal; per-plan price IDs)
 - **Charts:** Recharts (analytics tab)
-- **UI:** shadcn/ui + Tailwind v4 + Lucide + Sonner (toasts) + Instrument Serif display font
+- **UI:** shadcn/ui + Tailwind v4 + Lucide + Sonner (toasts) + Inter (body) / Space Grotesk (headings) / Geist Mono fonts
 - **Package manager:** pnpm
 
 ## Feature tour
@@ -121,11 +121,12 @@ Plan + usage cards (sites used / monthly conversations vs. included allowance), 
 
 ### Embeddable widget
 
-Lives in [`../widget/`](../widget). Built via `pnpm build` → writes directly to `public/widget.js`. Bootstraps from a `<script data-site="…">` tag (or `window.AigenicConfig` fallback), opens a Shadow DOM, fetches `/api/widget/config?siteId=…`, streams chats over SSE, persists `visitorId` + `conversationId` in `sessionStorage`.
+Lives in [`widget/`](./widget/). Built via `pnpm build` → writes directly to `public/widget.js`. Bootstraps from a `<script data-site="…">` tag (or `window.AigenicConfig` fallback), opens a Shadow DOM, fetches `/api/widget/config?siteId=…`, streams chats over SSE, persists `visitorId` + `conversationId` in `sessionStorage`.
 
 ## Project layout
 
 ```
+aigenic_app/
 app/
   layout.tsx                       # ClerkProvider + dark theme + Sonner toaster
   page.tsx                         # Landing page (hero, features, vs-Intercom, pricing, FAQ)
@@ -138,7 +139,7 @@ app/
     actions.ts                     # All server actions, typed `ActionState` with fieldErrors + values
     billing/                       # Plan cards + usage + Upgrade / Manage portal
     sites/[siteId]/
-      layout.tsx                   # Tab nav + site header + crawl polling
+      layout.tsx                   # Tab nav + site header + live crawl activity (SSE)
       page.tsx                     # Overview tab
       knowledge/                   # KB tab — paginated list, resync, stop crawl
       conversations/               # List + detail (transcript, tool-call accordions, sidebar)
@@ -167,12 +168,13 @@ drizzle/
   0001_fts_index.sql               # tsvector + GIN/btree indexes
   0002_perf_indexes.sql            # Additional perf indexes
   0003_glossy_namora.sql           # Per-site btree indexes (resynced)
+  0004_lean_roughhouse.sql         # crawl_runs table (manual-crawl quota tracking)
 components/
   ui/                              # shadcn primitives
   skeletons.tsx                    # Section-level loading blocks
 proxy.ts                           # clerkMiddleware() — protects /dashboard/*
 next.config.ts                     # turbopack.root pinned to the app directory
-public/widget.js                   # Built widget bundle (9.5 KB gzipped)
+public/widget.js                   # Built widget bundle (~12 KB gzipped)
 ```
 
 ## Setup
@@ -180,10 +182,11 @@ public/widget.js                   # Built widget bundle (9.5 KB gzipped)
 ### 1. Install
 
 ```bash
+cd aigenic_app
 pnpm install
 ```
 
-Caret-ranged deps — `pnpm install` always pulls the latest minor.
+Deps are caret-pinned; `pnpm-lock.yaml` is authoritative (use `--frozen-lockfile` in CI/Docker).
 
 ### 2. Environment
 
@@ -247,11 +250,11 @@ That writes `public/widget.js` into this app. Rebuild any time you change `widge
 pnpm dev
 ```
 
-Landing renders without auth. `/dashboard` redirects to Clerk sign-in. Add a site, wait for `kbStatus = ready` (the page polls every 15 s while a crawl is in flight), then drop the embed snippet from the **Widget code** tab onto a test page.
+Landing renders without auth. `/dashboard` redirects to Clerk sign-in. Add a site, wait for `kbStatus = ready` (site pages stream live crawl progress over SSE; the dashboard root refreshes every 15 s while a crawl is in flight), then drop the embed snippet from the **Widget code** tab onto a test page.
 
 ## Notes on Next.js 16
 
-- **`middleware.ts` is now `proxy.ts`.** Clerk's `clerkMiddleware()` is unchanged. See [`proxy.ts`](./proxy.ts).
+- **`middleware.ts` is now `proxy.ts`.** Clerk's `clerkMiddleware()` is unchanged. See [`proxy.ts`](./aigenic_app/proxy.ts).
 - **All Request APIs are async** — `await cookies()`, `await params`, `await searchParams`.
 - **Turbopack is default** for `dev` and `build`. `next.config.ts` pins `turbopack.root` so a multi-lockfile environment doesn't confuse the resolver.
 - **`revalidateTag` requires a cacheLife profile** as the second argument now.
@@ -282,10 +285,10 @@ The full punch-list:
 3. **Clerk:** in the Clerk dashboard, add the Vercel domain to **Allowed Origins** and **Sign-in/Sign-up URLs**, switch the production instance to use the new domain.
 4. **Stripe:** create the $19/mo Starter and $49/mo Pro recurring prices (each generates a `price_...` id — paste them into `STRIPE_STARTER_PRICE_ID` and `STRIPE_PRO_PRICE_ID`), then a webhook endpoint pointed at `https://your-app.vercel.app/api/stripe/webhook` listening to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`. The webhook handler reverse-looks-up the active price id to set the plan, so you don't need to repeat plan names anywhere.
 5. **Migrations:** run `pnpm db:migrate` once against the production `DATABASE_URL`.
-6. **Scraper:** SSH into the Contabo VPS and follow [../vps-scraper/DEPLOY.md](../vps-scraper/DEPLOY.md). End-state: `https://scraper.yourdomain.com/health` returns `{"status":"ok"}` with a Let's Encrypt cert from Caddy. Set `SCRAPER_API_URL` and `SCRAPER_API_KEY` in Vercel to match.
+6. **Scraper:** SSH into the Contabo VPS and follow [vps-scraper/DEPLOY.md](./vps-scraper/DEPLOY.md). End-state: `https://scraper.yourdomain.com/health` returns `{"status":"ok"}` with a Let's Encrypt cert from Caddy. Set `SCRAPER_API_URL` and `SCRAPER_API_KEY` in Vercel to match.
 7. **Smoke test on prod:**
    - Sign up via Clerk
-   - Add a site (any kind — a marketing site, an e-commerce store, a docs site) and watch the KB land (page polls every 15 s with a live "X pages indexed so far" banner; KB status flips `pending → crawling → ready`)
+   - Add a site (any kind — a marketing site, an e-commerce store, a docs site) and watch the KB land (the site page streams a live "X pages indexed so far" activity feed over SSE; KB status flips `pending → crawling → ready`)
    - Open the **Widget code** tab, copy the snippet, paste into a test HTML file, open in a browser
    - Chat — verify a friendly tool-call label appears (e.g. "Searched knowledge base") and text streams
    - Trigger an escalation ("I want to talk to a human about a refund") → check the inbox set as `escalationEmail`
@@ -300,7 +303,9 @@ The full punch-list:
 | **Starter** | $19 / month  | 2     | 300 included          | $0.15 per additional conversation    |
 | **Pro**     | $49 / month  | 5     | 1,000 included        | $0.10 per additional conversation    |
 
-Site count is hard-enforced server-side in [`createSiteAction`](./app/dashboard/actions.ts). Conversation limits behave per-plan: **Free** hard-caps in [`/api/widget/chat`](./app/api/widget/chat/route.ts) (`enforceConversationLimit: true` in [`lib/billing/plans.ts`](./lib/billing/plans.ts)), while **Starter** and **Pro** allow overage — new conversations keep flowing past the included count and are surfaced as a dollar amount on the Billing tab. The actual overage billing meter is not yet wired to Stripe; included counts and overage rates are stored on the plan for future metering. The Stripe webhook reverse-maps `items.data[0].price.id` → plan id via [`planForPriceId`](./lib/billing/stripe.ts), so adding a fourth tier later is just a price-id + a plan entry.
+Starter and Pro are flagged `comingSoon` in [`lib/billing/plans.ts`](./aigenic_app/lib/billing/plans.ts) — the UI shows them as "Coming soon" with disabled upgrade buttons until the flags flip.
+
+Site count is hard-enforced server-side in [`createSiteAction`](./aigenic_app/app/dashboard/actions.ts). Conversation limits behave per-plan: **Free** hard-caps in [`/api/widget/chat`](./aigenic_app/app/api/widget/chat/route.ts) (`enforceConversationLimit: true` in [`lib/billing/plans.ts`](./aigenic_app/lib/billing/plans.ts)), while **Starter** and **Pro** allow overage — new conversations keep flowing past the included count and are surfaced as a dollar amount on the Billing tab. The actual overage billing meter is not yet wired to Stripe; included counts and overage rates are stored on the plan for future metering. The Stripe webhook reverse-maps `items.data[0].price.id` → plan id via [`planForPriceId`](./aigenic_app/lib/billing/stripe.ts), so adding a fourth tier later is just a price-id + a plan entry.
 
 ---
 
