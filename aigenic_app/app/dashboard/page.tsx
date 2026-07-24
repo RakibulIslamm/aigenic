@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AddSiteDialog } from './_components/add-site-dialog';
 import { KbStatusBadge } from './_components/kb-status-badge';
 import { CrawlProgress } from './_components/crawl-progress';
+import { StatCard } from '@/components/stat-card';
 
 export default async function DashboardPage() {
   const user = await getOrCreateUser();
@@ -75,31 +76,6 @@ export default async function DashboardPage() {
         </section>
       )}
     </div>
-  );
-}
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  hint,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string | number;
-  hint: string;
-}) {
-  return (
-    <Card className="border-border/60 bg-card/40">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardDescription className="text-xs uppercase tracking-wider">{label}</CardDescription>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="font-heading text-3xl tracking-tight">{value}</div>
-        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-      </CardContent>
-    </Card>
   );
 }
 

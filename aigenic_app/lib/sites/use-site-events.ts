@@ -6,8 +6,8 @@ import type {
   CrawlEvent,
   CrawlSnapshot,
 } from '@/lib/sites/crawl-events';
+import { isTerminalStatus } from '@/lib/sites/status';
 
-const TERMINAL_STATUSES = new Set(['ready', 'failed', 'stopped']);
 const EVENT_HISTORY_CAP = 30;
 const RECONNECT_DELAY_MS = 1500;
 // Coalesce `router.refresh()` calls so a burst of SSE messages doesn't trigger
@@ -136,7 +136,7 @@ export function useSiteEvents(
         if (stoppedRef.current) return;
         // Don't reconnect if we already know the crawl finished — the server
         // hangs up on terminal states after a short linger.
-        if (snapshot && TERMINAL_STATUSES.has(snapshot.status)) {
+        if (snapshot && isTerminalStatus(snapshot.status)) {
           stoppedRef.current = true;
           return;
         }

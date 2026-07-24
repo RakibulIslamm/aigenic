@@ -97,7 +97,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
 
   try {
     const origin = new URL(startUrl).origin;
-    const robots = await loadRobots(origin);
+    const { robots, robotsBody } = await loadRobots(origin);
 
     if (robots.isAllowed(startUrl, USER_AGENT) === false) {
       throw new Error(`robots.txt disallows the start URL ${startUrl}`);
@@ -140,6 +140,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
       origin,
       site,
       userAgent: USER_AGENT,
+      robotsBody,
     });
     for (const u of sitemapUrls) enqueue(u);
 
@@ -306,7 +307,14 @@ function hashContent(content: string): string {
   return createHash('sha256').update(content.trim().toLowerCase()).digest('hex');
 }
 
-async function loadRobots(origin: string): Promise<RobotsApi> {
+/**
+ * Fetches robots.txt exactly once per crawl and returns both the parsed API
+ * and the raw body — sitemap discovery re-reads the same body for `Sitemap:`
+ * lines instead of fetching robots.txt a second time.
+ */
+async function loadRobots(
+  origin: string
+): Promise<{ robots: RobotsApi; robotsBody: string }> {
   const robotsUrl = `${origin}/robots.txt`;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -320,7 +328,7 @@ async function loadRobots(origin: string): Promise<RobotsApi> {
       });
       if (res.ok) {
         const body = await res.text();
-        return robotsParser(robotsUrl, body);
+        return { robots: robotsParser(robotsUrl, body), robotsBody: body };
       }
       break; // non-ok response — don't keep retrying
     } catch (err) {
@@ -332,5 +340,5 @@ async function loadRobots(origin: string): Promise<RobotsApi> {
     }
   }
   // No robots = allow everything (per RFC 9309).
-  return robotsParser(robotsUrl, '');
+  return { robots: robotsParser(robotsUrl, ''), robotsBody: '' };
 }

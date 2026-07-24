@@ -4,10 +4,10 @@ import { requireUserId } from '@/lib/auth/user';
 import {
   diffSnapshots,
   fetchCrawlSnapshot,
-  isTerminalStatus,
   type CrawlEvent,
   type CrawlSnapshot,
 } from '@/lib/sites/crawl-events';
+import { isTerminalStatus } from '@/lib/sites/status';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

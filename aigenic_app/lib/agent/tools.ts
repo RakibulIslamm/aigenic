@@ -138,18 +138,12 @@ export function buildSupportTools(ctx: SupportToolContext) {
           };
         }
 
-        // Update visitor email on the conversation if the model captured one.
-        if (visitorEmail) {
-          await db
-            .update(conversations)
-            .set({ visitorEmail, status: 'escalated' })
-            .where(eq(conversations.id, ctx.conversationId));
-        } else {
-          await db
-            .update(conversations)
-            .set({ status: 'escalated' })
-            .where(eq(conversations.id, ctx.conversationId));
-        }
+        // Flip the conversation to escalated; record the visitor email too if
+        // the model captured one.
+        await db
+          .update(conversations)
+          .set({ status: 'escalated', ...(visitorEmail ? { visitorEmail } : {}) })
+          .where(eq(conversations.id, ctx.conversationId));
 
         // One escalation per conversation — the unique constraint enforces
         // this; onConflictDoNothing makes a re-call idempotent.

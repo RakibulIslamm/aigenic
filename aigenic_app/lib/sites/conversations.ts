@@ -9,6 +9,7 @@ import {
   type Escalation,
   type Message,
 } from '@/db/schema';
+import { daysAgoUTC, startOfCurrentMonthUTC } from '@/lib/dates';
 
 export type ConversationStatusFilter = 'all' | 'active' | 'resolved' | 'escalated';
 
@@ -199,13 +200,8 @@ export interface SiteAnalytics {
  * snap to the next non-zero day.
  */
 export async function getSiteAnalytics(siteId: string): Promise<SiteAnalytics> {
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
-
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setUTCDate(thirtyDaysAgo.getUTCDate() - 29);
-  thirtyDaysAgo.setUTCHours(0, 0, 0, 0);
+  const monthStart = startOfCurrentMonthUTC();
+  const thirtyDaysAgo = daysAgoUTC(29);
 
   const [[monthlyConvAgg], [monthlyEscAgg], dailyRows, resolutionRows, toolRows] =
     await Promise.all([
@@ -351,9 +347,7 @@ export async function getSiteAnalytics(siteId: string): Promise<SiteAnalytics> {
 export async function countConversationsThisMonthForUser(
   userId: string
 ): Promise<number> {
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
+  const monthStart = startOfCurrentMonthUTC();
 
   // postgres-js returns rows directly as an array — no `.rows` wrapper
   // (that's the node-postgres shape). Drizzle's typing is `unknown`, so we cast.

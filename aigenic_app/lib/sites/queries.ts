@@ -5,10 +5,10 @@ import {
   articles,
   conversations,
   escalations,
-  messages,
   sites,
   type Site,
 } from '@/db/schema';
+import { startOfCurrentMonthUTC } from '@/lib/dates';
 
 export interface SiteListItem extends Site {
   articleCount: number;
@@ -51,9 +51,7 @@ export const getSiteForUser = cache(
 );
 
 export async function getSiteStats(siteId: string) {
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  monthStart.setUTCHours(0, 0, 0, 0);
+  const monthStart = startOfCurrentMonthUTC();
 
   const [[articleAgg], [conversationAgg], [escalationAgg]] = await Promise.all([
     db
@@ -144,25 +142,3 @@ export async function listArticlesForSitePaged(
   };
 }
 
-export async function listConversationsForSite(
-  siteId: string,
-  limit = 50
-) {
-  const rows = await db
-    .select({
-      id: conversations.id,
-      visitorId: conversations.visitorId,
-      visitorEmail: conversations.visitorEmail,
-      status: conversations.status,
-      createdAt: conversations.createdAt,
-      messageCount: sql<number>`count(${messages.id})::int`,
-    })
-    .from(conversations)
-    .leftJoin(messages, eq(messages.conversationId, conversations.id))
-    .where(eq(conversations.siteId, siteId))
-    .groupBy(conversations.id)
-    .orderBy(desc(conversations.createdAt))
-    .limit(limit);
-
-  return rows;
-}

@@ -1,4 +1,4 @@
-import { Check, CreditCard, RefreshCw, Sparkles } from 'lucide-react';
+import { Check, RefreshCw, Sparkles } from 'lucide-react';
 import { getOrCreateUser } from '@/lib/auth/user';
 import { listSitesForUser } from '@/lib/sites/queries';
 import { countConversationsThisMonthForUser } from '@/lib/sites/conversations';
@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { StatCard } from '@/components/stat-card';
 import { UpgradeButton, ManageBillingButton } from './_components/billing-actions';
 
 export default async function BillingPage({
@@ -88,13 +89,15 @@ export default async function BillingPage({
       )}
 
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <UsageCard
+        <StatCard
+          size="md"
           label="Sites"
           value={`${sites.length} / ${plan.limits.sites}`}
           hint={sites.length >= plan.limits.sites ? 'At your plan limit' : 'Within your plan limit'}
           warn={sites.length >= plan.limits.sites}
         />
-        <UsageCard
+        <StatCard
+          size="md"
           label="Conversations this month"
           value={`${monthlyConversations} / ${plan.limits.conversationsPerMonth}${plan.limits.enforceConversationLimit ? '' : ' included'}`}
           hint={
@@ -111,9 +114,10 @@ export default async function BillingPage({
             monthlyConversations >= plan.limits.conversationsPerMonth
           }
         />
-        <UsageCard
+        <StatCard
+          size="md"
           label={`Manual crawls / ${plan.limits.manualCrawls.period}`}
-          icon={<RefreshCw className="h-4 w-4 text-muted-foreground" />}
+          icon={RefreshCw}
           value={`${manualCrawlsUsed} / ${plan.limits.manualCrawls.count}`}
           hint={
             manualCrawlsUsed >= plan.limits.manualCrawls.count
@@ -124,20 +128,16 @@ export default async function BillingPage({
           }
           warn={manualCrawlsUsed >= plan.limits.manualCrawls.count}
         />
-        <Card className="border-border/60 bg-card/40">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-xs uppercase tracking-wider">Plan</CardDescription>
-            <Sparkles className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="font-heading text-3xl tracking-tight">{plan.name}</div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {user.plan !== 'free' && user.stripeSubscriptionId
-                ? 'Subscription active via Stripe'
-                : 'No subscription'}
-            </p>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Plan"
+          icon={Sparkles}
+          value={plan.name}
+          hint={
+            user.plan !== 'free' && user.stripeSubscriptionId
+              ? 'Subscription active via Stripe'
+              : 'No subscription'
+          }
+        />
       </section>
 
       <section className="grid gap-6 md:grid-cols-3">
@@ -239,33 +239,6 @@ function PlanCard({
           Downgrade by cancelling your paid plan from the customer portal.
         </p>
       )}
-    </Card>
-  );
-}
-
-function UsageCard({
-  label,
-  value,
-  hint,
-  warn,
-  icon,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  warn?: boolean;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <Card className={`border-border/60 bg-card/40 ${warn ? 'border-amber-500/40' : ''}`}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardDescription className="text-xs uppercase tracking-wider">{label}</CardDescription>
-        {icon ?? <CreditCard className="h-4 w-4 text-muted-foreground" />}
-      </CardHeader>
-      <CardContent>
-        <div className="font-heading text-2xl tracking-tight">{value}</div>
-        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-      </CardContent>
     </Card>
   );
 }

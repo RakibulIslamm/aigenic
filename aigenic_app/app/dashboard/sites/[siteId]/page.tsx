@@ -3,11 +3,9 @@ import { notFound } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { ArrowRight, BookOpen, MessageSquare, ShieldAlert } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
-import {
-  getSiteForUser,
-  getSiteStats,
-  listConversationsForSite,
-} from '@/lib/sites/queries';
+import { getSiteForUser, getSiteStats } from '@/lib/sites/queries';
+import { listConversationsFiltered } from '@/lib/sites/conversations';
+import { StatCard } from '@/components/stat-card';
 import {
   Card,
   CardContent,
@@ -30,7 +28,7 @@ export default async function SiteOverviewPage({
 
   const [stats, conversations] = await Promise.all([
     getSiteStats(siteId),
-    listConversationsForSite(siteId, 5),
+    listConversationsFiltered(siteId, 'all', 5),
   ]);
 
   return (
@@ -95,31 +93,6 @@ export default async function SiteOverviewPage({
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  hint,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: number | string;
-  hint: string;
-}) {
-  return (
-    <Card className="border-border/60 bg-card/40">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardDescription className="text-xs uppercase tracking-wider">{label}</CardDescription>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="font-heading text-3xl tracking-tight">{value}</div>
-        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-      </CardContent>
-    </Card>
   );
 }
 

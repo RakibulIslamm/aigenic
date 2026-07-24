@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { type NextRequest } from 'next/server';
 import { asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ModelMessage } from 'ai';
@@ -8,6 +8,7 @@ import { runSupportAgent } from '@/lib/agent/support-agent';
 import { DEFAULT_WIDGET_CONFIG } from '@/lib/sites/schemas';
 import { countConversationsThisMonthForUser } from '@/lib/sites/conversations';
 import { getPlan } from '@/lib/billing/plans';
+import { widgetCors } from '@/lib/http/cors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,15 +23,10 @@ const requestSchema = z.object({
   message: z.string().trim().min(1).max(4000),
 });
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Max-Age': '86400',
-} as const;
+const cors = widgetCors('POST, OPTIONS');
 
 export function OPTIONS() {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
+  return cors.preflight();
 }
 
 export async function POST(request: NextRequest) {
@@ -131,7 +127,7 @@ export async function POST(request: NextRequest) {
   return new Response(stream, {
     status: 200,
     headers: {
-      ...CORS_HEADERS,
+      ...cors.headers,
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
@@ -240,15 +236,7 @@ async function loadHistory(conversationId: string): Promise<ModelMessage[]> {
     );
 }
 
-function jsonError(error: string, status: number, extra?: Record<string, unknown>) {
-  return NextResponse.json(
-    { error, ...extra },
-    {
-      status,
-      headers: CORS_HEADERS,
-    }
-  );
-}
+const jsonError = cors.jsonError;
 
 function extractErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;

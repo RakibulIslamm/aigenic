@@ -9,6 +9,8 @@ interface DiscoverOptions {
   origin: string;
   site: NormalizedSite;
   userAgent: string;
+  /** Raw robots.txt body the crawler already fetched ('' when unavailable). */
+  robotsBody: string;
 }
 
 /**
@@ -21,6 +23,7 @@ export async function discoverSitemapUrls({
   origin,
   site,
   userAgent,
+  robotsBody,
 }: DiscoverOptions): Promise<string[]> {
   const seedCandidates = [
     `${origin}/sitemap.xml`,
@@ -28,7 +31,7 @@ export async function discoverSitemapUrls({
     `${origin}/sitemap-index.xml`,
   ];
 
-  const robotsSitemaps = await extractSitemapsFromRobots(origin, userAgent);
+  const robotsSitemaps = extractSitemapsFromRobotsBody(robotsBody);
   const initial = [...new Set([...robotsSitemaps, ...seedCandidates])];
 
   const visited = new Set<string>();
@@ -67,11 +70,7 @@ export async function discoverSitemapUrls({
   return out;
 }
 
-async function extractSitemapsFromRobots(
-  origin: string,
-  userAgent: string
-): Promise<string[]> {
-  const body = await fetchText(`${origin}/robots.txt`, userAgent);
+function extractSitemapsFromRobotsBody(body: string): string[] {
   if (!body) return [];
   const found: string[] = [];
   for (const line of body.split(/\r?\n/)) {

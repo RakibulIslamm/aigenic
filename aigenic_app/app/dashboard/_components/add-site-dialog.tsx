@@ -14,8 +14,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Field } from '@/components/field';
 import { createSiteAction, type ActionState } from '../actions';
 
 export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean; disabledReason?: string }) {
@@ -113,31 +113,6 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function Field({
-  id,
-  label,
-  description,
-  error,
-  ...inputProps
-}: React.InputHTMLAttributes<HTMLInputElement> & {
-  id: string;
-  label: string;
-  description?: string;
-  error?: string;
-}) {
-  return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} name={id} {...inputProps} aria-invalid={Boolean(error)} />
-      {error ? (
-        <p className="text-xs text-destructive">{error}</p>
-      ) : description ? (
-        <p className="text-xs text-muted-foreground">{description}</p>
-      ) : null}
-    </div>
   );
 }
 

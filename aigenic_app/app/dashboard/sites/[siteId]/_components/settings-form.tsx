@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Field } from '@/components/field';
 import { updateSiteAction, type ActionState } from '@/app/dashboard/actions';
 
 interface SettingsFormProps {
@@ -135,31 +136,6 @@ function FieldGroup({
       </div>
       <div className="grid gap-4 md:grid-cols-2">{children}</div>
     </section>
-  );
-}
-
-function Field({
-  id,
-  label,
-  description,
-  error,
-  ...inputProps
-}: React.InputHTMLAttributes<HTMLInputElement> & {
-  id: string;
-  label: string;
-  description?: string;
-  error?: string;
-}) {
-  return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} name={id} {...inputProps} aria-invalid={Boolean(error)} />
-      {error ? (
-        <p className="text-xs text-destructive">{error}</p>
-      ) : description ? (
-        <p className="text-xs text-muted-foreground">{description}</p>
-      ) : null}
-    </div>
   );
 }
 

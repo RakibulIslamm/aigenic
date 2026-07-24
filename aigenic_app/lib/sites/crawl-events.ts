@@ -26,12 +26,6 @@ export interface CrawlEvent {
   articleCount?: number;
 }
 
-const TERMINAL_STATUSES = new Set(['ready', 'failed', 'stopped']);
-
-export function isTerminalStatus(status: string): boolean {
-  return TERMINAL_STATUSES.has(status);
-}
-
 /**
  * Single-query snapshot of everything the SSE stream needs to compute deltas:
  * the site's status, total article count, and last sync timestamp.
