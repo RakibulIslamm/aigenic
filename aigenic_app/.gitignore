@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# …but the scrubbed template must stay tracked so `cp .env.local.example .env.local` works
+!.env.local.example
 
 # vercel
 .vercel
