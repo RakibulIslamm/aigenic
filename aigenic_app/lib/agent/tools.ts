@@ -26,12 +26,6 @@ export interface SupportToolContext {
   visitorId: string;
 }
 
-export interface SupportToolset {
-  search_knowledge_base: ReturnType<typeof tool>;
-  get_article: ReturnType<typeof tool>;
-  escalate_to_human: ReturnType<typeof tool>;
-}
-
 export function buildSupportTools(ctx: SupportToolContext) {
   return {
     search_knowledge_base: tool({

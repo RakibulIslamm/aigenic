@@ -25,7 +25,7 @@ export function TabNav({ siteId }: TabNavProps) {
     <nav className="flex flex-wrap items-center gap-1 border-b border-border/60">
       {TABS.map((tab) => {
         const href = `${base}${tab.href}`;
-        const isActive = tab.href === '' ? pathname === href : pathname === href;
+        const isActive = pathname === href;
         return (
           <Link
             key={tab.href}

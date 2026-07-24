@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* The `shadcn` npm dep is consumed ONLY via this CSS import — it has zero TS
+   imports, so don't "clean it up" as unused. */
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));

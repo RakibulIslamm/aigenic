@@ -84,10 +84,10 @@
         <ol>
           <li>Run the Next.js app: <code>cd aigenic_app &amp;&amp; pnpm dev</code></li>
           <li>Build the widget if you haven't: <code>cd widget &amp;&amp; pnpm build</code></li>
-          <li>Open this file with a static server pointed at the Next.js origin so the widget can
-              hit <code>/api/widget/*</code>:
-              <pre>cd aigenic &amp;&amp; npx --yes serve -p 4173 .</pre>
-              then visit <code>http://localhost:4173/test.html</code>.</li>
+          <li>Serve this file from the repo root:
+              <pre>npx --yes serve -p 4173 .</pre>
+              then visit <code>http://localhost:4173/widget/test/test.html</code>. The script tag
+              below loads <code>widget.js</code> from the Next.js dev server on port 3000.</li>
           <li>Make sure the script tag below uses a <strong>real</strong> site id from the
               dashboard. Click the bubble, ask a question — you should see the agent
               search the knowledge base and stream a reply.</li>

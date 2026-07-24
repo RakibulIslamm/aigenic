@@ -1,4 +1,4 @@
-import { Readability, isProbablyReaderable } from '@mozilla/readability';
+import { Readability } from '@mozilla/readability';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
 // JSDOM logs "Could not parse CSS stylesheet" to the parent console for every
@@ -33,8 +33,7 @@ const MAX_TITLE_LEN = 500;
 /**
  * Single-pass parse: builds the JSDOM once and extracts the article, the
  * `<link rel="canonical">` (if any), and all same-origin internal links. This
- * is the entry point used by the crawler; the older standalone exports are
- * kept for tests and ad-hoc use.
+ * is the entry point used by the crawler.
  */
 export function parsePage(html: string, url: string): ParsedPage {
   const dom = parseDom(html, url);
@@ -54,11 +53,6 @@ export function parsePage(html: string, url: string): ParsedPage {
  * plain h1+meta+body fallback (anything else, including thin product pages).
  * Returns null only when every strategy fails or the page is empty.
  */
-export function extractContent(html: string, url: string): ExtractedArticle | null {
-  const dom = parseDom(html, url);
-  return extractArticleFromDoc(dom.window.document, url);
-}
-
 function extractArticleFromDoc(doc: Document, url: string): ExtractedArticle | null {
   const structured = extractStructured(doc);
   if (structured && wordCount(structured.content) >= MIN_WORDS) {
@@ -93,13 +87,9 @@ function extractReadable(
   doc: Document,
   url: string
 ): { title: string; content: string; excerpt: string | null } | null {
-  // We no longer gate on isProbablyReaderable — it rejects a lot of valid
-  // pages. Cheap path first, then we still validate the result downstream.
-  if (!isProbablyReaderable(doc)) {
-    // Don't return early — keep going to the Readability parse. A handful of
-    // product pages still parse cleanly even when the heuristic says no.
-  }
-
+  // Deliberately no isProbablyReaderable gate — the heuristic rejects a lot of
+  // valid pages (thin product pages still parse cleanly). We validate the
+  // parse result downstream instead.
   try {
     const reader = new Readability(doc.cloneNode(true) as Document);
     const article = reader.parse();
@@ -392,20 +382,6 @@ function extractNested(obj: Record<string, unknown>, path: string[]): unknown {
     cur = (cur as Record<string, unknown>)[key];
   }
   return cur;
-}
-
-/**
- * Returns every same-origin `<a href>` discovered on the page. Used to expand
- * the crawl frontier without leaving the tenant's domain.
- *
- * Note: this hostname check is a first pass — the crawler runs a stricter
- * same-site guard (`buildSite`/`isSameSite`) before enqueueing, which also
- * treats `www.example.com` and `example.com` as the same site. External URLs
- * never reach the queue.
- */
-export function extractInternalLinks(html: string, baseUrl: string): string[] {
-  const dom = parseDom(html, baseUrl);
-  return extractInternalLinksFromDoc(dom.window.document, baseUrl);
 }
 
 function extractInternalLinksFromDoc(doc: Document, baseUrl: string): string[] {

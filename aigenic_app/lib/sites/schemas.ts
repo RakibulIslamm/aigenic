@@ -43,9 +43,6 @@ export const updateSiteSchema = z.object({
   botName: z.string().trim().min(1).max(50),
 });
 
-export type CreateSiteInput = z.infer<typeof createSiteSchema>;
-export type UpdateSiteInput = z.infer<typeof updateSiteSchema>;
-
 export const DEFAULT_WIDGET_CONFIG = {
   primaryColor: '#7c5cff',
   greeting: "Hey! I'm here to help. Ask me anything about us.",

@@ -167,10 +167,9 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
     };
 
     let sawError = false;
-    const errEvent = handleEvent;
     const wrappedHandleEvent = (event: ChatEvent) => {
       if (event.type === 'error') sawError = true;
-      errEvent(event);
+      handleEvent(event);
     };
 
     try {
