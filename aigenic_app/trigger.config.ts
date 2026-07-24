@@ -1,10 +1,15 @@
 import { defineConfig } from '@trigger.dev/sdk/v3';
 
-// Project ID is set after running `npx trigger.dev init` against the
-// Trigger.dev account; we read it from env so it can differ per environment.
-// Falls back to a placeholder so `next build` doesn't fail on local dev when
-// Trigger.dev hasn't been provisioned yet.
-const project = process.env.TRIGGER_PROJECT_REF ?? 'proj_qtdnwbwgrzbuinukihkb';
+// Project ref comes from env so it can differ per environment. Only the
+// Trigger.dev CLI reads this file — `next build` never imports it — so failing
+// loudly here can't break the app build; it just stops a misconfigured
+// `trigger.dev dev/deploy` run.
+const project = process.env.TRIGGER_PROJECT_REF;
+if (!project) {
+  throw new Error(
+    'TRIGGER_PROJECT_REF is not set. Add it to .env.local (see .env.local.example) or pass --project-ref.'
+  );
+}
 
 export default defineConfig({
   project,

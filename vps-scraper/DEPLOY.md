@@ -107,15 +107,15 @@ docker compose logs -f
 You should see something like:
 
 ```
-aigenic-scraper {"level":30,"port":3001,"msg":"aigenic-scraper listening"}
+aigenic-scraper {"level":30,"port":3007,"msg":"aigenic-scraper listening"}
 ```
 
-The container is bound to `127.0.0.1:3001` — it isn't reachable from the internet yet. That's intentional. We let Caddy terminate TLS and proxy to it.
+The container is bound to `127.0.0.1:3007` — it isn't reachable from the internet yet. That's intentional. We let Caddy terminate TLS and proxy to it.
 
 Quick local check:
 
 ```bash
-curl http://127.0.0.1:3001/health
+curl http://127.0.0.1:3007/health
 # {"status":"ok","service":"aigenic-scraper","uptime":...}
 ```
 
@@ -162,7 +162,7 @@ Edit `/etc/caddy/Caddyfile`:
 ```caddyfile
 scraper.yourdomain.com {
     encode zstd gzip
-    reverse_proxy 127.0.0.1:3001
+    reverse_proxy 127.0.0.1:3007
 
     # Health endpoint is public — everything else is API-key-gated by the app.
     log {
@@ -261,7 +261,7 @@ server {
     server_name scraper.yourdomain.com;
 
     location / {
-        proxy_pass http://127.0.0.1:3001;
+        proxy_pass http://127.0.0.1:3007;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;
         proxy_set_header X-Real-IP         $remote_addr;

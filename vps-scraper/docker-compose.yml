@@ -13,7 +13,7 @@ services:
       SCRAPER_API_KEY: ${SCRAPER_API_KEY:?SCRAPER_API_KEY is required}
       SCRAPER_USER_AGENT: ${SCRAPER_USER_AGENT:-AigenicBot/0.1 (+https://aigenic.app/bot)}
     # Bind to localhost only — Caddy/Nginx terminates TLS and proxies to us.
-    # If you don't run a reverse proxy, change this to "3001:3001".
+    # If you don't run a reverse proxy, change this to "3007:3007".
     ports:
       - "127.0.0.1:3007:3007"
     # Playwright Chromium needs more shared memory than the Docker default.

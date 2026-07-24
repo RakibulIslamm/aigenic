@@ -64,10 +64,10 @@ pnpm dev                   # tsx watch — restarts on save
 Smoke test:
 
 ```bash
-curl http://localhost:3001/health
+curl http://localhost:3007/health
 # {"status":"ok","service":"aigenic-scraper","uptime":1.23}
 
-curl -X POST http://localhost:3001/crawl \
+curl -X POST http://localhost:3007/crawl \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $SCRAPER_API_KEY" \
   -d '{
@@ -86,7 +86,7 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
-The compose file binds the container to `127.0.0.1:3001` only — pair with Caddy or Nginx for TLS. See [DEPLOY.md](./DEPLOY.md) for a full Contabo walkthrough.
+The compose file binds the container to `127.0.0.1:3007` only — pair with Caddy or Nginx for TLS. See [DEPLOY.md](./DEPLOY.md) for a full Contabo walkthrough.
 
 ## Project layout
 
@@ -107,7 +107,7 @@ DEPLOY.md             VPS deployment guide (Contabo + Caddy)
 | Variable             | Required | Default                                       | Notes                                                              |
 | -------------------- | -------- | --------------------------------------------- | ------------------------------------------------------------------ |
 | `SCRAPER_API_KEY`    | yes      | —                                             | Shared secret with the Next.js app. Refuse to start without it.   |
-| `PORT`               | no       | `3001`                                        | Express bind port.                                                 |
+| `PORT`               | no       | `3007`                                        | Express bind port.                                                 |
 | `LOG_LEVEL`          | no       | `info`                                        | Pino log level.                                                    |
 | `SCRAPER_USER_AGENT` | no       | `AigenicBot/0.1 (+https://aigenic.app/bot)`     | What the crawler advertises in HTTP and robots.txt lookups.       |
 | `NODE_ENV`           | no       | `production` in container, `development` in `pnpm dev` | Switches pino between JSON and pretty.                  |

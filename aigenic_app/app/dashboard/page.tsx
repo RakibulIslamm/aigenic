@@ -3,6 +3,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ArrowUpRight, Globe, MessageSquare, Sparkles } from 'lucide-react';
 import { getOrCreateUser } from '@/lib/auth/user';
 import { listSitesForUser, type SiteListItem } from '@/lib/sites/queries';
+import { countConversationsThisMonthForUser } from '@/lib/sites/conversations';
 import { getPlan } from '@/lib/billing/plans';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,16 +13,17 @@ import { CrawlProgress } from './_components/crawl-progress';
 
 export default async function DashboardPage() {
   const user = await getOrCreateUser();
-  const sites = await listSitesForUser(user.id);
+  // Same monthly count the billing page and chat quota use, so the two screens
+  // can't disagree (the per-site card counts remain all-time).
+  const [sites, monthlyConversations] = await Promise.all([
+    listSitesForUser(user.id),
+    countConversationsThisMonthForUser(user.id),
+  ]);
 
-  const totalConversations = sites.reduce((sum, s) => sum + s.conversationCount, 0);
   const plan = getPlan(user.plan);
   const limits = {
     sites: plan.limits.sites,
-    conversations:
-      plan.limits.conversationsPerMonth === Number.POSITIVE_INFINITY
-        ? Number.POSITIVE_INFINITY
-        : plan.limits.conversationsPerMonth,
+    conversations: plan.limits.conversationsPerMonth,
   };
   const anyInProgress = sites.some(
     (s) => s.kbStatus === 'pending' || s.kbStatus === 'crawling'
@@ -52,12 +54,8 @@ export default async function DashboardPage() {
         <StatCard
           icon={MessageSquare}
           label="Conversations this month"
-          value={totalConversations}
-          hint={
-            limits.conversations === Number.POSITIVE_INFINITY
-              ? 'Unlimited'
-              : `of ${limits.conversations} on ${plan.name}`
-          }
+          value={monthlyConversations}
+          hint={`of ${limits.conversations} on ${plan.name}`}
         />
         <StatCard
           icon={Sparkles}

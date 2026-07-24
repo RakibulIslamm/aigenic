@@ -345,7 +345,8 @@ export async function getSiteAnalytics(siteId: string): Promise<SiteAnalytics> {
 
 /**
  * Counts conversations for a user across all their sites this calendar month.
- * Used to enforce the free-plan 100/mo cap before the chat endpoint runs the model.
+ * Used to enforce the plan's monthly conversation cap (see `plans.ts`) before
+ * the chat endpoint runs the model.
  */
 export async function countConversationsThisMonthForUser(
   userId: string

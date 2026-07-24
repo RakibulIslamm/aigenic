@@ -25,7 +25,12 @@ export function TabNav({ siteId }: TabNavProps) {
     <nav className="flex flex-wrap items-center gap-1 border-b border-border/60">
       {TABS.map((tab) => {
         const href = `${base}${tab.href}`;
-        const isActive = pathname === href;
+        // Overview only matches exactly; other tabs stay active on their
+        // sub-routes (e.g. /conversations/[conversationId]).
+        const isActive =
+          tab.href === ''
+            ? pathname === href
+            : pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
             key={tab.href}

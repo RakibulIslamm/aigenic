@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { logger } from './logger.js';
 import { runCrawl } from './crawler.js';
 
-const PORT = Number(process.env.PORT ?? 3002);
+const PORT = Number(process.env.PORT ?? 3007);
 const API_KEY = process.env.SCRAPER_API_KEY;
 const MAX_BODY = '1mb';
 

@@ -243,7 +243,7 @@ function renderEscalationEmail(args: {
 <html>
   <body style="font-family: ui-sans-serif, system-ui, sans-serif; color:#18181b; max-width:640px; margin:0 auto; padding:24px;">
     <h2 style="margin:0 0 8px; font-weight:600;">New escalation from ${escapeHtml(args.siteName)}</h2>
-    <p style="margin:0 0 16px; color:#71717a;">A Aigenic visitor was escalated to your team.</p>
+    <p style="margin:0 0 16px; color:#71717a;">An Aigenic visitor was escalated to your team.</p>
 
     <div style="border:1px solid #e4e4e7; border-radius:12px; padding:16px; margin:16px 0;">
       <p style="margin:0 0 6px;"><strong>Reason:</strong> ${escapeHtml(args.reason)}</p>

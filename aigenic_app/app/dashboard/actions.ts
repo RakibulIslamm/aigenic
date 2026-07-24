@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { and, eq } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { conversations, sites } from '@/db/schema';
 import { getOrCreateUser, requireUserId } from '@/lib/auth/user';
@@ -24,7 +24,6 @@ import {
   ensureTriggerConfigured,
   isTriggerConfigured,
 } from '@/lib/trigger/config';
-import { count } from 'drizzle-orm';
 
 export type ActionState =
   | { ok: true; siteId?: string; message?: string }
