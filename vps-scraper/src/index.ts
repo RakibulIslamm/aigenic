@@ -9,6 +9,13 @@ const PORT = Number(process.env.PORT ?? 3007);
 const API_KEY = process.env.SCRAPER_API_KEY;
 const MAX_BODY = '1mb';
 
+// Page budget — must stay in sync with the app's create-site schema
+// (aigenic_app/lib/sites/limits.ts); the workspaces don't share code. The
+// app always sends an explicit maxPages, so the default only covers direct
+// API calls.
+const MAX_PAGES_CAP = 2000;
+const DEFAULT_MAX_PAGES = 1000;
+
 if (!API_KEY) {
   logger.error('SCRAPER_API_KEY is required. Refusing to start.');
   process.exit(1);
@@ -17,7 +24,7 @@ if (!API_KEY) {
 const crawlRequestSchema = z.object({
   siteId: z.string().uuid(),
   startUrl: z.string().url(),
-  maxPages: z.number().int().positive().max(2000).default(100),
+  maxPages: z.number().int().positive().max(MAX_PAGES_CAP).default(DEFAULT_MAX_PAGES),
   webhookUrl: z.string().url(),
 });
 

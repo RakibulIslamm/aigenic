@@ -1,6 +1,7 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { SUPPORT_MODEL_ID } from '@/lib/marketing';
 import { env } from '@/lib/env';
+import { log } from '@/lib/log';
 
 const apiKey = env.OPENROUTER_API_KEY;
 const baseURL = env.OPENROUTER_BASE_URL;
@@ -8,7 +9,7 @@ const baseURL = env.OPENROUTER_BASE_URL;
 if (!apiKey && env.NODE_ENV !== 'test') {
   // Don't throw at import time so dev compiles even without the secret —
   // the chat route will surface a clean error if it's actually invoked.
-  console.warn('OPENROUTER_API_KEY is not set. The chat endpoint will 500.');
+  log.warn('OPENROUTER_API_KEY is not set. The chat endpoint will 500.');
 }
 
 /**

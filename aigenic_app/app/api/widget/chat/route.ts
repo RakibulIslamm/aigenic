@@ -10,6 +10,7 @@ import { countConversationsThisMonthForUser } from '@/lib/sites/conversations';
 import { getPlan } from '@/lib/billing/plans';
 import { widgetCors } from '@/lib/http/cors';
 import { env } from '@/lib/env';
+import { log } from '@/lib/log';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -211,7 +212,7 @@ function buildSseStream({
 
         send(controller, { type: 'done', conversationId });
       } catch (err) {
-        console.error('chat stream failed', err);
+        log.error('chat stream failed', { err });
         send(controller, { type: 'error', message: extractErrorMessage(err) });
       } finally {
         controller.close();

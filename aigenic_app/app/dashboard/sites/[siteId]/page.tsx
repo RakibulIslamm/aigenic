@@ -5,6 +5,7 @@ import { ArrowRight, BookOpen, MessageSquare, ShieldAlert } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
 import { getSiteForUser, getSiteStats } from '@/lib/sites/queries';
 import { listConversationsFiltered } from '@/lib/sites/conversations';
+import { RECENT_CONVERSATIONS_LIMIT } from '@/lib/sites/limits';
 import { StatCard } from '@/components/stat-card';
 import {
   Card,
@@ -28,7 +29,7 @@ export default async function SiteOverviewPage({
 
   const [stats, conversations] = await Promise.all([
     getSiteStats(siteId),
-    listConversationsFiltered(siteId, 'all', 5),
+    listConversationsFiltered(siteId, 'all', RECENT_CONVERSATIONS_LIMIT),
   ]);
 
   return (

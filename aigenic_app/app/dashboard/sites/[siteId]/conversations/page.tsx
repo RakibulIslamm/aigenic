@@ -37,10 +37,11 @@ export default async function ConversationsPage({
 
   const filter = normalizeFilter(status);
 
-  // Two queries in parallel: status counts (one GROUP BY) + the visible page.
+  // Two queries in parallel: status counts (one GROUP BY) + the visible page
+  // (capped at the default CONVERSATION_LIST_LIMIT).
   const [counts, visible] = await Promise.all([
     getConversationStatusCounts(siteId),
-    listConversationsFiltered(siteId, filter, 200),
+    listConversationsFiltered(siteId, filter),
   ]);
 
   return (

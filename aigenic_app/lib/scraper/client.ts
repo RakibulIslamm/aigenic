@@ -1,4 +1,5 @@
 import { env } from '@/lib/env';
+import { DEFAULT_CRAWL_MAX_PAGES } from '@/lib/sites/limits';
 
 const SCRAPER_API_URL = env.SCRAPER_API_URL;
 const SCRAPER_API_KEY = env.SCRAPER_API_KEY;
@@ -24,7 +25,7 @@ export interface StartCrawlResponse {
 export async function startSiteCrawl({
   siteId,
   domain,
-  maxPages = 1000,
+  maxPages = DEFAULT_CRAWL_MAX_PAGES,
 }: StartCrawlOptions): Promise<StartCrawlResponse> {
   if (!SCRAPER_API_URL || !SCRAPER_API_KEY) {
     throw new Error(

@@ -9,6 +9,7 @@ import {
   type Site,
 } from '@/db/schema';
 import { startOfCurrentMonthUTC } from '@/lib/dates';
+import { KB_PAGE_SIZE } from '@/lib/sites/limits';
 
 export interface SiteListItem extends Site {
   articleCount: number;
@@ -111,7 +112,7 @@ export async function listArticlesForSitePaged(
   { page, pageSize, q }: { page: number; pageSize: number; q?: string }
 ): Promise<ArticlePage> {
   const safePage = Math.max(1, Math.floor(page) || 1);
-  const safePageSize = Math.max(1, Math.min(100, Math.floor(pageSize) || 25));
+  const safePageSize = Math.max(1, Math.min(100, Math.floor(pageSize) || KB_PAGE_SIZE));
   const offset = (safePage - 1) * safePageSize;
   const trimmedQ = q?.trim();
   // `%foo%` matches any title containing the term; PG ILIKE is case-insensitive.

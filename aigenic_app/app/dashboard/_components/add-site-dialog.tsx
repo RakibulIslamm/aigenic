@@ -16,6 +16,10 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Field } from '@/components/field';
+import {
+  CRAWL_MAX_PAGES_CAP,
+  DEFAULT_CRAWL_MAX_PAGES,
+} from '@/lib/sites/limits';
 import { createSiteAction, type ActionState } from '../actions';
 
 export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean; disabledReason?: string }) {
@@ -93,7 +97,7 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
           />
           <MaxPagesField
             error={fieldErrors.maxPages}
-            defaultValue={values.maxPages ?? '1000'}
+            defaultValue={values.maxPages ?? String(DEFAULT_CRAWL_MAX_PAGES)}
           />
           <DialogFooter className="mt-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
@@ -119,8 +123,8 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
 const MAX_PAGES_OPTIONS = [
   { value: '100', label: '100 pages · marketing site' },
   { value: '500', label: '500 pages · small business' },
-  { value: '1000', label: '1,000 pages · standard (recommended)' },
-  { value: '2000', label: '2,000 pages · large e-commerce / docs' },
+  { value: String(DEFAULT_CRAWL_MAX_PAGES), label: '1,000 pages · standard (recommended)' },
+  { value: String(CRAWL_MAX_PAGES_CAP), label: '2,000 pages · large e-commerce / docs' },
 ];
 
 function MaxPagesField({

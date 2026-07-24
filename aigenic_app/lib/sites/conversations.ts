@@ -10,6 +10,7 @@ import {
   type Message,
 } from '@/db/schema';
 import { daysAgoUTC, startOfCurrentMonthUTC } from '@/lib/dates';
+import { CONVERSATION_LIST_LIMIT } from '@/lib/sites/limits';
 
 export type ConversationStatusFilter = 'all' | 'active' | 'resolved' | 'escalated';
 
@@ -73,7 +74,7 @@ export interface ConversationListItem {
 export async function listConversationsFiltered(
   siteId: string,
   filter: ConversationStatusFilter = 'all',
-  limit = 100
+  limit = CONVERSATION_LIST_LIMIT
 ): Promise<ConversationListItem[]> {
   // Pull conversation rows + a count of messages in one query.
   const baseRows = await db

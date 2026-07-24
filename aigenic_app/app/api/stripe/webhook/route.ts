@@ -9,6 +9,7 @@ import {
   planForPriceId,
 } from '@/lib/billing/stripe';
 import { isPlanId, type PlanId } from '@/lib/billing/plans';
+import { log } from '@/lib/log';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
         break;
     }
   } catch (err) {
-    console.error('Stripe webhook handler failed', { eventType: event.type, err });
+    log.error('Stripe webhook handler failed', { eventType: event.type, err });
     // Return 500 so Stripe retries the delivery.
     return NextResponse.json({ error: 'Handler error' }, { status: 500 });
   }

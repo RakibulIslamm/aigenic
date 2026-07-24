@@ -4,6 +4,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { BookOpen, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
 import { getSiteForUser, listArticlesForSitePaged } from '@/lib/sites/queries';
+import { KB_PAGE_SIZE } from '@/lib/sites/limits';
 import {
   Card,
   CardContent,
@@ -18,7 +19,8 @@ import {
 } from '../_components/rescrape-buttons';
 import { ArticleSearch } from './_components/article-search';
 
-const PAGE_SIZE = 25;
+/** Characters of article content shown in a row's collapsed preview. */
+const ARTICLE_PREVIEW_CHARS = 240;
 
 export default async function KnowledgeBasePage({
   params,
@@ -37,12 +39,12 @@ export default async function KnowledgeBasePage({
   const trimmedQ = queryParam?.trim() ?? '';
   const { rows, total, page, totalPages } = await listArticlesForSitePaged(siteId, {
     page: Number.isFinite(requestedPage) ? requestedPage : 1,
-    pageSize: PAGE_SIZE,
+    pageSize: KB_PAGE_SIZE,
     q: trimmedQ || undefined,
   });
 
-  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(total, page * PAGE_SIZE);
+  const rangeStart = total === 0 ? 0 : (page - 1) * KB_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(total, page * KB_PAGE_SIZE);
 
   return (
     <div className="flex flex-col gap-6">
@@ -102,8 +104,8 @@ export default async function KnowledgeBasePage({
                           )}
                         </div>
                         <p className="mt-1 line-clamp-2 wrap-break-word text-xs text-muted-foreground">
-                          {article.content.slice(0, 240)}
-                          {article.content.length > 240 ? '…' : ''}
+                          {article.content.slice(0, ARTICLE_PREVIEW_CHARS)}
+                          {article.content.length > ARTICLE_PREVIEW_CHARS ? '…' : ''}
                         </p>
                       </div>
                       {/* On phones: own row, right-aligned, always visible.

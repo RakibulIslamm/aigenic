@@ -13,6 +13,12 @@ import {
   ESCALATION_FROM_ADDRESS,
   getResendClient,
 } from '@/lib/email/resend';
+import { log } from '@/lib/log';
+
+/** How many articles a full-text search returns to the model. */
+const FTS_RESULT_LIMIT = 5;
+/** Characters of article content shown in a search-result excerpt. */
+const SEARCH_EXCERPT_CHARS = 320;
 
 /**
  * Tools share an immutable per-request context (siteId, conversationId,
@@ -29,8 +35,7 @@ export interface SupportToolContext {
 export function buildSupportTools(ctx: SupportToolContext) {
   return {
     search_knowledge_base: tool({
-      description:
-        'Full-text search the site\'s knowledge base. Always call this BEFORE answering any product-specific question. Returns the top 5 articles ranked by relevance.',
+      description: `Full-text search the site's knowledge base. Always call this BEFORE answering any product-specific question. Returns the top ${FTS_RESULT_LIMIT} articles ranked by relevance.`,
       inputSchema: z.object({
         query: z
           .string()
@@ -64,14 +69,16 @@ export function buildSupportTools(ctx: SupportToolContext) {
             )
           )
           .orderBy(sql`ts_rank(content_tsv, plainto_tsquery('english', ${trimmed})) DESC`)
-          .limit(5);
+          .limit(FTS_RESULT_LIMIT);
 
         return {
           query: trimmed,
           results: rows.map((row) => ({
             id: row.id,
             title: row.title,
-            excerpt: row.content.slice(0, 320) + (row.content.length > 320 ? '…' : ''),
+            excerpt:
+              row.content.slice(0, SEARCH_EXCERPT_CHARS) +
+              (row.content.length > SEARCH_EXCERPT_CHARS ? '…' : ''),
             sourceUrl: row.sourceUrl,
             rank: Number(row.rank ?? 0),
           })),
@@ -192,7 +199,7 @@ export function buildSupportTools(ctx: SupportToolContext) {
               .set({ emailSentAt: new Date() })
               .where(eq(escalations.conversationId, ctx.conversationId));
           } catch (err) {
-            console.error('Failed to send escalation email', err);
+            log.error('Failed to send escalation email', { err });
           }
         }
 

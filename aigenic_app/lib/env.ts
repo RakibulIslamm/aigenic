@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { log } from '@/lib/log';
 
 /**
  * Centralized environment access. Every server-side `process.env` read in
@@ -72,12 +73,11 @@ function emptyToUndefined(
 
 const parsed = serverSchema.safeParse(emptyToUndefined(process.env));
 if (!parsed.success) {
-  console.warn(
-    '[env] Invalid environment configuration — falling back to defaults:',
-    parsed.error.issues
+  log.warn('[env] Invalid environment configuration — falling back to defaults', {
+    issues: parsed.error.issues
       .map((i) => `${i.path.join('.')}: ${i.message}`)
-      .join('; ')
-  );
+      .join('; '),
+  });
 }
 const server = parsed.success ? parsed.data : serverSchema.parse({});
 
