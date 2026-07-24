@@ -1,5 +1,5 @@
 import { logger, task } from '@trigger.dev/sdk/v3';
-import { isScraperConfigured } from '@/lib/scraper/client';
+import { isScraperConfigured } from '@/lib/env';
 import { dispatchSiteCrawl } from '@/lib/sites/dispatch';
 import type { CrawlKind } from '@/lib/sites/crawl-runs';
 

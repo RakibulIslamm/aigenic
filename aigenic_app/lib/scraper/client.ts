@@ -1,6 +1,8 @@
-const SCRAPER_API_URL = process.env.SCRAPER_API_URL;
-const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+import { env } from '@/lib/env';
+
+const SCRAPER_API_URL = env.SCRAPER_API_URL;
+const SCRAPER_API_KEY = env.SCRAPER_API_KEY;
+const APP_URL = env.appUrl;
 
 export interface StartCrawlOptions {
   siteId: string;
@@ -86,8 +88,4 @@ export async function stopSiteCrawl(siteId: string): Promise<StopCrawlResponse> 
   }
 
   return response.json() as Promise<StopCrawlResponse>;
-}
-
-export function isScraperConfigured(): boolean {
-  return Boolean(SCRAPER_API_URL && SCRAPER_API_KEY);
 }

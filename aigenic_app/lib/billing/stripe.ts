@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { PLANS, type PlanId } from './plans';
+import { env } from '@/lib/env';
 
 let cachedClient: Stripe | null = null;
 
@@ -9,7 +10,7 @@ let cachedClient: Stripe | null = null;
  */
 export function getStripeClient(): Stripe | null {
   if (cachedClient) return cachedClient;
-  const apiKey = process.env.STRIPE_SECRET_KEY;
+  const apiKey = env.STRIPE_SECRET_KEY;
   if (!apiKey) return null;
   cachedClient = new Stripe(apiKey, {
     appInfo: { name: 'Aigenic', version: '0.1.0' },
@@ -17,9 +18,9 @@ export function getStripeClient(): Stripe | null {
   return cachedClient;
 }
 
-export const STRIPE_STARTER_PRICE_ID = process.env.STRIPE_STARTER_PRICE_ID ?? '';
-export const STRIPE_PRO_PRICE_ID = process.env.STRIPE_PRO_PRICE_ID ?? '';
-export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? '';
+export const STRIPE_STARTER_PRICE_ID = env.STRIPE_STARTER_PRICE_ID ?? '';
+export const STRIPE_PRO_PRICE_ID = env.STRIPE_PRO_PRICE_ID ?? '';
+export const STRIPE_WEBHOOK_SECRET = env.STRIPE_WEBHOOK_SECRET ?? '';
 
 /** Returns the configured Stripe price id for a paid plan, or '' if none. */
 export function priceIdForPlan(plan: PlanId): string {
@@ -36,16 +37,9 @@ export function planForPriceId(priceId: string | null | undefined): PlanId | nul
   return null;
 }
 
-/** True when at least one paid plan has a Stripe price configured. */
-export function isStripeConfigured(): boolean {
-  return Boolean(
-    process.env.STRIPE_SECRET_KEY && (STRIPE_PRO_PRICE_ID || STRIPE_STARTER_PRICE_ID)
-  );
-}
-
 /** True when this specific paid plan can be purchased on this deployment. */
 export function isPlanPurchasable(plan: PlanId): boolean {
   if (PLANS[plan]?.comingSoon) return false;
-  if (!process.env.STRIPE_SECRET_KEY) return false;
+  if (!env.STRIPE_SECRET_KEY) return false;
   return Boolean(priceIdForPlan(plan));
 }

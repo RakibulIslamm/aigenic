@@ -9,6 +9,7 @@ import {
   priceIdForPlan,
 } from '@/lib/billing/stripe';
 import { isPlanId, type PlanId } from '@/lib/billing/plans';
+import { env } from '@/lib/env';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,7 +49,9 @@ export async function POST(request: NextRequest) {
   }
 
   const stripe = getStripeClient()!;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
+  // Browser-facing redirect: prefer the incoming request origin over the
+  // localhost default when NEXT_PUBLIC_APP_URL is unset (see lib/env).
+  const appUrl = env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
 
   // Reuse the customer if we've ever created one for this user; otherwise
   // create a fresh one so the subscription is tied to a single Stripe Customer

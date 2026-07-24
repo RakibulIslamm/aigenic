@@ -3,11 +3,8 @@ import { db } from '@/db';
 import { sites } from '@/db/schema';
 import { crawlSiteTask } from '@/trigger/crawl-site';
 import { dispatchSiteCrawl } from '@/lib/sites/dispatch';
-import { isScraperConfigured } from '@/lib/scraper/client';
-import {
-  ensureTriggerConfigured,
-  isTriggerConfigured,
-} from '@/lib/trigger/config';
+import { isScraperConfigured, isTriggerConfigured } from '@/lib/env';
+import { ensureTriggerConfigured } from '@/lib/trigger/config';
 
 export interface EnqueueSiteCrawlInput {
   siteId: string;

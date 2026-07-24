@@ -9,6 +9,7 @@ import { DEFAULT_WIDGET_CONFIG } from '@/lib/sites/schemas';
 import { countConversationsThisMonthForUser } from '@/lib/sites/conversations';
 import { getPlan } from '@/lib/billing/plans';
 import { widgetCors } from '@/lib/http/cors';
+import { env } from '@/lib/env';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
   // 4. Reload the full transcript as ModelMessages.
   const history = await loadHistory(conversationId);
 
-  if (!process.env.OPENROUTER_API_KEY) {
+  if (!env.OPENROUTER_API_KEY) {
     return jsonError(
       'OPENROUTER_API_KEY is not configured on this deployment.',
       503

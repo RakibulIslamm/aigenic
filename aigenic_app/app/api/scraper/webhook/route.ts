@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '@/db';
 import { articles, sites } from '@/db/schema';
+import { env } from '@/lib/env';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,7 +44,7 @@ const webhookSchema = z.discriminatedUnion('event', [
 ]);
 
 export async function POST(request: NextRequest) {
-  const expectedKey = process.env.SCRAPER_API_KEY;
+  const expectedKey = env.SCRAPER_API_KEY;
   if (!expectedKey) {
     return NextResponse.json(
       { error: 'Scraper webhook not configured on this deployment' },

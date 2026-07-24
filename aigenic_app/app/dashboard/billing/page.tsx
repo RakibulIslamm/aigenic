@@ -10,7 +10,8 @@ import {
   type Plan,
 } from '@/lib/billing/plans';
 import { countManualCrawlsForUserSince } from '@/lib/sites/crawl-runs';
-import { isPlanPurchasable, isStripeConfigured } from '@/lib/billing/stripe';
+import { isPlanPurchasable } from '@/lib/billing/stripe';
+import { isStripeConfigured } from '@/lib/env';
 import { syncUserFromCheckoutSession } from '@/lib/billing/sync';
 import {
   Card,

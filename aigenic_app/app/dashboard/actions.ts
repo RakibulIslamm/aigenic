@@ -11,7 +11,8 @@ import {
   updateSiteSchema,
   DEFAULT_WIDGET_CONFIG,
 } from '@/lib/sites/schemas';
-import { stopSiteCrawl, isScraperConfigured } from '@/lib/scraper/client';
+import { stopSiteCrawl } from '@/lib/scraper/client';
+import { isScraperConfigured } from '@/lib/env';
 import { getSiteForUser } from '@/lib/sites/queries';
 import { enqueueSiteCrawl } from '@/lib/sites/enqueue-crawl';
 import { getPlan, manualCrawlWindowStart } from '@/lib/billing/plans';

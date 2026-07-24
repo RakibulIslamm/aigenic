@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { Code2 } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
 import { getSiteForUser } from '@/lib/sites/queries';
+import { env } from '@/lib/env';
 import {
   Card,
   CardContent,
@@ -22,7 +23,7 @@ export default async function WidgetPage({
   const site = await getSiteForUser(siteId, userId);
   if (!site) notFound();
 
-  const widgetUrl = process.env.NEXT_PUBLIC_WIDGET_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const widgetUrl = env.widgetUrl;
   const snippet = `<script
   src="${widgetUrl}/widget.js"
   data-site="${site.id}"

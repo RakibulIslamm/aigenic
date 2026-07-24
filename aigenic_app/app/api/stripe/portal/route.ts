@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getOrCreateUser } from '@/lib/auth/user';
-import { getStripeClient, isStripeConfigured } from '@/lib/billing/stripe';
+import { getStripeClient } from '@/lib/billing/stripe';
+import { env, isStripeConfigured } from '@/lib/env';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,7 +29,9 @@ export async function POST(request: NextRequest) {
   }
 
   const stripe = getStripeClient()!;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
+  // Browser-facing redirect: prefer the incoming request origin over the
+  // localhost default when NEXT_PUBLIC_APP_URL is unset (see lib/env).
+  const appUrl = env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
 
   const session = await stripe.billingPortal.sessions.create({
     customer: user.stripeCustomerId,
