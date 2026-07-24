@@ -19,8 +19,10 @@ WORKDIR /app
 
 # ---- deps stage: install only the package manifests so this layer caches.
 FROM base AS deps
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --prod=false --frozen-lockfile || pnpm install --prod=false
+COPY package.json pnpm-lock.yaml ./
+# No fallback: a package.json/lockfile mismatch must fail the build here,
+# not silently re-resolve dependencies at image-build time.
+RUN pnpm install --prod=false --frozen-lockfile
 
 # ---- build stage: compile TypeScript.
 FROM deps AS build
