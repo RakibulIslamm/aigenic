@@ -1,13 +1,12 @@
--- Reconciliation migration: brings the migration snapshot in line with
--- db/schema.ts, which now declares `content_tsv` (a `tsvector` customType) and
--- its GIN index instead of leaving them to hand-written SQL.
+-- Intentionally empty. This migration exists only to carry the snapshot
+-- (meta/0005_snapshot.json) that first describes `articles.content_tsv` and
+-- its GIN index, which db/schema.ts now declares via a `tsvector` customType.
 --
--- The column and index were originally created by 0001_fts_index.sql, so every
--- database that is up to date already has them — hence the IF NOT EXISTS
--- guards, which make this a no-op on an existing database while still being
--- correct on a fresh one. The expression is byte-identical to 0001's.
+-- Both objects are already created by 0001_fts_index.sql, so there is nothing
+-- left to apply: re-issuing the DDL here would either fail on an existing
+-- database or, with IF NOT EXISTS guards, emit "already exists, skipping"
+-- NOTICEs on every fresh migrate. Neither is worth it for zero effect.
 --
--- From here on, changes to this column come out of `pnpm db:generate`; nothing
--- about it needs to be hand-written again.
-ALTER TABLE "articles" ADD COLUMN IF NOT EXISTS "content_tsv" "tsvector" GENERATED ALWAYS AS (to_tsvector('english', coalesce("title", '') || ' ' || coalesce("content", ''))) STORED;--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "idx_articles_tsv" ON "articles" USING gin ("content_tsv");
+-- The snapshot is the point: from here on `pnpm db:generate` diffs against a
+-- picture of the database that includes content_tsv, so schema changes to it
+-- are generated like any other column.
