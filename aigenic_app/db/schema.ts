@@ -217,6 +217,22 @@ export const escalations = pgTable(
   ],
 );
 
+export const rateLimits = pgTable('rate_limits', {
+  /**
+   * Scope + window label + identity in one string, e.g. `chat:ip:10s:1.2.3.4`.
+   * The window length must be part of the key — two limiters over the same
+   * identity with different windows are different counters.
+   */
+  key: text('key').primaryKey(),
+  /**
+   * When the current fixed window opened. The upsert in `lib/ratelimit.ts`
+   * resets it (and the count) in place once the window has elapsed, so each
+   * key holds exactly one row for its lifetime — no per-window row growth.
+   */
+  windowStart: timestamp('window_start').defaultNow().notNull(),
+  count: integer('count').notNull().default(1),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   sites: many(sites),
 }));

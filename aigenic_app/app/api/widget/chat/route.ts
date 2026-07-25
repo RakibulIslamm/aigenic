@@ -1,4 +1,4 @@
-import { type NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ModelMessage } from 'ai';
@@ -6,9 +6,15 @@ import { db } from '@/db';
 import { conversations, messages, sites, users } from '@/db/schema';
 import { runSupportAgent } from '@/lib/agent/support-agent';
 import { DEFAULT_WIDGET_CONFIG } from '@/lib/sites/schemas';
-import { countConversationsThisMonthForUser } from '@/lib/sites/conversations';
+import {
+  countConversationsForVisitorSince,
+  countConversationsThisMonthForUser,
+  countMessagesForConversation,
+  countMessagesThisMonthForSite,
+} from '@/lib/sites/conversations';
 import { getPlan } from '@/lib/billing/plans';
 import { widgetCors } from '@/lib/http/cors';
+import { clientIp, consumeRateLimit } from '@/lib/ratelimit';
 import { env } from '@/lib/env';
 import { log } from '@/lib/log';
 
@@ -25,6 +31,31 @@ const requestSchema = z.object({
   message: z.string().trim().min(1).max(4000),
 });
 
+/**
+ * Abuse gates for the one unauthenticated endpoint that spends LLM money.
+ * All of them run before the model; the counters live in Postgres via
+ * `lib/ratelimit.ts`. Numbers are deliberately far above real support-widget
+ * usage — they exist to bound a hostile client, not to squeeze a chatty one.
+ */
+const IP_BURST = { limit: 20, windowSeconds: 10 };
+const IP_SUSTAINED = { limit: 200, windowSeconds: 60 * 60 };
+/**
+ * Per-site request ceiling: even a botnet rotating IPs can't spend more than
+ * this many turns of one tenant's LLM budget per hour.
+ */
+const SITE_HOURLY = { limit: 600, windowSeconds: 60 * 60 };
+/** Hard length cap per conversation, counting stored user+assistant rows. */
+const MAX_MESSAGES_PER_CONVERSATION = 5;
+/** How many fresh conversations one visitor may open on a site per hour. */
+const MAX_CONVERSATIONS_PER_VISITOR_PER_HOUR = 5;
+/**
+ * Monthly per-site message budget = plan's conversation quota × this. Checked
+ * on every turn, so reusing an old conversation counts against it too —
+ * previously only conversation *creation* was capped, which a kept-alive
+ * conversationId bypassed entirely.
+ */
+const BUDGET_MESSAGES_PER_CONVERSATION = 20;
+
 const cors = widgetCors('POST, OPTIONS');
 
 export function OPTIONS() {
@@ -32,6 +63,17 @@ export function OPTIONS() {
 }
 
 export async function POST(request: NextRequest) {
+  // 0. Per-IP gates — the cheapest rejection, before the body is even read.
+  const ip = clientIp(request);
+  const [burst, sustained] = await Promise.all([
+    consumeRateLimit({ key: `chat:ip:10s:${ip}`, ...IP_BURST }),
+    consumeRateLimit({ key: `chat:ip:1h:${ip}`, ...IP_SUSTAINED }),
+  ]);
+  if (!burst.ok || !sustained.ok) {
+    const gate = !burst.ok ? burst : sustained;
+    return rateLimited('Too many requests. Please slow down.', gate.retryAfterSeconds);
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -47,11 +89,50 @@ export async function POST(request: NextRequest) {
   const { siteId, visitorId, message: userMessage } = parsed.data;
   let conversationId = parsed.data.conversationId ?? undefined;
 
-  // 1. Find the site so we have its widget config + name for the prompt.
+  // 1. Per-site request ceiling — keyed on the validated siteId, before any
+  //    row for it is even looked up.
+  const siteGate = await consumeRateLimit({
+    key: `chat:site:1h:${siteId}`,
+    ...SITE_HOURLY,
+  });
+  if (!siteGate.ok) {
+    return rateLimited(
+      'This assistant is receiving too many requests right now. Please try again shortly.',
+      siteGate.retryAfterSeconds,
+    );
+  }
+
+  // 2. Find the site so we have its widget config + name for the prompt.
   const site = await db.query.sites.findFirst({ where: eq(sites.id, siteId) });
   if (!site) return jsonError('Site not found', 404);
 
-  // 2. Resolve / create the conversation row.
+  // 3. Monthly per-site message budget, on EVERY turn — creation and reuse
+  //    alike. Free plans enforce hard; paid plans meter overage (log, don't
+  //    block), matching how the conversation cap below already treats them.
+  const owner = await db.query.users.findFirst({
+    where: eq(users.id, site.userId),
+  });
+  const plan = owner ? getPlan(owner.plan) : null;
+  if (plan && Number.isFinite(plan.limits.conversationsPerMonth)) {
+    const budget = plan.limits.conversationsPerMonth * BUDGET_MESSAGES_PER_CONVERSATION;
+    const used = await countMessagesThisMonthForSite(siteId);
+    if (used >= budget) {
+      if (plan.limits.enforceConversationLimit) {
+        return jsonError(
+          'This site is at its monthly usage limit. Please come back next month or contact the team.',
+          429,
+        );
+      }
+      log.info('site over monthly message budget (metered, not blocked)', {
+        siteId,
+        used,
+        budget,
+        plan: plan.id,
+      });
+    }
+  }
+
+  // 4. Resolve / create the conversation row.
   if (conversationId) {
     const existing = await db.query.conversations.findFirst({
       where: eq(conversations.id, conversationId),
@@ -59,15 +140,35 @@ export async function POST(request: NextRequest) {
     if (!existing || existing.siteId !== siteId) {
       return jsonError('Conversation does not belong to this site', 403);
     }
+
+    // Hard length cap: a single conversation can't be replayed forever as a
+    // free LLM channel (also bounds Phase 4's history replay).
+    const messageCount = await countMessagesForConversation(conversationId);
+    if (messageCount >= MAX_MESSAGES_PER_CONVERSATION) {
+      return jsonError(
+        'This conversation has reached its length limit. Please start a new chat.',
+        429,
+      );
+    }
   } else {
+    // One visitor minting conversations in a loop dodges the per-conversation
+    // cap — bound the minting rate itself.
+    const recentConversations = await countConversationsForVisitorSince(
+      siteId,
+      visitorId,
+      new Date(Date.now() - 60 * 60 * 1000),
+    );
+    if (recentConversations >= MAX_CONVERSATIONS_PER_VISITOR_PER_HOUR) {
+      return rateLimited(
+        'Too many new conversations. Please continue in an existing chat or try again later.',
+        60 * 60,
+      );
+    }
+
     // Hard-cap conversations only for plans that opt into enforcement (Free).
     // Paid plans allow overage — those conversations are metered, not blocked,
     // so existing customers never get a "limit reached" surprise mid-month.
-    const owner = await db.query.users.findFirst({
-      where: eq(users.id, site.userId),
-    });
-    if (owner) {
-      const plan = getPlan(owner.plan);
+    if (owner && plan) {
       if (
         plan.limits.enforceConversationLimit &&
         Number.isFinite(plan.limits.conversationsPerMonth)
@@ -90,21 +191,21 @@ export async function POST(request: NextRequest) {
     conversationId = created.id;
   }
 
-  // 3. Persist the visitor's message before we kick off the model.
+  // 5. Persist the visitor's message before we kick off the model.
   await db.insert(messages).values({
     conversationId,
     role: 'user',
     content: userMessage,
   });
 
-  // 4. Reload the full transcript as ModelMessages.
+  // 6. Reload the full transcript as ModelMessages.
   const history = await loadHistory(conversationId);
 
   if (!env.OPENROUTER_API_KEY) {
     return jsonError('OPENROUTER_API_KEY is not configured on this deployment.', 503);
   }
 
-  // 5. Run the agent.
+  // 7. Run the agent.
   const widgetConfig = site.widgetConfig ?? DEFAULT_WIDGET_CONFIG;
   const agentResult = runSupportAgent({
     context: {
@@ -122,7 +223,7 @@ export async function POST(request: NextRequest) {
     abortSignal: request.signal,
   });
 
-  // 6. Stream a tiny custom SSE format the widget understands.
+  // 8. Stream a tiny custom SSE format the widget understands.
   const stream = buildSseStream({
     agentResult,
     conversationId,
@@ -252,6 +353,17 @@ async function loadHistory(conversationId: string): Promise<ModelMessage[]> {
 }
 
 const jsonError = cors.jsonError;
+
+/** 429 with `Retry-After`, keeping the widget's permissive CORS headers. */
+function rateLimited(message: string, retryAfterSeconds: number) {
+  return NextResponse.json(
+    { error: message },
+    {
+      status: 429,
+      headers: { ...cors.headers, 'Retry-After': String(retryAfterSeconds) },
+    },
+  );
+}
 
 function extractErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
