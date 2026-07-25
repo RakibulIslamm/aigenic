@@ -4,7 +4,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { BookOpen, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
 import { getSiteForUser, listArticlesForSitePaged } from '@/lib/sites/queries';
-import { KB_PAGE_SIZE } from '@/lib/sites/limits';
+import { KB_PAGE_SIZE, KB_SEARCH_MAX_CHARS } from '@/lib/sites/limits';
 import {
   Card,
   CardContent,
@@ -33,7 +33,9 @@ export default async function KnowledgeBasePage({
   if (!site) notFound();
 
   const requestedPage = Number.parseInt(pageParam ?? '1', 10);
-  const trimmedQ = queryParam?.trim() ?? '';
+  // Clamped so the term we search, echo back in the heading, and thread
+  // through pagination links are all the same bounded string.
+  const trimmedQ = (queryParam?.trim() ?? '').slice(0, KB_SEARCH_MAX_CHARS);
   const { rows, total, page, totalPages } = await listArticlesForSitePaged(siteId, {
     page: Number.isFinite(requestedPage) ? requestedPage : 1,
     pageSize: KB_PAGE_SIZE,

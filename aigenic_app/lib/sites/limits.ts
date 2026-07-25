@@ -16,6 +16,13 @@ export const CRAWL_MAX_PAGES_CAP = 2000;
 /** Articles per page on the knowledge tab (and the paged-query fallback). */
 export const KB_PAGE_SIZE = 25;
 
+/**
+ * Longest `?q=` accepted by the knowledge search. The term goes into an
+ * unindexed `ILIKE '%…%'` scan, so an unbounded value from a hand-edited URL
+ * is a free way to make Postgres work hard. No real title search needs more.
+ */
+export const KB_SEARCH_MAX_CHARS = 100;
+
 /** Rows on the full conversations tab — also the query's default. */
 export const CONVERSATION_LIST_LIMIT = 200;
 /** Rows in the site overview's "recent conversations" card. */

@@ -1,9 +1,10 @@
 import { cache } from 'react';
 import { and, count, desc, eq, gte, ilike, sql } from 'drizzle-orm';
-import { db } from '@/db';
+import { db, withDbRetry } from '@/db';
 import { articles, conversations, escalations, sites, type Site } from '@/db/schema';
 import { startOfCurrentMonthUTC } from '@/lib/dates';
-import { KB_PAGE_SIZE } from '@/lib/sites/limits';
+import { isUuid } from '@/lib/ids';
+import { KB_PAGE_SIZE, KB_SEARCH_MAX_CHARS } from '@/lib/sites/limits';
 
 export interface SiteListItem extends Site {
   articleCount: number;
@@ -11,37 +12,47 @@ export interface SiteListItem extends Site {
 }
 
 export async function listSitesForUser(userId: string): Promise<SiteListItem[]> {
-  const rows = await db
-    .select({
-      id: sites.id,
-      userId: sites.userId,
-      name: sites.name,
-      domain: sites.domain,
-      escalationEmail: sites.escalationEmail,
-      widgetConfig: sites.widgetConfig,
-      kbStatus: sites.kbStatus,
-      kbLastSyncedAt: sites.kbLastSyncedAt,
-      createdAt: sites.createdAt,
-      articleCount: sql<number>`count(distinct ${articles.id})::int`,
-      conversationCount: sql<number>`count(distinct ${conversations.id})::int`,
-    })
-    .from(sites)
-    .leftJoin(articles, eq(articles.siteId, sites.id))
-    .leftJoin(conversations, eq(conversations.siteId, sites.id))
-    .where(eq(sites.userId, userId))
-    .groupBy(sites.id)
-    .orderBy(desc(sites.createdAt));
+  // First query of the dashboard index — retried once through a Neon cold start.
+  const rows = await withDbRetry(() =>
+    db
+      .select({
+        id: sites.id,
+        userId: sites.userId,
+        name: sites.name,
+        domain: sites.domain,
+        escalationEmail: sites.escalationEmail,
+        widgetConfig: sites.widgetConfig,
+        kbStatus: sites.kbStatus,
+        kbLastSyncedAt: sites.kbLastSyncedAt,
+        createdAt: sites.createdAt,
+        articleCount: sql<number>`count(distinct ${articles.id})::int`,
+        conversationCount: sql<number>`count(distinct ${conversations.id})::int`,
+      })
+      .from(sites)
+      .leftJoin(articles, eq(articles.siteId, sites.id))
+      .leftJoin(conversations, eq(conversations.siteId, sites.id))
+      .where(eq(sites.userId, userId))
+      .groupBy(sites.id)
+      .orderBy(desc(sites.createdAt)),
+  );
 
   return rows;
 }
 
 // Memoized per-request: the site layout + each tab page both reach for the
-// same row, and we don't want N round trips per navigation.
+// same row, and we don't want N round trips per navigation. It's also the
+// first query on every /dashboard/sites/* request, hence the cold-start retry.
 export const getSiteForUser = cache(
   async (siteId: string, userId: string): Promise<Site | undefined> => {
-    return db.query.sites.findFirst({
-      where: and(eq(sites.id, siteId), eq(sites.userId, userId)),
-    });
+    // `siteId` is a raw route param. Bailing here is what turns
+    // /dashboard/sites/not-a-uuid into the styled 404 (every caller already
+    // treats `undefined` as notFound) instead of a Postgres cast error.
+    if (!isUuid(siteId)) return undefined;
+    return withDbRetry(() =>
+      db.query.sites.findFirst({
+        where: and(eq(sites.id, siteId), eq(sites.userId, userId)),
+      }),
+    );
   },
 );
 
@@ -98,7 +109,9 @@ export async function listArticlesForSitePaged(
   const safePage = Math.max(1, Math.floor(page) || 1);
   const safePageSize = Math.max(1, Math.min(100, Math.floor(pageSize) || KB_PAGE_SIZE));
   const offset = (safePage - 1) * safePageSize;
-  const trimmedQ = q?.trim();
+  // Clamp here as well as at the page — this is the last line before the
+  // `ILIKE` scan, and it's a public-ish surface (any caller, any `q`).
+  const trimmedQ = q?.trim().slice(0, KB_SEARCH_MAX_CHARS);
   // `%foo%` matches any title containing the term; PG ILIKE is case-insensitive.
   const whereExpr = trimmedQ
     ? and(eq(articles.siteId, siteId), ilike(articles.title, `%${trimmedQ}%`))

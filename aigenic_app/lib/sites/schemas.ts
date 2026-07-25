@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { CRAWL_MAX_PAGES_CAP, DEFAULT_CRAWL_MAX_PAGES, MIN_CRAWL_PAGES } from './limits';
 
+/** RFC 5321's maximum forward-path length — longer can't be a real address. */
+const EMAIL_MAX_CHARS = 254;
+
 export const createSiteSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100),
   domain: z
@@ -16,7 +19,7 @@ export const createSiteSchema = z.object({
         return false;
       }
     }, 'Must be a full URL, e.g. https://example.com'),
-  escalationEmail: z.string().trim().email('Enter a valid email'),
+  escalationEmail: z.string().trim().max(EMAIL_MAX_CHARS).email('Enter a valid email'),
   maxPages: z.coerce
     .number()
     .int()
@@ -40,7 +43,7 @@ export const updateSiteSchema = z.object({
         return false;
       }
     }, 'Must be a full URL'),
-  escalationEmail: z.string().trim().email(),
+  escalationEmail: z.string().trim().max(EMAIL_MAX_CHARS).email(),
   primaryColor: z
     .string()
     .trim()

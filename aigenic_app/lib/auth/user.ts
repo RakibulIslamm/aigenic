@@ -1,7 +1,7 @@
 import { cache } from 'react';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { eq } from 'drizzle-orm';
-import { db } from '@/db';
+import { db, withDbRetry } from '@/db';
 import { users, type User } from '@/db/schema';
 
 /**
@@ -18,9 +18,13 @@ export const getOrCreateUser = cache(async (): Promise<User> => {
     throw new Error('Not authenticated');
   }
 
-  const existing = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-  });
+  // First query on every authenticated request — retried once so a Neon
+  // scale-to-zero resume shows up as a slow dashboard, not a crash page.
+  const existing = await withDbRetry(() =>
+    db.query.users.findFirst({
+      where: eq(users.id, userId),
+    }),
+  );
   if (existing) return existing;
 
   const clerkUser = await currentUser();

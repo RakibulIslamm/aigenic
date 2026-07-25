@@ -6,6 +6,7 @@ import { and, count, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { conversations, sites, type Site } from '@/db/schema';
 import { getOrCreateUser, requireUserId } from '@/lib/auth/user';
+import { isUuid } from '@/lib/ids';
 import {
   createSiteSchema,
   updateSiteSchema,
@@ -41,6 +42,9 @@ async function withSiteOwnership(
   userId: string,
   fn: (site: Site) => Promise<ActionState>,
 ): Promise<ActionState> {
+  if (!isUuid(siteId)) {
+    return { ok: false, error: 'Site not found' };
+  }
   const site = await getSiteForUser(siteId, userId);
   if (!site) {
     return { ok: false, error: 'Site not found' };
@@ -156,6 +160,10 @@ export async function updateSiteAction(
 ): Promise<ActionState> {
   const userId = await requireUserId();
 
+  if (!isUuid(siteId)) {
+    return { ok: false, error: 'Site not found' };
+  }
+
   const parsed = parseForm(updateSiteSchema, formData);
   if (!parsed.ok) {
     return {
@@ -193,7 +201,11 @@ export async function updateSiteAction(
 export async function deleteSiteAction(siteId: string): Promise<void> {
   const userId = await requireUserId();
 
-  await db.delete(sites).where(and(eq(sites.id, siteId), eq(sites.userId, userId)));
+  // A malformed id can't match a row — skip the query and land the user back
+  // on the list, same as a successful delete of an already-gone site.
+  if (isUuid(siteId)) {
+    await db.delete(sites).where(and(eq(sites.id, siteId), eq(sites.userId, userId)));
+  }
 
   revalidatePath('/dashboard');
   redirect('/dashboard');
@@ -312,6 +324,10 @@ export async function markConversationResolvedAction(
 ): Promise<ActionState> {
   const userId = await requireUserId();
 
+  if (!isUuid(conversationId)) {
+    return { ok: false, error: 'Conversation not found' };
+  }
+
   return withSiteOwnership(siteId, userId, async () => {
     const result = await db
       .update(conversations)
@@ -334,11 +350,14 @@ export async function rescrapeArticleAction(
 ): Promise<ActionState> {
   const userId = await requireUserId();
 
+  if (!isUuid(articleId)) {
+    return { ok: false, error: 'Article not found' };
+  }
+
   // Per-article re-scrape isn't supported by the worker yet — it re-runs the
   // full crawl, which wipes every article for the site anyway. Defer straight
   // to the full rescrape (which re-checks ownership via the request-memoized
   // getSiteForUser and enforces the manual-crawl quota); deleting this one
   // article first would just leave it gone if the quota check failed.
-  void articleId;
   return withSiteOwnership(siteId, userId, () => rescrapeSiteAction(siteId));
 }

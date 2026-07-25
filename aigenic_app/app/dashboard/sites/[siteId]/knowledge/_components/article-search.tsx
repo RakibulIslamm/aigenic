@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { KB_SEARCH_MAX_CHARS } from '@/lib/sites/limits';
 
 const DEBOUNCE_MS = 250;
 
@@ -52,6 +53,7 @@ export function ArticleSearch({ urlQuery }: { urlQuery: string }) {
         type="search"
         value={value}
         onChange={(e) => setValue(e.target.value)}
+        maxLength={KB_SEARCH_MAX_CHARS}
         placeholder="Search pages by title…"
         aria-label="Search knowledge base"
         className="pl-9 pr-9"

@@ -10,6 +10,7 @@ import {
   type Message,
 } from '@/db/schema';
 import { daysAgoUTC, startOfCurrentMonthUTC } from '@/lib/dates';
+import { isUuid } from '@/lib/ids';
 import { CONVERSATION_LIST_LIMIT } from '@/lib/sites/limits';
 
 export type ConversationStatusFilter = 'all' | 'active' | 'resolved' | 'escalated';
@@ -142,6 +143,9 @@ export async function getConversationDetail(
   conversationId: string,
   siteId: string,
 ): Promise<ConversationDetail | null> {
+  // Both ids come straight off the URL — a bad shape is a 404, not a 500.
+  if (!isUuid(conversationId) || !isUuid(siteId)) return null;
+
   const conversation = await db.query.conversations.findFirst({
     where: and(eq(conversations.id, conversationId), eq(conversations.siteId, siteId)),
   });

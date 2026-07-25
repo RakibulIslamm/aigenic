@@ -10,8 +10,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * `enqueueSiteCrawl` (the Phase 6 seam) is what makes it reachable at all.
  */
 
+/**
+ * A real UUID, not `site-1`: the action shape-checks every id before it can
+ * reach a `uuid` column, so a placeholder never gets past the guard.
+ */
+const SITE_ID = '11111111-1111-4111-8111-111111111111';
+
 const site = {
-  id: 'site-1',
+  id: SITE_ID,
   userId: 'user-1',
   domain: 'https://acme.com',
   kbStatus: 'ready',
@@ -67,22 +73,32 @@ beforeEach(() => {
 describe('preconditions — no quota slot may be claimed', () => {
   it('refuses when the scraper is not configured', async () => {
     scraperConfigured = false;
-    const res = await rescrapeSiteAction('site-1');
+    const res = await rescrapeSiteAction(SITE_ID);
     expect(res.ok).toBe(false);
+    expect(recordCrawlRun).not.toHaveBeenCalled();
+    expect(enqueueSiteCrawl).not.toHaveBeenCalled();
+  });
+
+  it('refuses a malformed siteId before it can reach Postgres', async () => {
+    // A non-uuid used to reach the `uuid` column and throw
+    // `invalid input syntax for type uuid` — an uncaught 500, not an
+    // ActionState. It must now stop at the action's own guard.
+    const res = await rescrapeSiteAction('site-1');
+    expect(res).toEqual({ ok: false, error: 'Site not found' });
     expect(recordCrawlRun).not.toHaveBeenCalled();
     expect(enqueueSiteCrawl).not.toHaveBeenCalled();
   });
 
   it("refuses a site the user doesn't own", async () => {
     siteRow = undefined;
-    const res = await rescrapeSiteAction('site-1');
+    const res = await rescrapeSiteAction(SITE_ID);
     expect(res).toEqual({ ok: false, error: 'Site not found' });
     expect(recordCrawlRun).not.toHaveBeenCalled();
   });
 
   it.each(['crawling', 'pending'])('refuses while a crawl is %s', async (kbStatus) => {
     siteRow = { ...site, kbStatus };
-    const res = await rescrapeSiteAction('site-1');
+    const res = await rescrapeSiteAction(SITE_ID);
     expect(res.ok).toBe(false);
     expect(res.ok === false && res.error).toMatch(/already in progress/i);
     // The whole point: an in-flight crawl must not cost a quota slot.
@@ -94,7 +110,7 @@ describe('preconditions — no quota slot may be claimed', () => {
 describe('quota enforcement', () => {
   it('refuses once the free plan has used its 1 weekly re-crawl', async () => {
     manualCrawlsUsed = 1;
-    const res = await rescrapeSiteAction('site-1');
+    const res = await rescrapeSiteAction(SITE_ID);
     expect(res.ok).toBe(false);
     expect(res.ok === false && res.error).toContain('1 manual re-crawl for this week');
     expect(recordCrawlRun).not.toHaveBeenCalled();
@@ -104,10 +120,10 @@ describe('quota enforcement', () => {
     user = { id: 'user-1', plan: 'pro' };
 
     manualCrawlsUsed = 4;
-    expect((await rescrapeSiteAction('site-1')).ok).toBe(true);
+    expect((await rescrapeSiteAction(SITE_ID)).ok).toBe(true);
 
     manualCrawlsUsed = 5;
-    const res = await rescrapeSiteAction('site-1');
+    const res = await rescrapeSiteAction(SITE_ID);
     expect(res.ok).toBe(false);
     expect(res.ok === false && res.error).toContain('5 manual re-crawls for this day');
   });
@@ -115,18 +131,18 @@ describe('quota enforcement', () => {
   it('treats an unknown plan as free', async () => {
     user = { id: 'user-1', plan: 'enterprise' };
     manualCrawlsUsed = 1;
-    expect((await rescrapeSiteAction('site-1')).ok).toBe(false);
+    expect((await rescrapeSiteAction(SITE_ID)).ok).toBe(false);
   });
 });
 
 describe('claim / rollback', () => {
   it('claims the slot before enqueuing, and keeps it when dispatch succeeds', async () => {
-    const res = await rescrapeSiteAction('site-1');
+    const res = await rescrapeSiteAction(SITE_ID);
 
-    expect(res).toEqual({ ok: true, siteId: 'site-1', message: 'Re-crawl queued' });
+    expect(res).toEqual({ ok: true, siteId: SITE_ID, message: 'Re-crawl queued' });
     expect(recordCrawlRun).toHaveBeenCalledWith({
       userId: 'user-1',
-      siteId: 'site-1',
+      siteId: SITE_ID,
       kind: 'manual',
     });
     expect(deleteCrawlRun).not.toHaveBeenCalled();
@@ -141,7 +157,7 @@ describe('claim / rollback', () => {
   it('releases the slot when dispatch fails', async () => {
     enqueueResult = { ok: false, error: 'scraper unreachable' };
 
-    const res = await rescrapeSiteAction('site-1');
+    const res = await rescrapeSiteAction(SITE_ID);
 
     expect(res.ok).toBe(false);
     expect(res.ok === false && res.error).toBe(
@@ -153,9 +169,9 @@ describe('claim / rollback', () => {
   });
 
   it('asks for the optimistic pending flip so the dashboard reacts immediately', async () => {
-    await rescrapeSiteAction('site-1');
+    await rescrapeSiteAction(SITE_ID);
     expect(enqueueSiteCrawl).toHaveBeenCalledWith({
-      siteId: 'site-1',
+      siteId: SITE_ID,
       userId: 'user-1',
       domain: 'https://acme.com',
       optimisticPending: true,
