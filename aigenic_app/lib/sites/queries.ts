@@ -27,7 +27,10 @@ export async function listSitesForUser(userId: string): Promise<SiteListItem[]> 
         kbLastSyncedAt: sites.kbLastSyncedAt,
         activeGeneration: sites.activeGeneration,
         crawlGeneration: sites.crawlGeneration,
+        crawlStartedAt: sites.crawlStartedAt,
+        pendingCrawlRunId: sites.pendingCrawlRunId,
         createdAt: sites.createdAt,
+        updatedAt: sites.updatedAt,
         articleCount: sql<number>`count(distinct ${articles.id})::int`,
         conversationCount: sql<number>`count(distinct ${conversations.id})::int`,
       })

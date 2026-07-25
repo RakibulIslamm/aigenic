@@ -5,6 +5,14 @@ const SCRAPER_API_URL = env.SCRAPER_API_URL;
 const SCRAPER_API_KEY = env.SCRAPER_API_KEY;
 const APP_URL = env.appUrl;
 
+/**
+ * Both calls here are "accept a job" / "flip a flag" round trips, not the
+ * crawl itself — they should answer in milliseconds. Without a timeout, a
+ * hung socket to the VPS stalls the caller for the platform default (and a
+ * Trigger.dev attempt for up to its 1800s `maxDuration`).
+ */
+const SCRAPER_REQUEST_TIMEOUT_MS = 15_000;
+
 export interface StartCrawlOptions {
   siteId: string;
   domain: string;
@@ -54,6 +62,7 @@ export async function startSiteCrawl({
       webhookUrl: `${APP_URL}/api/scraper/webhook`,
     }),
     cache: 'no-store',
+    signal: AbortSignal.timeout(SCRAPER_REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -87,6 +96,7 @@ export async function stopSiteCrawl(siteId: string): Promise<StopCrawlResponse> 
     method: 'POST',
     headers: { 'X-API-Key': SCRAPER_API_KEY },
     cache: 'no-store',
+    signal: AbortSignal.timeout(SCRAPER_REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {
