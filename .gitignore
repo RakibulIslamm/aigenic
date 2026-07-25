@@ -3,3 +3,6 @@
 /CLAUDE.md
 /AGENTS.md
 docs/**/*
+
+# pnpm workspace
+node_modules/

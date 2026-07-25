@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "_comment": [
+    "Shared strict compiler options for every workspace in this repo.",
+    "Package tsconfigs extend this and override only what is genuinely",
+    "per-package: target, lib, module/moduleResolution, jsx, paths, outDir.",
+    "",
+    "Two documented exceptions:",
+    "  1. vps-scraper/tsconfig.json does NOT extend this file — its Docker",
+    "     build context is vps-scraper/ alone, so a parent-relative extends",
+    "     would break the image build. It mirrors these options inline.",
+    "  2. aigenic_app opts out of exactOptionalPropertyTypes (22 existing",
+    "     errors). Closing that is docs/implementation-plans/04-code-optimization.md",
+    "     (TS strictness); when it lands, delete the override and this note."
+  ],
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true
+  }
+}

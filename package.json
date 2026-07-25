@@ -1,0 +1,12 @@
+{
+  "name": "agent-desk",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "pnpm --filter aigenic-app dev",
+    "build": "pnpm --filter aigenic-widget build && pnpm --filter aigenic-app build && pnpm --dir vps-scraper build",
+    "typecheck": "pnpm -r typecheck && pnpm --dir vps-scraper typecheck",
+    "lint": "pnpm -r lint"
+  }
+}

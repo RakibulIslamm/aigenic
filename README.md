@@ -125,6 +125,25 @@ Lives in [`widget/`](./widget/). Built via `pnpm build` → writes directly to `
 
 ## Project layout
 
+The repo is a **pnpm workspace** rooted at the top level:
+
+```
+package.json          # private workspace root — dev / build / typecheck / lint across packages
+pnpm-workspace.yaml   # members: aigenic_app, widget
+pnpm-lock.yaml        # single lockfile for both members
+tsconfig.base.json    # shared strict compiler options; each package extends it
+aigenic_app/          # the Next.js app (Vercel root directory)
+widget/               # Preact widget — builds into aigenic_app/public/widget.js
+vps-scraper/          # standalone: own lockfile + tsconfig (its Docker context is this dir)
+```
+
+`vps-scraper` is deliberately **outside** the workspace — the image build COPYs only
+`vps-scraper/`, so it needs its own `pnpm-lock.yaml`. Its `pnpm-workspace.yaml` (`packages: []`)
+marks it as its own pnpm root so `pnpm install` there doesn't climb up and install the
+root workspace instead.
+
+Inside `aigenic_app/`:
+
 ```
 aigenic_app/
 app/
@@ -173,7 +192,7 @@ components/
   ui/                              # shadcn primitives
   skeletons.tsx                    # Section-level loading blocks
 proxy.ts                           # clerkMiddleware() — protects /dashboard/*
-next.config.ts                     # turbopack.root pinned to the app directory
+next.config.ts                     # turbopack.root pinned to the workspace root
 public/widget.js                   # Built widget bundle (~12 KB gzipped)
 ```
 
@@ -181,9 +200,16 @@ public/widget.js                   # Built widget bundle (~12 KB gzipped)
 
 ### 1. Install
 
+From the repo root — one install covers the app and the widget:
+
 ```bash
-cd aigenic_app
 pnpm install
+```
+
+The scraper is a separate tree; install it only if you're working on it:
+
+```bash
+pnpm --dir vps-scraper install
 ```
 
 Deps are caret-pinned; `pnpm-lock.yaml` is authoritative (use `--frozen-lockfile` in CI/Docker).
@@ -191,6 +217,7 @@ Deps are caret-pinned; `pnpm-lock.yaml` is authoritative (use `--frozen-lockfile
 ### 2. Environment
 
 ```bash
+cd aigenic_app
 cp .env.local.example .env.local
 ```
 
@@ -239,10 +266,10 @@ pnpm db:migrate    # applies drizzle/*.sql to Neon
 ### 4. Build the widget once
 
 ```bash
-cd ../widget && pnpm install && pnpm build
+pnpm --filter aigenic-widget build     # from the repo root
 ```
 
-That writes `public/widget.js` into this app. Rebuild any time you change `widget/src/`.
+That writes `aigenic_app/public/widget.js`. Rebuild any time you change `widget/src/`.
 
 ### 5. Run
 
@@ -256,12 +283,23 @@ Landing renders without auth. `/dashboard` redirects to Clerk sign-in. Add a sit
 
 - **`middleware.ts` is now `proxy.ts`.** Clerk's `clerkMiddleware()` is unchanged. See [`proxy.ts`](./aigenic_app/proxy.ts).
 - **All Request APIs are async** — `await cookies()`, `await params`, `await searchParams`.
-- **Turbopack is default** for `dev` and `build`. `next.config.ts` pins `turbopack.root` so a multi-lockfile environment doesn't confuse the resolver.
+- **Turbopack is default** for `dev` and `build`. `next.config.ts` pins `turbopack.root` to the **workspace root** — pnpm hoists real package files into `<repo>/node_modules/.pnpm`, and Turbopack refuses to resolve anything outside its root, so pointing it at `aigenic_app/` makes every dependency unresolvable.
 - **`revalidateTag` requires a cacheLife profile** as the second argument now.
 
 When in doubt, read `node_modules/next/dist/docs/01-app/02-guides/upgrading/version-16.md`.
 
 ## Scripts
+
+From the **repo root** (these span packages):
+
+| Script           | Purpose                                                              |
+| ---------------- | -------------------------------------------------------------------- |
+| `pnpm dev`       | Next.js dev server (Turbopack)                                       |
+| `pnpm build`     | Widget bundle → app production build → scraper `tsc`                 |
+| `pnpm typecheck` | `tsc --noEmit` across app, widget **and** scraper                    |
+| `pnpm lint`      | ESLint across workspace members                                      |
+
+From **`aigenic_app/`**:
 
 | Script             | Purpose                                          |
 | ------------------ | ------------------------------------------------ |
@@ -280,7 +318,7 @@ All scripts are prefixed with `cross-env MallocNanoZone=` — a macOS workaround
 
 The full punch-list:
 
-1. **Push to GitHub**, then **import into Vercel**. Set the project root to `aigenic_app/`.
+1. **Push to GitHub**, then **import into Vercel**. Set the **Root Directory** to `aigenic_app/` and leave *"Include files outside the root directory"* **enabled** (Vercel's default) — this is a pnpm workspace, so the build needs the root `pnpm-lock.yaml` and `tsconfig.base.json`. Vercel detects the workspace and runs the install from the repo root automatically.
 2. Add every env var from `.env.local` to Vercel (Production + Preview).
 3. **Clerk:** in the Clerk dashboard, add the Vercel domain to **Allowed Origins** and **Sign-in/Sign-up URLs**, switch the production instance to use the new domain.
 4. **Stripe:** create the $19/mo Starter and $49/mo Pro recurring prices (each generates a `price_...` id — paste them into `STRIPE_STARTER_PRICE_ID` and `STRIPE_PRO_PRICE_ID`), then a webhook endpoint pointed at `https://your-app.vercel.app/api/stripe/webhook` listening to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`. The webhook handler reverse-looks-up the active price id to set the plan, so you don't need to repeat plan names anywhere.

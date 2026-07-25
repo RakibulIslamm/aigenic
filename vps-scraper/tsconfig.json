@@ -1,4 +1,11 @@
 {
+  "_comment": [
+    "Deliberately standalone — this does NOT extend ../tsconfig.base.json.",
+    "The Docker build context is vps-scraper/ alone (see Dockerfile: it COPYs",
+    "tsconfig.json + src), so a parent-relative extends would break the image",
+    "build. The strictness options below mirror tsconfig.base.json; keep them",
+    "in sync by hand if the base changes."
+  ],
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",
@@ -13,6 +20,7 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
+    "isolatedModules": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": false,
     "sourceMap": true,

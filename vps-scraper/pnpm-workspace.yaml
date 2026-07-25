@@ -1,0 +1,9 @@
+# Marks vps-scraper as its own pnpm root, isolated from the repo-root
+# workspace. Without this file, `pnpm install` run from inside vps-scraper/
+# walks up, finds ../pnpm-workspace.yaml, and installs the ROOT workspace
+# instead — leaving the scraper with no dependencies.
+#
+# The scraper stays standalone on purpose: its Docker build context is
+# vps-scraper/ alone and the image COPYs this directory's own pnpm-lock.yaml
+# (see Dockerfile), so it cannot share the root lockfile.
+packages: []

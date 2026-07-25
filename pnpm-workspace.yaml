@@ -1,0 +1,16 @@
+# aigenic_app + widget share one install and one lockfile — the widget
+# builds straight into aigenic_app/public/, so the two are already coupled.
+#
+# vps-scraper is deliberately NOT a workspace member: its Docker build uses
+# vps-scraper/ as the build context and COPYs its own pnpm-lock.yaml
+# (see vps-scraper/Dockerfile), so it keeps a standalone tree.
+packages:
+  - aigenic_app
+  - widget
+
+# pnpm v10 skips these packages' postinstall build scripts.
+# (Moved here from the former aigenic_app/pnpm-workspace.yaml.)
+ignoredBuiltDependencies:
+  - msw
+  - sharp
+  - unrs-resolver
