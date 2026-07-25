@@ -92,6 +92,22 @@ docker compose logs -f
 
 The compose file binds the container to `127.0.0.1:3007` only — pair with Caddy or Nginx for TLS. See [DEPLOY.md](./DEPLOY.md) for a full Contabo walkthrough.
 
+### Running the image directly
+
+`docker run aigenic-scraper` on its own **exits immediately** with
+`SCRAPER_API_KEY is not set. Refusing to start.` — that's intentional, not a broken image:
+the service will not boot as an unauthenticated crawler. `docker compose up` passes the key
+from `vps-scraper/.env`; a bare `docker run` does not, so pass it yourself:
+
+```bash
+docker build -t aigenic-scraper .          # note the -t; without it the image is <none>
+docker run --rm -e SCRAPER_API_KEY=local-test -p 127.0.0.1:3007:3007 aigenic-scraper
+curl -s http://127.0.0.1:3007/health        # {"status":"ok","service":"aigenic-scraper",…}
+```
+
+`POST /crawl` returns `401` without a matching `X-API-Key` header and `400` on an invalid
+payload — a quick way to confirm auth is wired before pointing the app at it.
+
 ## Project layout
 
 ```

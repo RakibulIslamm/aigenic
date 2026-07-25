@@ -17,7 +17,18 @@ const MAX_PAGES_CAP = 2000;
 const DEFAULT_MAX_PAGES = 1000;
 
 if (!API_KEY) {
-  logger.error('SCRAPER_API_KEY is required. Refusing to start.');
+  // Refusing to start is deliberate — booting without a key would expose an
+  // unauthenticated crawler. Say how to supply it, since the usual way to hit
+  // this is running the image directly instead of through compose.
+  // Single line on purpose: pino emits JSON in the container, where embedded
+  // newlines come out as literal \n and are horrible to read.
+  logger.error(
+    'SCRAPER_API_KEY is not set — refusing to start, since an unauthenticated crawler ' +
+      'would let anyone POST /crawl. Supply it with `docker compose up -d` (reads ' +
+      'vps-scraper/.env), `docker run -e SCRAPER_API_KEY=… -p 127.0.0.1:3007:3007 ' +
+      'aigenic-scraper`, or `pnpm dev` / `pnpm start:local` (both read --env-file=.env). ' +
+      'It must match SCRAPER_API_KEY in the Next.js app — see vps-scraper/.env.example.',
+  );
   process.exit(1);
 }
 
