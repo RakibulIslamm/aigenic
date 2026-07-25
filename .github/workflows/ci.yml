@@ -45,17 +45,20 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
+      # The `:workspace` variants deliberately, not the bare `pnpm typecheck` /
+      # `pnpm build` a developer runs. Those also cover vps-scraper, whose
+      # node_modules live in its own standalone tree that this job never
+      # installs — the scraper job below does, and typechecks/builds it there.
       - name: Typecheck
-        run: pnpm typecheck
+        run: pnpm run typecheck:workspace
 
       - name: Test
         run: pnpm test
 
-      - name: Build widget
-        run: pnpm --filter aigenic-widget build
-
-      - name: Build app
-        run: pnpm --filter aigenic-app build
+      # One step, because the order matters: the widget build writes
+      # aigenic_app/public/widget.js, which the app build then ships.
+      - name: Build
+        run: pnpm run build:workspace
 
   # Nothing else exercises the migrations, and a broken one only shows up at
   # deploy time. This proves both halves: the committed migrations still apply

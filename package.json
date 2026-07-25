@@ -5,8 +5,12 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "pnpm --filter aigenic-app dev",
-    "build": "pnpm --filter aigenic-widget build && pnpm --filter aigenic-app build && pnpm --dir vps-scraper build",
-    "typecheck": "pnpm -r typecheck && pnpm --dir vps-scraper typecheck && tsc -p tests --noEmit",
+    "build": "pnpm run build:workspace && pnpm run build:scraper",
+    "build:workspace": "pnpm --filter aigenic-widget build && pnpm --filter aigenic-app build",
+    "build:scraper": "pnpm --dir vps-scraper build",
+    "typecheck": "pnpm run typecheck:workspace && pnpm run typecheck:scraper",
+    "typecheck:workspace": "pnpm -r typecheck && tsc -p tests --noEmit",
+    "typecheck:scraper": "pnpm --dir vps-scraper typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
@@ -20,6 +24,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import": "^2.32.0",
     "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0",
     "vitest": "^4.1.10"
   }
