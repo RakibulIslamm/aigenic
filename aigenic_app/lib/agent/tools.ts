@@ -1,10 +1,9 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { articles, conversations, escalations, messages, sites } from '@/db/schema';
-import { ESCALATION_FROM_ADDRESS, getResendClient } from '@/lib/email/resend';
-import { log } from '@/lib/log';
+import { articles, conversations, escalations, sites } from '@/db/schema';
+import { deliverEscalationEmail } from '@/lib/email/escalation';
 import { articlesInGeneration } from '@/lib/sites/generations';
 
 /** How many articles a full-text search returns to the model. */
@@ -156,121 +155,52 @@ export function buildSupportTools(ctx: SupportToolContext) {
           };
         }
 
-        // Flip the conversation to escalated; record the visitor email too if
-        // the model captured one.
-        await db
-          .update(conversations)
-          .set({ status: 'escalated', ...(visitorEmail ? { visitorEmail } : {}) })
-          .where(eq(conversations.id, ctx.conversationId));
+        // Status flip + escalation insert commit or fail together, so an
+        // `escalated` conversation can never exist without its reason row.
+        // returning() says whether THIS call created the row — a re-call
+        // hits the unique constraint and comes back empty, and must not
+        // email the owner a second time.
+        const inserted = await db.transaction(async (tx) => {
+          await tx
+            .update(conversations)
+            .set({ status: 'escalated', ...(visitorEmail ? { visitorEmail } : {}) })
+            .where(eq(conversations.id, ctx.conversationId));
 
-        // One escalation per conversation — the unique constraint enforces
-        // this; onConflictDoNothing makes a re-call idempotent.
-        await db
-          .insert(escalations)
-          .values({
-            conversationId: ctx.conversationId,
-            reason,
-          })
-          .onConflictDoNothing({ target: escalations.conversationId });
-
-        const transcript = await db.query.messages.findMany({
-          where: eq(messages.conversationId, ctx.conversationId),
-          orderBy: [asc(messages.createdAt)],
+          const rows = await tx
+            .insert(escalations)
+            .values({
+              conversationId: ctx.conversationId,
+              reason,
+            })
+            .onConflictDoNothing({ target: escalations.conversationId })
+            .returning({ id: escalations.id });
+          return rows.length > 0;
         });
 
-        const transcriptHtml = renderTranscriptHtml(
-          transcript.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        );
-
-        const resend = getResendClient();
-        let emailSent = false;
-
-        if (resend) {
-          try {
-            await resend.emails.send({
-              from: ESCALATION_FROM_ADDRESS,
-              to: site.escalationEmail,
-              replyTo: visitorEmail ?? undefined,
-              subject: `[Aigenic] Escalation from ${site.name}`,
-              html: renderEscalationEmail({
-                siteName: site.name,
-                reason,
-                visitorEmail: visitorEmail ?? null,
-                visitorId: ctx.visitorId,
-                conversationId: ctx.conversationId,
-                transcriptHtml,
-              }),
-            });
-            emailSent = true;
-            await db
-              .update(escalations)
-              .set({ emailSentAt: new Date() })
-              .where(eq(escalations.conversationId, ctx.conversationId));
-          } catch (err) {
-            log.error('Failed to send escalation email', { err });
-          }
+        if (!inserted) {
+          return {
+            ok: true as const,
+            emailSent: false,
+            alreadyEscalated: true as const,
+            message:
+              'This conversation is already escalated — the support team has it on file. No need to escalate again.',
+          };
         }
 
+        const delivery = await deliverEscalationEmail(ctx.conversationId);
+
+        // The messages are honest about what actually happened: a confirmed
+        // send may promise human follow-up; a failed or unconfigured send
+        // only claims what is true — the request is logged, visible in the
+        // dashboard, and will be retried.
         return {
           ok: true as const,
-          emailSent,
-          message: emailSent
+          emailSent: delivery.sent,
+          message: delivery.sent
             ? "I've forwarded this to the support team — they'll follow up by email within one business day. Anything else I can help with in the meantime?"
-            : "I've flagged this for the support team. They'll follow up shortly. Anything else I can help with?",
+            : "I've logged this for the support team to review. Anything else I can help with in the meantime?",
         };
       },
     }),
   };
-}
-
-function renderTranscriptHtml(msgs: Array<{ role: string; content: string }>): string {
-  return msgs
-    .map((m) => {
-      const who = m.role === 'assistant' ? 'Bot' : m.role === 'user' ? 'Visitor' : m.role;
-      const escaped = escapeHtml(m.content);
-      return `<p style="margin:0 0 12px;"><strong>${who}:</strong> ${escaped}</p>`;
-    })
-    .join('');
-}
-
-function renderEscalationEmail(args: {
-  siteName: string;
-  reason: string;
-  visitorEmail: string | null;
-  visitorId: string;
-  conversationId: string;
-  transcriptHtml: string;
-}): string {
-  return `<!doctype html>
-<html>
-  <body style="font-family: ui-sans-serif, system-ui, sans-serif; color:#18181b; max-width:640px; margin:0 auto; padding:24px;">
-    <h2 style="margin:0 0 8px; font-weight:600;">New escalation from ${escapeHtml(args.siteName)}</h2>
-    <p style="margin:0 0 16px; color:#71717a;">An Aigenic visitor was escalated to your team.</p>
-
-    <div style="border:1px solid #e4e4e7; border-radius:12px; padding:16px; margin:16px 0;">
-      <p style="margin:0 0 6px;"><strong>Reason:</strong> ${escapeHtml(args.reason)}</p>
-      <p style="margin:0 0 6px;"><strong>Visitor email:</strong> ${args.visitorEmail ? escapeHtml(args.visitorEmail) : '<em>not provided</em>'}</p>
-      <p style="margin:0;"><strong>Conversation ID:</strong> <code>${escapeHtml(args.conversationId)}</code></p>
-    </div>
-
-    <h3 style="margin:24px 0 8px; font-weight:600;">Transcript</h3>
-    <div style="border:1px solid #e4e4e7; border-radius:12px; padding:16px; background:#fafafa;">
-      ${args.transcriptHtml}
-    </div>
-
-    <p style="margin:24px 0 0; font-size:12px; color:#a1a1aa;">Sent by Aigenic · visitorId ${escapeHtml(args.visitorId)}</p>
-  </body>
-</html>`;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }

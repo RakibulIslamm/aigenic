@@ -254,6 +254,15 @@ To wire billing:
 
 To wire escalation email: set `RESEND_API_KEY` (and optionally `RESEND_FROM_ADDRESS`).
 
+> **⚠ Verify the sending domain in Resend before launch.** The from-address
+> defaults to `Aigenic <agent@notifications.aigenic.app>`; whatever domain you
+> use must show **Verified** under [Resend → Domains](https://resend.com/domains),
+> or Resend rejects **every** escalation email. The failure is invisible to the
+> visitor — delivery is confirmed against the API response, undelivered
+> escalations appear as an amber _pending delivery_ badge on the site's
+> Conversations tab, and the `retry-escalation-emails` Trigger.dev task
+> re-sends them (bounded attempts) once the domain/key is fixed.
+
 If your widget is hosted on a different origin from the dashboard, set `NEXT_PUBLIC_WIDGET_URL` so the **Widget code** tab renders the right snippet.
 
 ### 3. Apply migrations

@@ -14,6 +14,7 @@ import {
 import { requireUserId } from '@/lib/auth/user';
 import { getSiteForUser } from '@/lib/sites/queries';
 import { getConversationDetail } from '@/lib/sites/conversations';
+import { MAX_ESCALATION_EMAIL_ATTEMPTS } from '@/lib/email/escalation';
 import {
   Card,
   CardContent,
@@ -149,8 +150,13 @@ export default async function ConversationDetailPage({
                   Email sent{' '}
                   {formatDistanceToNow(escalation.emailSentAt, { addSuffix: true })}
                 </span>
+              ) : escalation.emailAttempts >= MAX_ESCALATION_EMAIL_ATTEMPTS ? (
+                <span className="text-amber-300">
+                  Email could not be delivered after {escalation.emailAttempts} attempts —
+                  check your Resend key and sending domain.
+                </span>
               ) : (
-                <span>Email delivery pending</span>
+                <span>Email delivery pending — it will be retried automatically.</span>
               )}
             </CardContent>
           </Card>

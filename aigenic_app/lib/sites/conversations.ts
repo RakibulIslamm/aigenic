@@ -1,5 +1,5 @@
 import { cache } from 'react';
-import { and, asc, count, desc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   conversations,
@@ -58,6 +58,23 @@ export const getConversationStatusCounts = cache(
     }
 
     return counts;
+  },
+);
+
+/**
+ * Escalations whose notification email has not been delivered — conversations
+ * the owner has NOT heard about yet. Surfaced as an amber badge on the
+ * conversations tab so a silent delivery failure (unverified Resend domain,
+ * missing key) is visible instead of buried in `email_sent_at IS NULL`.
+ */
+export const countPendingEscalationEmails = cache(
+  async (siteId: string): Promise<number> => {
+    const [row] = await db
+      .select({ value: count() })
+      .from(escalations)
+      .innerJoin(conversations, eq(escalations.conversationId, conversations.id))
+      .where(and(eq(conversations.siteId, siteId), isNull(escalations.emailSentAt)));
+    return Number(row?.value ?? 0);
   },
 );
 

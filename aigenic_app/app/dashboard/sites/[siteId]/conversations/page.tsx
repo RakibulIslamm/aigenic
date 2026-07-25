@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
-import { ArrowUpRight, MessageSquare, User } from 'lucide-react';
+import { ArrowUpRight, MailWarning, MessageSquare, User } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
 import { getSiteForUser } from '@/lib/sites/queries';
 import {
+  countPendingEscalationEmails,
   getConversationStatusCounts,
   listConversationsFiltered,
   type ConversationStatusFilter,
@@ -37,11 +38,13 @@ export default async function ConversationsPage({
 
   const filter = normalizeFilter(status);
 
-  // Two queries in parallel: status counts (one GROUP BY) + the visible page
-  // (capped at the default CONVERSATION_LIST_LIMIT).
-  const [counts, visible] = await Promise.all([
+  // Three queries in parallel: status counts (one GROUP BY), the visible page
+  // (capped at the default CONVERSATION_LIST_LIMIT), and the count of
+  // escalations whose owner email is still undelivered.
+  const [counts, visible, pendingEscalations] = await Promise.all([
     getConversationStatusCounts(siteId),
     listConversationsFiltered(siteId, filter),
+    countPendingEscalationEmails(siteId),
   ]);
 
   return (
@@ -53,6 +56,16 @@ export default async function ConversationsPage({
             Every visitor session, with full transcripts and one-click escalation
             hand-off.
           </p>
+          {pendingEscalations > 0 && (
+            <Badge
+              variant="outline"
+              className="mt-2 gap-1 rounded-full border-amber-500/40 bg-amber-500/10 text-xs text-amber-300"
+            >
+              <MailWarning className="h-3 w-3" />
+              {pendingEscalations} escalation email
+              {pendingEscalations === 1 ? '' : 's'} pending delivery
+            </Badge>
+          )}
         </div>
         <FilterTabs counts={counts} />
       </header>
