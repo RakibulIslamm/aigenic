@@ -119,6 +119,29 @@ curl http://127.0.0.1:3007/health
 # {"status":"ok","service":"aigenic-scraper","uptime":...}
 ```
 
+### 5b. Block private-network egress from the container (do this)
+
+The crawler's own fetches are already guarded in code (`src/ssrf-guard.ts`), but
+Chromium does its own DNS and redirect-following. Deny the container a route to
+private space so a browser navigation can't reach it either. `169.254.0.0/16` is the
+important one — that's the cloud metadata service.
+
+```bash
+for net in 169.254.0.0/16 127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10; do
+  sudo iptables -I DOCKER-USER -i docker0 -d "$net" -j REJECT
+done
+
+# persist across reboots
+sudo apt install -y iptables-persistent && sudo netfilter-persistent save
+```
+
+If the bridge isn't `docker0`, get the real name from
+`docker network inspect aigenic-scraper_default`. Verify:
+
+```bash
+docker compose exec scraper node -e "fetch('http://169.254.169.254/',{signal:AbortSignal.timeout(3000)}).then(()=>console.log('REACHABLE — rules not applied')).catch(e=>console.log('blocked:',e.cause?.code??e.name))"
+```
+
 ---
 
 ## 6. Point a DNS A record

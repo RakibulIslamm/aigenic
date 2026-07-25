@@ -1,3 +1,28 @@
+# ⚠️ Egress filtering — the last layer of the SSRF defense.
+#
+# `src/ssrf-guard.ts` blocks non-public hosts for every request the crawler
+# makes itself (name check → connect-time DNS check → per-hop redirect check).
+# What it cannot fully cover is **Chromium**: Playwright does its own DNS and
+# its own redirect-following, so a redirect chain inside the browser can reach
+# a private address before we get to inspect it. `fetcher.ts` checks the URL
+# before `page.goto` and re-checks `page.url()` after — enough to stop the
+# content being ingested, not enough to stop the request being sent.
+#
+# Close that gap at the network. On the Docker host, run once:
+#
+#   sudo iptables -I DOCKER-USER -i docker0 -d 169.254.0.0/16 -j REJECT
+#   sudo iptables -I DOCKER-USER -i docker0 -d 127.0.0.0/8    -j REJECT
+#   sudo iptables -I DOCKER-USER -i docker0 -d 10.0.0.0/8     -j REJECT
+#   sudo iptables -I DOCKER-USER -i docker0 -d 172.16.0.0/12  -j REJECT
+#   sudo iptables -I DOCKER-USER -i docker0 -d 192.168.0.0/16 -j REJECT
+#   sudo iptables -I DOCKER-USER -i docker0 -d 100.64.0.0/10  -j REJECT
+#
+# (Persist with `iptables-persistent`. Use the bridge interface name from
+# `docker network inspect aigenic-scraper_default` if it isn't `docker0`.
+# 169.254.0.0/16 is the one that matters most — it's the cloud metadata
+# service. If the host itself needs to reach the scraper over a private
+# address, add that specific `-d <ip> -j ACCEPT` rule *above* these.)
+
 name: aigenic-scraper
 
 services:

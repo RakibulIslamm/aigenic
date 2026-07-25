@@ -39,6 +39,14 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # `tests/scraper/*` import `vps-scraper/src` directly, and since the SSRF
+      # guard landed those modules pull real dependencies (undici, ipaddr.js,
+      # pino) instead of being self-contained. Both `tsc -p tests` and vitest
+      # need them resolvable, so install that standalone tree here too. The
+      # scraper job below still owns its own typecheck and build.
+      - name: Install vps-scraper deps (tests/scraper imports them)
+        run: pnpm --dir vps-scraper install --frozen-lockfile
+
       - name: Lint
         run: pnpm lint
 

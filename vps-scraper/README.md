@@ -108,6 +108,28 @@ curl -s http://127.0.0.1:3007/health        # {"status":"ok","service":"aigenic-
 `POST /crawl` returns `401` without a matching `X-API-Key` header and `400` on an invalid
 payload — a quick way to confirm auth is wired before pointing the app at it.
 
+## SSRF protection
+
+The crawler fetches URLs a tenant typed into a form, so without a guard this service is a
+proxy into its own network — and whatever it fetches gets ingested as an "article" and
+read back out through the public support widget. `src/ssrf-guard.ts` enforces three
+checks on every outbound request (`fetcher.ts`, `crawler.ts` robots.txt, `sitemap.ts`):
+
+1. **Name check** — rejects `localhost`, `*.local` / `*.internal` / `*.localhost` /
+   `*.home.arpa`, bare single-label hostnames, non-`http(s)` schemes, and any IP literal
+   outside the public unicast range (loopback, RFC 1918, link-local `169.254/16`,
+   CGNAT `100.64/10`, multicast, IPv4-mapped IPv6 forms of all of the above).
+2. **Connect-time DNS check** — a custom undici `lookup` validates the address _inside_
+   the socket connect, so a hostname that re-resolves to a private IP between check and
+   connect (DNS rebinding) still can't be reached.
+3. **Per-hop redirect check** — `redirect: 'manual'` with the full guard re-run on every
+   `Location`, so a public page can't 302 into the metadata endpoint.
+
+A blocked URL is logged (`ssrf-guard: blocked …`) and skipped; a blocked **start** URL
+fails the crawl with an `error` webhook. **Chromium is the one gap** — it does its own
+DNS and redirects; see the egress-filtering note at the top of `docker-compose.yml` for
+the network-level backstop, which is a manual step on the host.
+
 ## Project layout
 
 ```
@@ -115,6 +137,7 @@ src/
   index.ts            HTTP server, API-key middleware, job acceptance
   crawler.ts          Playwright-driven BFS crawl with concurrency + robots.txt
   content-extractor.ts Readability + JSDOM extraction, internal-link discovery
+  ssrf-guard.ts       Blocks non-public hosts on every outbound fetch
   webhook.ts          Outbound webhook delivery with exponential-backoff retry
   logger.ts           pino logger (pretty in dev, JSON in prod)
 Dockerfile            Multi-stage build on top of mcr.microsoft.com/playwright

@@ -17,6 +17,7 @@ import { parsePage } from './content-extractor.js';
 import { fetchPage } from './fetcher.js';
 import { RateLimiter } from './rate-limit.js';
 import { discoverSitemapUrls } from './sitemap.js';
+import { assertPublicUrl, isSsrfBlocked, safeFetch } from './ssrf-guard.js';
 import { buildSite, isSameSite, normalizeUrl, shouldSkipUrl } from './url-utils.js';
 import { sendWebhook, type WebhookEvent } from './webhook.js';
 
@@ -89,6 +90,28 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     return;
   }
   const site = maybeSite;
+
+  // Name/scheme check on the start URL up front. Blocked here means the whole
+  // crawl fails with a clear reason rather than quietly producing zero pages —
+  // the per-URL guards below can only skip, and a user who typed a private
+  // address deserves to be told. (The DNS-level check still happens at connect
+  // time for every fetch, including this host.)
+  try {
+    assertPublicUrl(startUrl);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'blocked start URL';
+    logger.warn({ siteId, startUrl }, 'ssrf-guard: blocked start URL');
+    await sendWebhook({
+      url: webhookUrl,
+      apiKey: webhookApiKey,
+      payload: {
+        event: 'error',
+        siteId,
+        error: `Refusing to crawl a non-public address — ${reason}`,
+      },
+    }).catch(() => undefined);
+    return;
+  }
 
   try {
     const origin = new URL(startUrl).origin;
@@ -311,7 +334,7 @@ async function loadRobots(
   const robotsUrl = `${origin}/robots.txt`;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await fetch(robotsUrl, {
+      const { response: res } = await safeFetch(robotsUrl, {
         headers: {
           'User-Agent': USER_AGENT,
           Accept: 'text/plain,*/*;q=0.8',
@@ -325,6 +348,12 @@ async function loadRobots(
       }
       break; // non-ok response — don't keep retrying
     } catch (err) {
+      // Never retry a blocked host, and never treat it as "no robots =
+      // allow": the caller checks the start URL separately, so just stop.
+      if (isSsrfBlocked(err)) {
+        logger.warn({ origin }, 'ssrf-guard: blocked robots.txt fetch');
+        break;
+      }
       if (attempt < 3) {
         await new Promise((resolve) => setTimeout(resolve, 300 * 2 ** (attempt - 1)));
         continue;

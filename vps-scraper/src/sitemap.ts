@@ -1,4 +1,5 @@
 import { logger } from './logger.js';
+import { isSsrfBlocked, safeFetch } from './ssrf-guard.js';
 import {
   isSameSite,
   normalizeUrl,
@@ -87,13 +88,19 @@ function extractSitemapsFromRobotsBody(body: string): string[] {
 
 async function fetchText(url: string, userAgent: string): Promise<string | null> {
   try {
-    const res = await fetch(url, {
+    // Sitemap URLs are attacker-influenced twice over: a `Sitemap:` line in
+    // robots.txt and a `<loc>` inside a sitemap index are both remote input,
+    // and neither has passed `isSameSite` at this point.
+    const { response: res } = await safeFetch(url, {
       headers: { 'User-Agent': userAgent, Accept: 'application/xml, text/xml, */*' },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     return await res.text();
-  } catch {
+  } catch (err) {
+    if (isSsrfBlocked(err)) {
+      logger.warn({ url }, 'ssrf-guard: blocked sitemap fetch');
+    }
     return null;
   }
 }
