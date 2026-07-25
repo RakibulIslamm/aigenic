@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { asc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ModelMessage } from 'ai';
 import { db } from '@/db';
@@ -55,6 +55,12 @@ const MAX_CONVERSATIONS_PER_VISITOR_PER_HOUR = 5;
  * conversationId bypassed entirely.
  */
 const BUDGET_MESSAGES_PER_CONVERSATION = 20;
+/**
+ * How much of the transcript is replayed to the model each turn. Bounds the
+ * other axis of per-turn cost: not how many requests arrive, but how large
+ * each one is allowed to grow.
+ */
+const HISTORY_MESSAGE_LIMIT = 20;
 
 const cors = widgetCors('POST, OPTIONS');
 
@@ -336,20 +342,28 @@ function buildSseStream({
 }
 
 async function loadHistory(conversationId: string): Promise<ModelMessage[]> {
+  // Last N only, not the whole transcript: replaying everything made each
+  // turn's token cost grow with conversation length, so the final turns of a
+  // long chat were the most expensive ones. Fetch newest-first with a LIMIT,
+  // then restore chronological order for the model. The turn just persisted
+  // is included, and the Phase 3 hard cap bounds the conversation anyway.
   const rows = await db.query.messages.findMany({
-    where: eq(messages.conversationId, conversationId),
-    orderBy: [asc(messages.createdAt)],
+    where: and(
+      eq(messages.conversationId, conversationId),
+      inArray(messages.role, ['user', 'assistant']),
+    ),
+    orderBy: [desc(messages.createdAt)],
+    limit: HISTORY_MESSAGE_LIMIT,
   });
+  rows.reverse();
 
   // Drop tool-call detail from history — we only need the textual transcript
   // for the next turn. Each user/assistant message becomes a clean ModelMessage.
-  return rows
-    .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .map((m) =>
-      m.role === 'user'
-        ? ({ role: 'user', content: m.content } as ModelMessage)
-        : ({ role: 'assistant', content: m.content } as ModelMessage),
-    );
+  return rows.map((m) =>
+    m.role === 'user'
+      ? ({ role: 'user', content: m.content } as ModelMessage)
+      : ({ role: 'assistant', content: m.content } as ModelMessage),
+  );
 }
 
 const jsonError = cors.jsonError;

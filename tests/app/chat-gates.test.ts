@@ -63,15 +63,17 @@ const runSupportAgent = vi.fn(() => ({
   })(),
 }));
 
+/** What `loadHistory`'s findMany returns — newest first, as the query asks. */
+let historyRows: Array<{ role: string; content: string }> = [];
+const findMessages = vi.fn(async (_query: { limit?: number }) => historyRows);
+
 vi.mock('@/db', () => ({
   db: {
     query: {
       sites: { findFirst: findSite },
       users: { findFirst: findOwner },
       conversations: { findFirst: findConversation },
-      // `loadHistory` replays the transcript; the gates don't care what's in
-      // it, only that a permitted request reaches this point at all.
-      messages: { findMany: async () => [] },
+      messages: { findMany: findMessages },
     },
     insert: () => ({
       values: (v: Record<string, unknown>) => {
@@ -139,6 +141,7 @@ beforeEach(() => {
   messagesThisMonthForSite = 0;
   conversationsThisMonthForUser = 0;
   inserts.length = 0;
+  historyRows = [];
 });
 
 function expectNoSpend() {
@@ -277,5 +280,37 @@ describe('a legitimate chat still flows', () => {
       'chat:ip:1h:203.0.113.7',
       `chat:site:1h:${SITE_ID}`,
     ]);
+  });
+});
+
+describe('history replay is bounded (Phase 4)', () => {
+  it('asks the DB for at most 20 messages, newest first', async () => {
+    await post({ ...basePayload, conversationId: CONV_ID });
+
+    expect(findMessages).toHaveBeenCalledTimes(1);
+    const query = findMessages.mock.calls[0]![0];
+    // A LIMIT in the query itself — not a fetch-everything-then-slice, which
+    // would leave the unbounded round trip in place.
+    expect(query.limit).toBe(20);
+  });
+
+  it('restores chronological order before handing history to the model', async () => {
+    // findMany returns newest-first (that's what the desc query asks for).
+    historyRows = [
+      { role: 'user', content: 'third' },
+      { role: 'assistant', content: 'second' },
+      { role: 'user', content: 'first' },
+    ];
+    await post({ ...basePayload, conversationId: CONV_ID });
+
+    expect(runSupportAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        history: [
+          { role: 'user', content: 'first' },
+          { role: 'assistant', content: 'second' },
+          { role: 'user', content: 'third' },
+        ],
+      }),
+    );
   });
 });
