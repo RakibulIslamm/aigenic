@@ -19,8 +19,9 @@ import { log } from '@/lib/log';
  * this module is the single place their fallback strategy lives.
  *
  * Deliberate exceptions that keep reading `process.env` directly:
- * `drizzle.config.ts` (drizzle-kit CLI, depends on its own dotenv load
- * order) and the literal `NEXT_PUBLIC_*` reads below.
+ * `drizzle.config.ts` and `trigger.config.ts` (CLI-loaded files with their
+ * own dotenv load order, outside the `@/*` alias resolution) and the
+ * literal `NEXT_PUBLIC_*` reads below.
  */
 
 const serverSchema = z.object({
