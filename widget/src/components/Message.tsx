@@ -46,7 +46,16 @@ export function ToolPill({ name, status }: ToolPillProps) {
 
 function ErrorIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
       <circle cx="12" cy="12" r="10" />
       <line x1="12" y1="8" x2="12" y2="12" />
       <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -104,9 +113,7 @@ function renderRichText(text: string): JSX.Element[] {
       const bareUrl = match[6];
 
       if (start > cursor) {
-        out.push(
-          <span key={`s-${lineIdx}-${cursor}`}>{line.slice(cursor, start)}</span>
-        );
+        out.push(<span key={`s-${lineIdx}-${cursor}`}>{line.slice(cursor, start)}</span>);
       }
 
       if (mdLink) {
@@ -119,14 +126,14 @@ function renderRichText(text: string): JSX.Element[] {
             class="ad-link"
           >
             {mdLabel}
-          </a>
+          </a>,
         );
         cursor = start + mdLink.length;
       } else if (boldText !== undefined) {
         out.push(
           <strong key={`b-${lineIdx}-${start}`} class="ad-bold">
             {boldText}
-          </strong>
+          </strong>,
         );
         cursor = start + match[4]!.length;
       } else if (bareUrl) {
@@ -157,7 +164,7 @@ function renderRichText(text: string): JSX.Element[] {
             class="ad-link"
           >
             {url}
-          </a>
+          </a>,
         );
         if (trail) {
           out.push(<span key={`t-${lineIdx}-${start}`}>{trail}</span>);

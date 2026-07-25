@@ -1,5 +1,10 @@
 import { logger } from './logger.js';
-import { isSameSite, normalizeUrl, shouldSkipUrl, type NormalizedSite } from './url-utils.js';
+import {
+  isSameSite,
+  normalizeUrl,
+  shouldSkipUrl,
+  type NormalizedSite,
+} from './url-utils.js';
 
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_SITEMAPS = 50;
@@ -65,7 +70,7 @@ export async function discoverSitemapUrls({
   const out = [...urls];
   logger.info(
     { origin, sitemapsVisited: visited.size, urlsFound: out.length },
-    'sitemap discovery complete'
+    'sitemap discovery complete',
   );
   return out;
 }

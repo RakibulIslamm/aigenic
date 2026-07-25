@@ -47,13 +47,17 @@ export const getConversationStatusCounts = cache(
     for (const row of rows) {
       const n = Number(row.value);
       counts.all += n;
-      if (row.status === 'active' || row.status === 'escalated' || row.status === 'resolved') {
+      if (
+        row.status === 'active' ||
+        row.status === 'escalated' ||
+        row.status === 'resolved'
+      ) {
         counts[row.status] += n;
       }
     }
 
     return counts;
-  }
+  },
 );
 
 export interface ConversationListItem {
@@ -74,7 +78,7 @@ export interface ConversationListItem {
 export async function listConversationsFiltered(
   siteId: string,
   filter: ConversationStatusFilter = 'all',
-  limit = CONVERSATION_LIST_LIMIT
+  limit = CONVERSATION_LIST_LIMIT,
 ): Promise<ConversationListItem[]> {
   // Pull conversation rows + a count of messages in one query.
   const baseRows = await db
@@ -91,10 +95,7 @@ export async function listConversationsFiltered(
     .where(
       filter === 'all'
         ? eq(conversations.siteId, siteId)
-        : and(
-            eq(conversations.siteId, siteId),
-            eq(conversations.status, filter)
-          )
+        : and(eq(conversations.siteId, siteId), eq(conversations.status, filter)),
     )
     .groupBy(conversations.id)
     .orderBy(desc(conversations.createdAt))
@@ -111,9 +112,7 @@ export async function listConversationsFiltered(
       createdAt: messages.createdAt,
     })
     .from(messages)
-    .where(
-      and(inArray(messages.conversationId, ids), eq(messages.role, 'user'))
-    )
+    .where(and(inArray(messages.conversationId, ids), eq(messages.role, 'user')))
     .orderBy(asc(messages.createdAt));
 
   const previewByConv = new Map<string, string>();
@@ -141,13 +140,10 @@ export interface ConversationDetail {
 
 export async function getConversationDetail(
   conversationId: string,
-  siteId: string
+  siteId: string,
 ): Promise<ConversationDetail | null> {
   const conversation = await db.query.conversations.findFirst({
-    where: and(
-      eq(conversations.id, conversationId),
-      eq(conversations.siteId, siteId)
-    ),
+    where: and(eq(conversations.id, conversationId), eq(conversations.siteId, siteId)),
   });
   if (!conversation) return null;
 
@@ -168,8 +164,8 @@ export async function getConversationDetail(
       .where(
         and(
           eq(conversations.siteId, siteId),
-          eq(conversations.visitorId, conversation.visitorId)
-        )
+          eq(conversations.visitorId, conversation.visitorId),
+        ),
       ),
   ]);
 
@@ -210,23 +206,14 @@ export async function getSiteAnalytics(siteId: string): Promise<SiteAnalytics> {
         .select({ value: count() })
         .from(conversations)
         .where(
-          and(
-            eq(conversations.siteId, siteId),
-            gte(conversations.createdAt, monthStart)
-          )
+          and(eq(conversations.siteId, siteId), gte(conversations.createdAt, monthStart)),
         ),
       db
         .select({ value: count() })
         .from(escalations)
-        .innerJoin(
-          conversations,
-          eq(escalations.conversationId, conversations.id)
-        )
+        .innerJoin(conversations, eq(escalations.conversationId, conversations.id))
         .where(
-          and(
-            eq(conversations.siteId, siteId),
-            gte(escalations.createdAt, monthStart)
-          )
+          and(eq(conversations.siteId, siteId), gte(escalations.createdAt, monthStart)),
         ),
       db
         .select({
@@ -237,8 +224,8 @@ export async function getSiteAnalytics(siteId: string): Promise<SiteAnalytics> {
         .where(
           and(
             eq(conversations.siteId, siteId),
-            gte(conversations.createdAt, thirtyDaysAgo)
-          )
+            gte(conversations.createdAt, thirtyDaysAgo),
+          ),
         )
         .groupBy(sql`date_trunc('day', ${conversations.createdAt})`)
         .orderBy(sql`date_trunc('day', ${conversations.createdAt})`),
@@ -254,8 +241,8 @@ export async function getSiteAnalytics(siteId: string): Promise<SiteAnalytics> {
           and(
             eq(conversations.siteId, siteId),
             eq(conversations.status, 'resolved'),
-            gte(conversations.createdAt, monthStart)
-          )
+            gte(conversations.createdAt, monthStart),
+          ),
         )
         .groupBy(messages.conversationId),
       db
@@ -268,8 +255,8 @@ export async function getSiteAnalytics(siteId: string): Promise<SiteAnalytics> {
           and(
             eq(conversations.siteId, siteId),
             gte(messages.createdAt, monthStart),
-            sql`${messages.toolCalls} IS NOT NULL`
-          )
+            sql`${messages.toolCalls} IS NOT NULL`,
+          ),
         ),
     ]);
 
@@ -282,8 +269,14 @@ export async function getSiteAnalytics(siteId: string): Promise<SiteAnalytics> {
   let avgResolutionMinutes: number | null = null;
   if (resolutionRows.length > 0) {
     const totalMs = resolutionRows.reduce((sum, row) => {
-      const first = row.firstAt instanceof Date ? row.firstAt.getTime() : new Date(row.firstAt).getTime();
-      const last = row.lastAt instanceof Date ? row.lastAt.getTime() : new Date(row.lastAt).getTime();
+      const first =
+        row.firstAt instanceof Date
+          ? row.firstAt.getTime()
+          : new Date(row.firstAt).getTime();
+      const last =
+        row.lastAt instanceof Date
+          ? row.lastAt.getTime()
+          : new Date(row.lastAt).getTime();
       return sum + Math.max(0, last - first);
     }, 0);
     avgResolutionMinutes = totalMs / resolutionRows.length / 60_000;
@@ -346,7 +339,7 @@ export async function getSiteAnalytics(siteId: string): Promise<SiteAnalytics> {
  * the chat endpoint runs the model.
  */
 export async function countConversationsThisMonthForUser(
-  userId: string
+  userId: string,
 ): Promise<number> {
   const monthStart = startOfCurrentMonthUTC();
 

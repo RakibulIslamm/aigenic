@@ -61,9 +61,7 @@ const serverSchema = z.object({
 });
 
 /** `KEY=` in a dotenv file arrives as '' — treat that the same as unset. */
-function emptyToUndefined(
-  source: NodeJS.ProcessEnv
-): Record<string, string | undefined> {
+function emptyToUndefined(source: NodeJS.ProcessEnv): Record<string, string | undefined> {
   const out: Record<string, string | undefined> = {};
   for (const [key, value] of Object.entries(source)) {
     out[key] = value === '' ? undefined : value;
@@ -117,6 +115,6 @@ export function isTriggerConfigured(): boolean {
 /** True when at least one paid plan has a Stripe price configured. */
 export function isStripeConfigured(): boolean {
   return Boolean(
-    env.STRIPE_SECRET_KEY && (env.STRIPE_PRO_PRICE_ID ?? env.STRIPE_STARTER_PRICE_ID)
+    env.STRIPE_SECRET_KEY && (env.STRIPE_PRO_PRICE_ID ?? env.STRIPE_STARTER_PRICE_ID),
   );
 }

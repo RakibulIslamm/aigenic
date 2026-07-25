@@ -6,14 +6,14 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `de
 
 ## Status
 
-| Phase | Scope                                                                         | State |
-| ----- | ----------------------------------------------------------------------------- | ----- |
-| 1     | Scaffold + Clerk auth + Drizzle schema + landing/dashboard shells             | ✅    |
-| 2     | Site CRUD + 6-tab detail page + VPS scraper + webhook ingest                  | ✅    |
-| 3     | Embeddable `widget.js` (Preact + Shadow DOM) + chat endpoint with tool use    | ✅    |
-| 4     | Conversations browser + analytics + Stripe billing + plan-aware limits        | ✅    |
-| 5     | Final UI polish (color picker, tool-call labels, active nav, copy buttons)    | ✅    |
-| ☐     | Production deploy (Vercel + Contabo) — see [Deployment](#deployment)          | ⏳    |
+| Phase | Scope                                                                      | State |
+| ----- | -------------------------------------------------------------------------- | ----- |
+| 1     | Scaffold + Clerk auth + Drizzle schema + landing/dashboard shells          | ✅    |
+| 2     | Site CRUD + 6-tab detail page + VPS scraper + webhook ingest               | ✅    |
+| 3     | Embeddable `widget.js` (Preact + Shadow DOM) + chat endpoint with tool use | ✅    |
+| 4     | Conversations browser + analytics + Stripe billing + plan-aware limits     | ✅    |
+| 5     | Final UI polish (color picker, tool-call labels, active nav, copy buttons) | ✅    |
+| ☐     | Production deploy (Vercel + Contabo) — see [Deployment](#deployment)       | ⏳    |
 
 ## What you get
 
@@ -68,14 +68,14 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `de
 
 **What runs where**
 
-| Component               | Hosted on                           | Talks to                                                |
-| ----------------------- | ----------------------------------- | ------------------------------------------------------- |
-| Next.js app             | Vercel                              | Neon, OpenRouter, Resend, Stripe, the VPS scraper       |
-| Postgres (with FTS)     | Neon                                | the Next.js app only                                    |
-| Embeddable widget       | Served from Vercel `public/`        | `/api/widget/*` on the same Next.js app                 |
-| Crawler                 | Contabo VPS (Docker + Caddy + TLS)  | Receives `POST /crawl`, posts back to `/api/scraper/webhook` |
-| Auth                    | Clerk                               | `clerkMiddleware()` in [`proxy.ts`](./aigenic_app/proxy.ts) |
-| Billing                 | Stripe                              | Checkout sessions + webhooks → flips `users.plan`       |
+| Component           | Hosted on                          | Talks to                                                     |
+| ------------------- | ---------------------------------- | ------------------------------------------------------------ |
+| Next.js app         | Vercel                             | Neon, OpenRouter, Resend, Stripe, the VPS scraper            |
+| Postgres (with FTS) | Neon                               | the Next.js app only                                         |
+| Embeddable widget   | Served from Vercel `public/`       | `/api/widget/*` on the same Next.js app                      |
+| Crawler             | Contabo VPS (Docker + Caddy + TLS) | Receives `POST /crawl`, posts back to `/api/scraper/webhook` |
+| Auth                | Clerk                              | `clerkMiddleware()` in [`proxy.ts`](./aigenic_app/proxy.ts)  |
+| Billing             | Stripe                             | Checkout sessions + webhooks → flips `users.plan`            |
 
 ## Stack
 
@@ -105,15 +105,15 @@ Sticky top nav with active-state highlight (Sites / Billing). Sites grid shows p
 
 6-tab nav with sliding active indicator:
 
-| Tab               | What's on it                                                                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **Overview**      | 3 stats (articles, monthly conversations, escalation rate) + 5 most recent conversations.                                             |
-| **Knowledge base**| Paginated (25/page) article list with per-article re-scrape button. **Resync all** toggles to **Stop crawl** mid-flight.              |
-| **Conversations** | Status filter pill bar (All / Active / Escalated / Resolved), counts per status, click into transcript.                                |
+| Tab                      | What's on it                                                                                                                                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Overview**             | 3 stats (articles, monthly conversations, escalation rate) + 5 most recent conversations.                                                                                                             |
+| **Knowledge base**       | Paginated (25/page) article list with per-article re-scrape button. **Resync all** toggles to **Stop crawl** mid-flight.                                                                              |
+| **Conversations**        | Status filter pill bar (All / Active / Escalated / Resolved), counts per status, click into transcript.                                                                                               |
 | **Conversations** detail | Sticky transcript card with role-styled bubbles, inline collapsible tool calls (with friendly labels + icons + JSON input/output), visitor sidebar + escalation sidebar, **Mark as resolved** action. |
-| **Analytics**     | 4 stats (monthly chats, avg resolution time, escalation rate, top-topics count) + 30-day Recharts area chart + top-5 topic list.      |
-| **Widget code**   | Copyable `<script>` snippet, copyable site ID, live `srcDoc` iframe rendering the actual widget.                                      |
-| **Settings**      | Site basics + widget appearance (bot name, greeting, **primary color with native picker swatch**) + danger-zone delete (type-to-confirm). |
+| **Analytics**            | 4 stats (monthly chats, avg resolution time, escalation rate, top-topics count) + 30-day Recharts area chart + top-5 topic list.                                                                      |
+| **Widget code**          | Copyable `<script>` snippet, copyable site ID, live `srcDoc` iframe rendering the actual widget.                                                                                                      |
+| **Settings**             | Site basics + widget appearance (bot name, greeting, **primary color with native picker swatch**) + danger-zone delete (type-to-confirm).                                                             |
 
 ### Billing (`/dashboard/billing`)
 
@@ -223,32 +223,32 @@ cp .env.local.example .env.local
 
 Minimum to boot the dashboard locally:
 
-| Variable                          | Where to get it                                        |
-| --------------------------------- | ------------------------------------------------------ |
-| `DATABASE_URL`                    | Neon Postgres (use the **pooled** connection string)   |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | [dashboard.clerk.com](https://dashboard.clerk.com)     |
-| `NEXT_PUBLIC_APP_URL`             | `http://localhost:3000`                                |
+| Variable                                                | Where to get it                                      |
+| ------------------------------------------------------- | ---------------------------------------------------- |
+| `DATABASE_URL`                                          | Neon Postgres (use the **pooled** connection string) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | [dashboard.clerk.com](https://dashboard.clerk.com)   |
+| `NEXT_PUBLIC_APP_URL`                                   | `http://localhost:3000`                              |
 
 To make the agent actually answer:
 
-| Variable                  | Notes                                                                |
-| ------------------------- | -------------------------------------------------------------------- |
-| `OPENROUTER_API_KEY`      | [openrouter.ai/keys](https://openrouter.ai/keys)                     |
-| `OPENROUTER_BASE_URL`     | `https://openrouter.ai/api/v1` (default)                             |
+| Variable              | Notes                                            |
+| --------------------- | ------------------------------------------------ |
+| `OPENROUTER_API_KEY`  | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` (default)         |
 
 To wire the crawler:
 
-| Variable          | Notes                                            |
-| ----------------- | ------------------------------------------------ |
+| Variable          | Notes                                                       |
+| ----------------- | ----------------------------------------------------------- |
 | `SCRAPER_API_URL` | `https://scraper.yourdomain.com` (HTTPS, no trailing slash) |
-| `SCRAPER_API_KEY` | The shared secret you also set on the VPS       |
+| `SCRAPER_API_KEY` | The shared secret you also set on the VPS                   |
 
 To wire billing:
 
-| Variable                  | Notes                                                        |
-| ------------------------- | ------------------------------------------------------------ |
-| `STRIPE_SECRET_KEY`       | `sk_live_...` or `sk_test_...`                               |
-| `STRIPE_WEBHOOK_SECRET`   | `whsec_...` from the webhook endpoint in the Stripe dashboard |
+| Variable                  | Notes                                                                                                            |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`       | `sk_live_...` or `sk_test_...`                                                                                   |
+| `STRIPE_WEBHOOK_SECRET`   | `whsec_...` from the webhook endpoint in the Stripe dashboard                                                    |
 | `STRIPE_STARTER_PRICE_ID` | `price_...` for the $19/mo Starter recurring price (optional — if unset, the Starter upgrade button is disabled) |
 | `STRIPE_PRO_PRICE_ID`     | `price_...` for the $49/mo Pro recurring price (optional — if unset, the Pro upgrade button is disabled)         |
 
@@ -292,12 +292,20 @@ When in doubt, read `node_modules/next/dist/docs/01-app/02-guides/upgrading/vers
 
 From the **repo root** (these span packages):
 
-| Script           | Purpose                                                              |
-| ---------------- | -------------------------------------------------------------------- |
-| `pnpm dev`       | Next.js dev server (Turbopack)                                       |
-| `pnpm build`     | Widget bundle → app production build → scraper `tsc`                 |
-| `pnpm typecheck` | `tsc --noEmit` across app, widget **and** scraper                    |
-| `pnpm lint`      | ESLint across workspace members                                      |
+| Script              | Purpose                                               |
+| ------------------- | ----------------------------------------------------- |
+| `pnpm dev`          | Next.js dev server (Turbopack)                        |
+| `pnpm build`        | Widget bundle → app production build → scraper `tsc`  |
+| `pnpm typecheck`    | `tsc --noEmit` across app, widget **and** scraper     |
+| `pnpm lint`         | ESLint over all three packages (one root flat config) |
+| `pnpm lint:fix`     | Same, with `--fix` (import ordering is auto-fixable)  |
+| `pnpm format`       | Prettier write                                        |
+| `pnpm format:check` | Prettier check — the gate CI runs                     |
+
+Lint and format are **root-only commands**. The root [`eslint.config.mjs`](./eslint.config.mjs)
+covers `vps-scraper/src` too, so the scraper gets linted without ESLint entering its
+dependency tree — its Docker build installs devDependencies, and everything installed
+there ends up in the image.
 
 From **`aigenic_app/`**:
 
@@ -306,7 +314,6 @@ From **`aigenic_app/`**:
 | `pnpm dev`         | Next.js dev server (Turbopack)                   |
 | `pnpm build`       | Production build                                 |
 | `pnpm start`       | Start the production server                      |
-| `pnpm lint`        | ESLint                                           |
 | `pnpm db:generate` | Generate a Drizzle migration from `db/schema.ts` |
 | `pnpm db:migrate`  | Apply pending migrations to Neon                 |
 | `pnpm db:push`     | Push schema directly — dev only                  |
@@ -314,11 +321,24 @@ From **`aigenic_app/`**:
 
 All scripts are prefixed with `cross-env MallocNanoZone=` — a macOS workaround for a malloc-zone issue that surfaces under Turbopack.
 
+## CI
+
+[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs on every PR and on pushes to
+`main`, in two parallel jobs matching the two dependency trees:
+
+- **app + widget** — frozen install → lint → format check → typecheck → widget build → app build
+- **vps-scraper** — frozen install → typecheck → build
+
+The frozen install is deliberate: a drifted lockfile fails the job instead of silently
+re-resolving. The app build gets a placeholder `DATABASE_URL` because `db/index.ts` throws
+at import when it's unset; nothing connects during the build (every DB-touching route is
+dynamic), so no real secret is involved.
+
 ## Deployment
 
 The full punch-list:
 
-1. **Push to GitHub**, then **import into Vercel**. Set the **Root Directory** to `aigenic_app/` and leave *"Include files outside the root directory"* **enabled** (Vercel's default) — this is a pnpm workspace, so the build needs the root `pnpm-lock.yaml` and `tsconfig.base.json`. Vercel detects the workspace and runs the install from the repo root automatically.
+1. **Push to GitHub**, then **import into Vercel**. Set the **Root Directory** to `aigenic_app/` and leave _"Include files outside the root directory"_ **enabled** (Vercel's default) — this is a pnpm workspace, so the build needs the root `pnpm-lock.yaml` and `tsconfig.base.json`. Vercel detects the workspace and runs the install from the repo root automatically.
 2. Add every env var from `.env.local` to Vercel (Production + Preview).
 3. **Clerk:** in the Clerk dashboard, add the Vercel domain to **Allowed Origins** and **Sign-in/Sign-up URLs**, switch the production instance to use the new domain.
 4. **Stripe:** create the $19/mo Starter and $49/mo Pro recurring prices (each generates a `price_...` id — paste them into `STRIPE_STARTER_PRICE_ID` and `STRIPE_PRO_PRICE_ID`), then a webhook endpoint pointed at `https://your-app.vercel.app/api/stripe/webhook` listening to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`. The webhook handler reverse-looks-up the active price id to set the plan, so you don't need to repeat plan names anywhere.
@@ -335,11 +355,11 @@ The full punch-list:
 
 ## Plan limits
 
-| Plan        | Price        | Sites | Conversations / month | Overage                              |
-| ----------- | ------------ | ----- | --------------------- | ------------------------------------ |
-| **Free**    | $0           | 1     | 30 (hard cap)         | —                                    |
-| **Starter** | $19 / month  | 2     | 300 included          | $0.15 per additional conversation    |
-| **Pro**     | $49 / month  | 5     | 1,000 included        | $0.10 per additional conversation    |
+| Plan        | Price       | Sites | Conversations / month | Overage                           |
+| ----------- | ----------- | ----- | --------------------- | --------------------------------- |
+| **Free**    | $0          | 1     | 30 (hard cap)         | —                                 |
+| **Starter** | $19 / month | 2     | 300 included          | $0.15 per additional conversation |
+| **Pro**     | $49 / month | 5     | 1,000 included        | $0.10 per additional conversation |
 
 Starter and Pro are flagged `comingSoon` in [`lib/billing/plans.ts`](./aigenic_app/lib/billing/plans.ts) — the UI shows them as "Coming soon" with disabled upgrade buttons until the flags flip.
 

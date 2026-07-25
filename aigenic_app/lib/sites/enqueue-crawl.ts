@@ -21,8 +21,7 @@ export interface EnqueueSiteCrawlInput {
 }
 
 export type EnqueueSiteCrawlResult =
-  | { ok: true; via: 'trigger' | 'sync' }
-  | { ok: false; error: string };
+  { ok: true; via: 'trigger' | 'sync' } | { ok: false; error: string };
 
 /**
  * The one place that decides how a crawl gets dispatched: prefer the
@@ -34,7 +33,7 @@ export type EnqueueSiteCrawlResult =
  * slot) or informational (site creation still succeeds).
  */
 export async function enqueueSiteCrawl(
-  input: EnqueueSiteCrawlInput
+  input: EnqueueSiteCrawlInput,
 ): Promise<EnqueueSiteCrawlResult> {
   const { siteId, userId, domain, maxPages, optimisticPending } = input;
 
@@ -49,10 +48,7 @@ export async function enqueueSiteCrawl(
         maxPages,
       });
       if (optimisticPending) {
-        await db
-          .update(sites)
-          .set({ kbStatus: 'pending' })
-          .where(eq(sites.id, siteId));
+        await db.update(sites).set({ kbStatus: 'pending' }).where(eq(sites.id, siteId));
       }
       return { ok: true, via: 'trigger' };
     } catch (err) {

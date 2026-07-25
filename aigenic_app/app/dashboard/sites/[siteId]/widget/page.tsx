@@ -35,16 +35,20 @@ export default async function WidgetPage({
       <Card className="border-border/60 bg-card/40">
         <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
           <div>
-            <CardTitle className="font-heading text-2xl tracking-tight">Embed code</CardTitle>
+            <CardTitle className="font-heading text-2xl tracking-tight">
+              Embed code
+            </CardTitle>
             <CardDescription>
-              Paste this before <code className="rounded bg-muted px-1 py-0.5 text-xs">&lt;/body&gt;</code> on every page you want the chat bubble to appear.
+              Paste this before{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">&lt;/body&gt;</code>{' '}
+              on every page you want the chat bubble to appear.
             </CardDescription>
           </div>
           <CopyButton value={snippet} label="Copy snippet" />
         </CardHeader>
         <CardContent>
           <pre className="overflow-x-auto rounded-lg border border-border/60 bg-background p-4 font-mono text-sm leading-relaxed">
-{snippet}
+            {snippet}
           </pre>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <Badge variant="secondary" className="rounded-full">
@@ -61,7 +65,8 @@ export default async function WidgetPage({
         <CardHeader>
           <CardTitle>Live preview</CardTitle>
           <CardDescription>
-            Sanity-check the bubble loads. The iframe injects the same script you&apos;d ship to production.
+            Sanity-check the bubble loads. The iframe injects the same script you&apos;d
+            ship to production.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -74,7 +79,10 @@ export default async function WidgetPage({
             />
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Loaded from <code className="rounded bg-muted px-1 py-0.5">{widgetUrl}/widget.js</code>. The bubble mounts in a Shadow DOM so your host page&apos;s CSS can&apos;t reach inside.
+            Loaded from{' '}
+            <code className="rounded bg-muted px-1 py-0.5">{widgetUrl}/widget.js</code>.
+            The bubble mounts in a Shadow DOM so your host page&apos;s CSS can&apos;t
+            reach inside.
           </p>
         </CardContent>
       </Card>

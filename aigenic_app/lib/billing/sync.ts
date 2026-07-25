@@ -15,7 +15,7 @@ import { getStripeClient, planForPriceId } from './stripe';
  */
 export async function syncUserFromCheckoutSession(
   sessionId: string,
-  userId: string
+  userId: string,
 ): Promise<PlanId | null> {
   const stripe = getStripeClient();
   if (!stripe) return null;
@@ -30,7 +30,10 @@ export async function syncUserFromCheckoutSession(
   }
 
   if (session.metadata?.userId !== userId) return null;
-  if (session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
+  if (
+    session.payment_status !== 'paid' &&
+    session.payment_status !== 'no_payment_required'
+  ) {
     return null;
   }
 
@@ -41,7 +44,9 @@ export async function syncUserFromCheckoutSession(
   const priceId = subscription?.items.data[0]?.price?.id;
   const planFromPrice = planForPriceId(priceId);
   const planFromMeta =
-    session.metadata?.plan && isPlanId(session.metadata.plan) && session.metadata.plan !== 'free'
+    session.metadata?.plan &&
+    isPlanId(session.metadata.plan) &&
+    session.metadata.plan !== 'free'
       ? (session.metadata.plan as PlanId)
       : null;
   const targetPlan: PlanId = planFromPrice ?? planFromMeta ?? 'pro';

@@ -26,7 +26,8 @@ export default async function SiteLayout({
   // ready/failed the banner doesn't render anyway.
   const liveCount = isCrawling ? (await getSiteStats(siteId)).articleCount : undefined;
 
-  const isCrawlPhase = isCrawling || site.kbStatus === 'failed' || site.kbStatus === 'stopped';
+  const isCrawlPhase =
+    isCrawling || site.kbStatus === 'failed' || site.kbStatus === 'stopped';
 
   return (
     <div className="flex flex-col gap-6">

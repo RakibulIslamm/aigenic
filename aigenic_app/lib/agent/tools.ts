@@ -2,17 +2,8 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import {
-  articles,
-  conversations,
-  escalations,
-  messages,
-  sites,
-} from '@/db/schema';
-import {
-  ESCALATION_FROM_ADDRESS,
-  getResendClient,
-} from '@/lib/email/resend';
+import { articles, conversations, escalations, messages, sites } from '@/db/schema';
+import { ESCALATION_FROM_ADDRESS, getResendClient } from '@/lib/email/resend';
 import { log } from '@/lib/log';
 
 /** How many articles a full-text search returns to the model. */
@@ -42,13 +33,21 @@ export function buildSupportTools(ctx: SupportToolContext) {
           .min(1)
           .max(500)
           .describe(
-            'A short keyword query — 2–6 words works best, e.g. "reset password" or "billing refund".'
+            'A short keyword query — 2–6 words works best, e.g. "reset password" or "billing refund".',
           ),
       }),
       execute: async ({ query }) => {
         const trimmed = query.trim();
         if (!trimmed) {
-          return { results: [] as Array<{ id: string; title: string; excerpt: string; sourceUrl: string | null; rank: number }> };
+          return {
+            results: [] as Array<{
+              id: string;
+              title: string;
+              excerpt: string;
+              sourceUrl: string | null;
+              rank: number;
+            }>,
+          };
         }
 
         // ts_rank against the generated content_tsv column. plainto_tsquery
@@ -65,8 +64,8 @@ export function buildSupportTools(ctx: SupportToolContext) {
           .where(
             and(
               eq(articles.siteId, ctx.siteId),
-              sql`content_tsv @@ plainto_tsquery('english', ${trimmed})`
-            )
+              sql`content_tsv @@ plainto_tsquery('english', ${trimmed})`,
+            ),
           )
           .orderBy(sql`ts_rank(content_tsv, plainto_tsquery('english', ${trimmed})) DESC`)
           .limit(FTS_RESULT_LIMIT);
@@ -97,10 +96,7 @@ export function buildSupportTools(ctx: SupportToolContext) {
       }),
       execute: async ({ articleId }) => {
         const article = await db.query.articles.findFirst({
-          where: and(
-            eq(articles.id, articleId),
-            eq(articles.siteId, ctx.siteId)
-          ),
+          where: and(eq(articles.id, articleId), eq(articles.siteId, ctx.siteId)),
         });
         if (!article) {
           return { found: false as const, message: 'Article not found.' };
@@ -117,21 +113,21 @@ export function buildSupportTools(ctx: SupportToolContext) {
 
     escalate_to_human: tool({
       description:
-        'Escalate the current conversation to a human teammate by email. Only use when: (1) the user explicitly asks for a human, (2) it\'s a billing/account/refund issue you cannot resolve, or (3) the question is clearly outside the product\'s scope. Never escalate before trying search_knowledge_base.',
+        "Escalate the current conversation to a human teammate by email. Only use when: (1) the user explicitly asks for a human, (2) it's a billing/account/refund issue you cannot resolve, or (3) the question is clearly outside the product's scope. Never escalate before trying search_knowledge_base.",
       inputSchema: z.object({
         reason: z
           .string()
           .min(5)
           .max(500)
           .describe(
-            'One short sentence explaining WHY this needs a human. E.g. "User requesting refund for last month\'s charge."'
+            'One short sentence explaining WHY this needs a human. E.g. "User requesting refund for last month\'s charge."',
           ),
         visitorEmail: z
           .string()
           .email()
           .optional()
           .describe(
-            'The visitor\'s email if they have provided one. Leave empty if unknown — do not invent one.'
+            "The visitor's email if they have provided one. Leave empty if unknown — do not invent one.",
           ),
       }),
       execute: async ({ reason, visitorEmail }) => {
@@ -171,7 +167,7 @@ export function buildSupportTools(ctx: SupportToolContext) {
           transcript.map((m) => ({
             role: m.role,
             content: m.content,
-          }))
+          })),
         );
 
         const resend = getResendClient();
@@ -215,17 +211,10 @@ export function buildSupportTools(ctx: SupportToolContext) {
   };
 }
 
-function renderTranscriptHtml(
-  msgs: Array<{ role: string; content: string }>
-): string {
+function renderTranscriptHtml(msgs: Array<{ role: string; content: string }>): string {
   return msgs
     .map((m) => {
-      const who =
-        m.role === 'assistant'
-          ? 'Bot'
-          : m.role === 'user'
-            ? 'Visitor'
-            : m.role;
+      const who = m.role === 'assistant' ? 'Bot' : m.role === 'user' ? 'Visitor' : m.role;
       const escaped = escapeHtml(m.content);
       return `<p style="margin:0 0 12px;"><strong>${who}:</strong> ${escaped}</p>`;
     })

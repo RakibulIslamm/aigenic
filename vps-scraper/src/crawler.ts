@@ -17,12 +17,7 @@ import { parsePage } from './content-extractor.js';
 import { fetchPage } from './fetcher.js';
 import { RateLimiter } from './rate-limit.js';
 import { discoverSitemapUrls } from './sitemap.js';
-import {
-  buildSite,
-  isSameSite,
-  normalizeUrl,
-  shouldSkipUrl,
-} from './url-utils.js';
+import { buildSite, isSameSite, normalizeUrl, shouldSkipUrl } from './url-utils.js';
 import { sendWebhook, type WebhookEvent } from './webhook.js';
 
 // Concurrency 3 is a sweet spot for Cloudflare-fronted origins: high enough to
@@ -106,10 +101,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     const robotsCrawlDelaySec = robots.getCrawlDelay(USER_AGENT);
     const minDelayMs = Math.min(
       MAX_MIN_DELAY_MS,
-      Math.max(
-        DEFAULT_MIN_DELAY_MS,
-        Math.round((robotsCrawlDelaySec ?? 0) * 1000)
-      )
+      Math.max(DEFAULT_MIN_DELAY_MS, Math.round((robotsCrawlDelaySec ?? 0) * 1000)),
     );
     const rateLimiter = new RateLimiter(minDelayMs);
 
@@ -172,13 +164,16 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
               return await crawlOne({ url, getContext, signal });
             } catch (err) {
               logger.debug(
-                { url, reason: err instanceof Error ? err.message.split('\n')[0] : 'unknown' },
-                'page crawl failed'
+                {
+                  url,
+                  reason: err instanceof Error ? err.message.split('\n')[0] : 'unknown',
+                },
+                'page crawl failed',
               );
               return null;
             }
-          })
-        )
+          }),
+        ),
       );
 
       if (signal?.aborted) break;
@@ -195,9 +190,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
 
         // Pre-claim canonical so we don't re-crawl it under a different URL.
         const canonicalNormalized =
-          canonical && isSameSite(canonical, site)
-            ? normalizeUrl(canonical)
-            : null;
+          canonical && isSameSite(canonical, site) ? normalizeUrl(canonical) : null;
         if (canonicalNormalized) seenUrls.add(canonicalNormalized);
 
         // sourceUrl in the webhook: prefer the canonical when same-site,
@@ -257,7 +250,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
         duplicateContent,
         durationMs: Date.now() - startedAt,
       },
-      stopped ? 'crawl stopped' : 'crawl complete'
+      stopped ? 'crawl stopped' : 'crawl complete',
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown crawl error';
@@ -313,7 +306,7 @@ function hashContent(content: string): string {
  * lines instead of fetching robots.txt a second time.
  */
 async function loadRobots(
-  origin: string
+  origin: string,
 ): Promise<{ robots: RobotsApi; robotsBody: string }> {
   const robotsUrl = `${origin}/robots.txt`;
   for (let attempt = 1; attempt <= 3; attempt++) {

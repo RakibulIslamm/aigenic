@@ -1,13 +1,13 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import * as schema from './schema';
 import { env } from '@/lib/env';
+import * as schema from './schema';
 
 const connectionString = env.DATABASE_URL;
 
 if (!connectionString) {
   throw new Error(
-    'DATABASE_URL is not set — the app cannot reach Postgres. Copy .env.local.example to .env.local and fill it in.'
+    'DATABASE_URL is not set — the app cannot reach Postgres. Copy .env.local.example to .env.local and fill it in.',
   );
 }
 

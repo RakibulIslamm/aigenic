@@ -29,7 +29,7 @@ export async function startSiteCrawl({
 }: StartCrawlOptions): Promise<StartCrawlResponse> {
   if (!SCRAPER_API_URL || !SCRAPER_API_KEY) {
     throw new Error(
-      'Scraper service not configured. Set SCRAPER_API_URL and SCRAPER_API_KEY in .env.local.'
+      'Scraper service not configured. Set SCRAPER_API_URL and SCRAPER_API_KEY in .env.local.',
     );
   }
 
@@ -51,7 +51,7 @@ export async function startSiteCrawl({
   if (!response.ok) {
     const body = await response.text().catch(() => '');
     throw new Error(
-      `Scraper service unreachable (${response.status}): ${body || response.statusText}`
+      `Scraper service unreachable (${response.status}): ${body || response.statusText}`,
     );
   }
 
@@ -71,7 +71,7 @@ export interface StopCrawlResponse {
 export async function stopSiteCrawl(siteId: string): Promise<StopCrawlResponse> {
   if (!SCRAPER_API_URL || !SCRAPER_API_KEY) {
     throw new Error(
-      'Scraper service not configured. Set SCRAPER_API_URL and SCRAPER_API_KEY in .env.local.'
+      'Scraper service not configured. Set SCRAPER_API_URL and SCRAPER_API_KEY in .env.local.',
     );
   }
 
@@ -84,7 +84,7 @@ export async function stopSiteCrawl(siteId: string): Promise<StopCrawlResponse> 
   if (!response.ok) {
     const body = await response.text().catch(() => '');
     throw new Error(
-      `Scraper service unreachable (${response.status}): ${body || response.statusText}`
+      `Scraper service unreachable (${response.status}): ${body || response.statusText}`,
     );
   }
 

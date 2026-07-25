@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   if (!stripe || !STRIPE_WEBHOOK_SECRET) {
     return NextResponse.json(
       { error: 'Stripe webhook is not configured' },
-      { status: 503 }
+      { status: 503 },
     );
   }
 
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     event = await stripe.webhooks.constructEventAsync(
       rawBody,
       signature,
-      STRIPE_WEBHOOK_SECRET
+      STRIPE_WEBHOOK_SECRET,
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Signature verification failed';
@@ -67,7 +67,9 @@ export async function POST(request: NextRequest) {
         // Trust the session metadata if it labelled the plan; otherwise default
         // to 'pro' for backward compatibility with pre-Starter checkouts.
         const targetPlan: PlanId =
-          sessionPlan && isPlanId(sessionPlan) && sessionPlan !== 'free' ? sessionPlan : 'pro';
+          sessionPlan && isPlanId(sessionPlan) && sessionPlan !== 'free'
+            ? sessionPlan
+            : 'pro';
 
         if (userId) {
           await db
@@ -86,21 +88,28 @@ export async function POST(request: NextRequest) {
       case 'customer.subscription.created': {
         const sub = event.data.object as Stripe.Subscription;
         const userId = sub.metadata?.userId ?? null;
-        const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+        const customerId =
+          typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
         // Map the active price back to a plan id. Stripe puts the purchased
         // price under items.data[0].price.id. Falls back to metadata when set.
         const priceId = sub.items.data[0]?.price?.id;
         const planFromPrice = planForPriceId(priceId);
         const planFromMeta =
-          sub.metadata?.plan && isPlanId(sub.metadata.plan) && sub.metadata.plan !== 'free'
+          sub.metadata?.plan &&
+          isPlanId(sub.metadata.plan) &&
+          sub.metadata.plan !== 'free'
             ? (sub.metadata.plan as PlanId)
             : null;
 
         // Active-ish statuses keep them on their paid plan; anything else demotes.
         const isActive =
-          sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due';
-        const targetPlan: PlanId = isActive ? (planFromPrice ?? planFromMeta ?? 'pro') : 'free';
+          sub.status === 'active' ||
+          sub.status === 'trialing' ||
+          sub.status === 'past_due';
+        const targetPlan: PlanId = isActive
+          ? (planFromPrice ?? planFromMeta ?? 'pro')
+          : 'free';
 
         if (userId) {
           await db
@@ -127,7 +136,8 @@ export async function POST(request: NextRequest) {
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription;
         const userId = sub.metadata?.userId ?? null;
-        const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+        const customerId =
+          typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
         if (userId) {
           await db

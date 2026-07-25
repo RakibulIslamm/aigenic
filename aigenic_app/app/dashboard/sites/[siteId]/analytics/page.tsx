@@ -31,7 +31,8 @@ export default async function AnalyticsPage({
       <header>
         <h2 className="font-heading text-2xl tracking-tight">Analytics</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Month-to-date performance for the agent on this site, plus a 30-day conversation trend.
+          Month-to-date performance for the agent on this site, plus a 30-day conversation
+          trend.
         </p>
       </header>
 
@@ -82,13 +83,15 @@ export default async function AnalyticsPage({
         <CardHeader>
           <CardTitle>Top 5 most-asked topics</CardTitle>
           <CardDescription>
-            Ranked by how often the agent searched the knowledge base for the same query this month.
+            Ranked by how often the agent searched the knowledge base for the same query
+            this month.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {analytics.topQueries.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              No searches yet this month. Once visitors chat with the agent, common topics will appear here.
+              No searches yet this month. Once visitors chat with the agent, common topics
+              will appear here.
             </p>
           ) : (
             <ol className="divide-y divide-border/60">

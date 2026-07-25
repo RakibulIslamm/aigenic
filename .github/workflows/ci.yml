@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The pnpm workspace: the Next.js app + the widget. Lint and format run
+  # here only — the root ESLint/Prettier configs cover vps-scraper/src too,
+  # so the scraper job doesn't repeat them.
+  workspace:
+    name: app + widget
+    runs-on: ubuntu-latest
+    env:
+      # `next build` imports db/index.ts, which throws when DATABASE_URL is
+      # unset. Nothing actually connects during the build — every DB-touching
+      # route is dynamic (`ƒ`) — so a syntactically valid placeholder is
+      # enough, and no real secret is needed to prove the app compiles.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Fails the build on a drifted lockfile — the failure the scraper
+      # Dockerfile's old `|| pnpm install` fallback used to hide.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Build widget
+        run: pnpm --filter aigenic-widget build
+
+      - name: Build app
+        run: pnpm --filter aigenic-app build
+
+  # vps-scraper is a standalone tree with its own lockfile (its Docker build
+  # context is that directory alone), so it installs and builds separately.
+  scraper:
+    name: vps-scraper
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vps-scraper
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the Playwright base image the scraper ships on.
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: vps-scraper/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build

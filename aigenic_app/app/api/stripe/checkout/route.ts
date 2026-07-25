@@ -3,11 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { users } from '@/db/schema';
 import { getOrCreateUser } from '@/lib/auth/user';
-import {
-  getStripeClient,
-  isPlanPurchasable,
-  priceIdForPlan,
-} from '@/lib/billing/stripe';
+import { getStripeClient, isPlanPurchasable, priceIdForPlan } from '@/lib/billing/stripe';
 import { isPlanId, type PlanId } from '@/lib/billing/plans';
 import { env } from '@/lib/env';
 
@@ -27,8 +23,10 @@ export async function POST(request: NextRequest) {
 
   if (!isPlanPurchasable(requestedPlan)) {
     return NextResponse.json(
-      { error: `Billing is not configured for the ${requestedPlan} plan on this deployment` },
-      { status: 503 }
+      {
+        error: `Billing is not configured for the ${requestedPlan} plan on this deployment`,
+      },
+      { status: 503 },
     );
   }
 
@@ -44,7 +42,7 @@ export async function POST(request: NextRequest) {
       {
         error: `You're already on ${requestedPlan === 'pro' ? 'Pro' : 'Starter'}. Use the customer portal to manage your subscription.`,
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -86,7 +84,7 @@ export async function POST(request: NextRequest) {
   if (!session.url) {
     return NextResponse.json(
       { error: 'Stripe did not return a checkout URL' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 

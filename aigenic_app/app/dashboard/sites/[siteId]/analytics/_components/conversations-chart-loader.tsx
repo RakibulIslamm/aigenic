@@ -13,5 +13,5 @@ export const ConversationsChart = dynamic(
   {
     ssr: false,
     loading: () => <div className="h-[260px] animate-pulse rounded-lg bg-card/40" />,
-  }
+  },
 );

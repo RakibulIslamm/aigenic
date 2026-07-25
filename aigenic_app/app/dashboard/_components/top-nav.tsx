@@ -5,8 +5,16 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 const LINKS = [
-  { href: '/dashboard', label: 'Sites', match: (p: string) => p === '/dashboard' || p.startsWith('/dashboard/sites') },
-  { href: '/dashboard/billing', label: 'Billing', match: (p: string) => p.startsWith('/dashboard/billing') },
+  {
+    href: '/dashboard',
+    label: 'Sites',
+    match: (p: string) => p === '/dashboard' || p.startsWith('/dashboard/sites'),
+  },
+  {
+    href: '/dashboard/billing',
+    label: 'Billing',
+    match: (p: string) => p.startsWith('/dashboard/billing'),
+  },
 ];
 
 export function TopNav() {
@@ -24,7 +32,7 @@ export function TopNav() {
               'rounded-md px-3 py-1.5 text-sm transition-colors',
               active
                 ? 'bg-card text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
             {link.label}

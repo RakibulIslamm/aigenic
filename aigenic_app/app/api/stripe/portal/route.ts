@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   if (!isStripeConfigured()) {
     return NextResponse.json(
       { error: 'Billing is not configured on this deployment' },
-      { status: 503 }
+      { status: 503 },
     );
   }
 
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   if (!user.stripeCustomerId) {
     return NextResponse.json(
       { error: 'No Stripe customer on file — start a Pro subscription first.' },
-      { status: 400 }
+      { status: 400 },
     );
   }
 

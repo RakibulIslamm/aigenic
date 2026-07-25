@@ -50,7 +50,9 @@ app.use('/crawl', requireApiKey);
 app.post('/crawl', (req, res) => {
   const parsed = crawlRequestSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    return res
+      .status(400)
+      .json({ error: 'Invalid payload', issues: parsed.error.issues });
   }
 
   const { siteId, startUrl, maxPages, webhookUrl } = parsed.data;

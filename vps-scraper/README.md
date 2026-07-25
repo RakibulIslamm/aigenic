@@ -20,7 +20,11 @@ This is **not** part of the Next.js app — it's a small Express service designe
 2. The service responds `202 Accepted` with a `jobId` and starts crawling in the background.
 3. For every page it can extract a readable article from, it POSTs back to `webhookUrl`:
    ```json
-   { "event": "article", "siteId": "…", "article": { "title": "…", "content": "…", "sourceUrl": "…" } }
+   {
+     "event": "article",
+     "siteId": "…",
+     "article": { "title": "…", "content": "…", "sourceUrl": "…" }
+   }
    ```
 4. When the crawl finishes (or hits `maxPages`), it POSTs a final event:
    ```json
@@ -32,9 +36,9 @@ The crawler stays within the start URL's hostname, respects `robots.txt`, and ru
 
 ## Endpoints
 
-| Method | Path     | Auth        | Description                                          |
-| ------ | -------- | ----------- | ---------------------------------------------------- |
-| `GET`  | `/health` | none        | Liveness check. Returns `{ status: "ok" }`.          |
+| Method | Path      | Auth        | Description                                                         |
+| ------ | --------- | ----------- | ------------------------------------------------------------------- |
+| `GET`  | `/health` | none        | Liveness check. Returns `{ status: "ok" }`.                         |
 | `POST` | `/crawl`  | `X-API-Key` | Enqueue a crawl. Returns `202 { jobId, siteId, status: "queued" }`. |
 
 ### Request shape
@@ -104,13 +108,13 @@ DEPLOY.md             VPS deployment guide (Contabo + Caddy)
 
 ## Environment variables
 
-| Variable             | Required | Default                                       | Notes                                                              |
-| -------------------- | -------- | --------------------------------------------- | ------------------------------------------------------------------ |
-| `SCRAPER_API_KEY`    | yes      | —                                             | Shared secret with the Next.js app. Refuse to start without it.   |
-| `PORT`               | no       | `3007`                                        | Express bind port.                                                 |
-| `LOG_LEVEL`          | no       | `info`                                        | Pino log level.                                                    |
-| `SCRAPER_USER_AGENT` | no       | `AigenicBot/0.1 (+https://aigenic.app/bot)`     | What the crawler advertises in HTTP and robots.txt lookups.       |
-| `NODE_ENV`           | no       | `production` in container, `development` in `pnpm dev` | Switches pino between JSON and pretty.                  |
+| Variable             | Required | Default                                                | Notes                                                           |
+| -------------------- | -------- | ------------------------------------------------------ | --------------------------------------------------------------- |
+| `SCRAPER_API_KEY`    | yes      | —                                                      | Shared secret with the Next.js app. Refuse to start without it. |
+| `PORT`               | no       | `3007`                                                 | Express bind port.                                              |
+| `LOG_LEVEL`          | no       | `info`                                                 | Pino log level.                                                 |
+| `SCRAPER_USER_AGENT` | no       | `AigenicBot/0.1 (+https://aigenic.app/bot)`            | What the crawler advertises in HTTP and robots.txt lookups.     |
+| `NODE_ENV`           | no       | `production` in container, `development` in `pnpm dev` | Switches pino between JSON and pretty.                          |
 
 ## License
 

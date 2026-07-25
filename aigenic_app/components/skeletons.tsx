@@ -66,7 +66,9 @@ export function ListRowSkeleton({ withAvatar = false }: { withAvatar?: boolean }
   );
 }
 
-export function MessageBubbleSkeleton({ align = 'left' }: { align?: 'left' | 'right' } = {}) {
+export function MessageBubbleSkeleton({
+  align = 'left',
+}: { align?: 'left' | 'right' } = {}) {
   const isRight = align === 'right';
   return (
     <div className={isRight ? 'flex justify-end' : 'flex justify-start'}>

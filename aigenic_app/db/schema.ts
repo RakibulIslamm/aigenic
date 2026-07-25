@@ -1,11 +1,4 @@
-import {
-  pgTable,
-  uuid,
-  text,
-  timestamp,
-  jsonb,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 export const users = pgTable('users', {
@@ -36,7 +29,7 @@ export const sites = pgTable(
     kbLastSyncedAt: timestamp('kb_last_synced_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
-  (t) => [index('sites_user_id_idx').on(t.userId)]
+  (t) => [index('sites_user_id_idx').on(t.userId)],
 );
 
 export const articles = pgTable(
@@ -54,7 +47,7 @@ export const articles = pgTable(
   (t) => [
     index('articles_site_id_idx').on(t.siteId),
     index('articles_site_id_created_at_idx').on(t.siteId, t.createdAt),
-  ]
+  ],
 );
 
 export const conversations = pgTable(
@@ -72,7 +65,7 @@ export const conversations = pgTable(
   (t) => [
     index('conversations_site_id_created_at_idx').on(t.siteId, t.createdAt),
     index('conversations_site_id_visitor_id_idx').on(t.siteId, t.visitorId),
-  ]
+  ],
 );
 
 export const messages = pgTable(
@@ -88,11 +81,8 @@ export const messages = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (t) => [
-    index('messages_conversation_id_created_at_idx').on(
-      t.conversationId,
-      t.createdAt
-    ),
-  ]
+    index('messages_conversation_id_created_at_idx').on(t.conversationId, t.createdAt),
+  ],
 );
 
 export const crawlRuns = pgTable(
@@ -110,13 +100,9 @@ export const crawlRuns = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (t) => [
-    index('crawl_runs_user_id_kind_created_at_idx').on(
-      t.userId,
-      t.kind,
-      t.createdAt
-    ),
+    index('crawl_runs_user_id_kind_created_at_idx').on(t.userId, t.kind, t.createdAt),
     index('crawl_runs_site_id_created_at_idx').on(t.siteId, t.createdAt),
-  ]
+  ],
 );
 
 export const escalations = pgTable('escalations', {
@@ -150,17 +136,14 @@ export const articlesRelations = relations(articles, ({ one }) => ({
   }),
 }));
 
-export const conversationsRelations = relations(
-  conversations,
-  ({ one, many }) => ({
-    site: one(sites, {
-      fields: [conversations.siteId],
-      references: [sites.id],
-    }),
-    messages: many(messages),
-    escalation: one(escalations),
-  })
-);
+export const conversationsRelations = relations(conversations, ({ one, many }) => ({
+  site: one(sites, {
+    fields: [conversations.siteId],
+    references: [sites.id],
+  }),
+  messages: many(messages),
+  escalation: one(escalations),
+}));
 
 export const messagesRelations = relations(messages, ({ one }) => ({
   conversation: one(conversations, {

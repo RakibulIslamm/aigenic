@@ -24,7 +24,7 @@ export const dailyCrawlTask = schedules.task({
   maxDuration: 300,
   run: async (payload) => {
     const eligiblePlans: PlanId[] = (Object.keys(PLANS) as PlanId[]).filter(
-      (id) => PLANS[id].limits.scheduledCrawl === 'daily'
+      (id) => PLANS[id].limits.scheduledCrawl === 'daily',
     );
 
     const eligibleUsers = await db
@@ -66,10 +66,10 @@ export const dailyCrawlTask = schedules.task({
         },
         options: {
           idempotencyKey: await idempotencyKeys.create(
-            `crawl:scheduled:${site.id}:${isoDay}`
+            `crawl:scheduled:${site.id}:${isoDay}`,
           ),
         },
-      }))
+      })),
     );
 
     const handle = await crawlSiteTask.batchTrigger(items);
@@ -82,7 +82,7 @@ export const dailyCrawlTask = schedules.task({
         userId: site.userId,
         siteId: site.id,
         kind: 'scheduled' as const,
-      }))
+      })),
     );
 
     logger.log(`Enqueued ${items.length} site crawls`, { batchId: handle.batchId });

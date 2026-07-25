@@ -2,10 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type {
-  CrawlEvent,
-  CrawlSnapshot,
-} from '@/lib/sites/crawl-events';
+import type { CrawlEvent, CrawlSnapshot } from '@/lib/sites/crawl-events';
 import { isTerminalStatus } from '@/lib/sites/status';
 
 const EVENT_HISTORY_CAP = 30;
@@ -38,12 +35,10 @@ export interface UseSiteEventsResult {
  */
 export function useSiteEvents(
   siteId: string,
-  initialSnapshot?: CrawlSnapshot | null
+  initialSnapshot?: CrawlSnapshot | null,
 ): UseSiteEventsResult {
   const router = useRouter();
-  const [snapshot, setSnapshot] = useState<CrawlSnapshot | null>(
-    initialSnapshot ?? null
-  );
+  const [snapshot, setSnapshot] = useState<CrawlSnapshot | null>(initialSnapshot ?? null);
   const [events, setEvents] = useState<CrawlEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,9 +99,7 @@ export function useSiteEvents(
         }
         if (msg.type === 'events') {
           setSnapshot(msg.snapshot);
-          setEvents((prev) =>
-            [...prev, ...msg.events].slice(-EVENT_HISTORY_CAP)
-          );
+          setEvents((prev) => [...prev, ...msg.events].slice(-EVENT_HISTORY_CAP));
           scheduleRefresh();
           return;
         }

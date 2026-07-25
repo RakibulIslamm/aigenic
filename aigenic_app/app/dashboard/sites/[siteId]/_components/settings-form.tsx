@@ -28,7 +28,7 @@ export function SettingsForm({ siteId, initial }: SettingsFormProps) {
   const action = updateSiteAction.bind(null, siteId);
   const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
     action,
-    undefined
+    undefined,
   );
 
   useEffect(() => {
@@ -41,11 +41,14 @@ export function SettingsForm({ siteId, initial }: SettingsFormProps) {
     }
   }, [state, router]);
 
-  const fieldErrors = state && !state.ok ? state.fieldErrors ?? {} : {};
+  const fieldErrors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
 
   return (
     <form action={formAction} className="grid gap-8">
-      <FieldGroup title="Site" description="The basics — used everywhere we mention this site.">
+      <FieldGroup
+        title="Site"
+        description="The basics — used everywhere we mention this site."
+      >
         <Field
           id="name"
           label="Display name"
@@ -72,7 +75,10 @@ export function SettingsForm({ siteId, initial }: SettingsFormProps) {
         />
       </FieldGroup>
 
-      <FieldGroup title="Widget appearance" description="What your visitors see in the chat bubble.">
+      <FieldGroup
+        title="Widget appearance"
+        description="What your visitors see in the chat bubble."
+      >
         <Field
           id="botName"
           label="Bot name"
@@ -139,13 +145,7 @@ function FieldGroup({
   );
 }
 
-function ColorField({
-  initialValue,
-  error,
-}: {
-  initialValue: string;
-  error?: string;
-}) {
+function ColorField({ initialValue, error }: { initialValue: string; error?: string }) {
   const [value, setValue] = useState(initialValue);
   const isValidHex = /^#[0-9a-fA-F]{6}$/.test(value);
 

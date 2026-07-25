@@ -13,10 +13,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  ResyncAllButton,
-  RescrapeArticleButton,
-} from '../_components/rescrape-buttons';
+import { ResyncAllButton, RescrapeArticleButton } from '../_components/rescrape-buttons';
 import { ArticleSearch } from './_components/article-search';
 
 /** Characters of article content shown in a row's collapsed preview. */
@@ -55,12 +52,17 @@ export default async function KnowledgeBasePage({
             {trimmedQ ? (
               <>
                 {total} match{total === 1 ? '' : 'es'} for{' '}
-                <span className="font-medium text-foreground">&ldquo;{trimmedQ}&rdquo;</span>
+                <span className="font-medium text-foreground">
+                  &ldquo;{trimmedQ}&rdquo;
+                </span>
               </>
             ) : (
               <>
                 {total} page{total === 1 ? '' : 's'} indexed from{' '}
-                <span className="font-medium text-foreground">{new URL(site.domain).hostname}</span>.
+                <span className="font-medium text-foreground">
+                  {new URL(site.domain).hostname}
+                </span>
+                .
                 {site.kbLastSyncedAt &&
                   ` Last synced ${formatDistanceToNow(site.kbLastSyncedAt, { addSuffix: true })}.`}
               </>
@@ -90,7 +92,9 @@ export default async function KnowledgeBasePage({
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="min-w-0 flex-1 truncate text-sm font-medium">{article.title}</h3>
+                          <h3 className="min-w-0 flex-1 truncate text-sm font-medium">
+                            {article.title}
+                          </h3>
                           {article.sourceUrl && (
                             <a
                               href={article.sourceUrl}
@@ -156,7 +160,12 @@ function Pagination({
 }) {
   const basePath = `/dashboard/sites/${siteId}/knowledge`;
   const qParam = query ? `&q=${encodeURIComponent(query)}` : '';
-  const prevHref = page > 2 ? `${basePath}?page=${page - 1}${qParam}` : query ? `${basePath}?q=${encodeURIComponent(query)}` : basePath;
+  const prevHref =
+    page > 2
+      ? `${basePath}?page=${page - 1}${qParam}`
+      : query
+        ? `${basePath}?q=${encodeURIComponent(query)}`
+        : basePath;
   const nextHref = `${basePath}?page=${page + 1}${qParam}`;
 
   return (
@@ -165,8 +174,11 @@ function Pagination({
       className="flex flex-col items-center justify-between gap-3 border-t border-border/60 pt-4 text-sm sm:flex-row"
     >
       <p className="text-xs text-muted-foreground">
-        Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of{' '}
-        <span className="font-medium text-foreground">{total}</span>
+        Showing{' '}
+        <span className="font-medium text-foreground">
+          {rangeStart}–{rangeEnd}
+        </span>{' '}
+        of <span className="font-medium text-foreground">{total}</span>
       </p>
       <div className="flex items-center gap-2">
         <Button
@@ -253,7 +265,8 @@ function NoMatchesState({ siteId, query }: { siteId: string; query: string }) {
         </div>
         <CardTitle className="font-heading text-2xl tracking-tight">No matches</CardTitle>
         <CardDescription className="max-w-md">
-          Nothing in your knowledge base has &ldquo;{query}&rdquo; in the title. Try a shorter or broader keyword.
+          Nothing in your knowledge base has &ldquo;{query}&rdquo; in the title. Try a
+          shorter or broader keyword.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex justify-center pb-8">

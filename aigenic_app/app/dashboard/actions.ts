@@ -39,7 +39,7 @@ export type ActionState =
 async function withSiteOwnership(
   siteId: string,
   userId: string,
-  fn: (site: Site) => Promise<ActionState>
+  fn: (site: Site) => Promise<ActionState>,
 ): Promise<ActionState> {
   const site = await getSiteForUser(siteId, userId);
   if (!site) {
@@ -61,8 +61,14 @@ function formValues(formData: FormData): Record<string, string> {
  * parsed object or an ActionState with per-field errors.
  */
 function parseForm<T>(
-  schema: { safeParse: (data: unknown) => { success: boolean; data?: T; error?: { issues: Array<{ path: PropertyKey[]; message: string }> } } },
-  formData: FormData
+  schema: {
+    safeParse: (data: unknown) => {
+      success: boolean;
+      data?: T;
+      error?: { issues: Array<{ path: PropertyKey[]; message: string }> };
+    };
+  },
+  formData: FormData,
 ): { ok: true; data: T } | { ok: false; fieldErrors: Record<string, string> } {
   const entries = Object.fromEntries(formData.entries());
   const result = schema.safeParse(entries);
@@ -79,7 +85,7 @@ function parseForm<T>(
 
 export async function createSiteAction(
   _prevState: ActionState | undefined,
-  formData: FormData
+  formData: FormData,
 ): Promise<ActionState> {
   const user = await getOrCreateUser();
 
@@ -146,7 +152,7 @@ export async function createSiteAction(
 export async function updateSiteAction(
   siteId: string,
   _prevState: ActionState | undefined,
-  formData: FormData
+  formData: FormData,
 ): Promise<ActionState> {
   const userId = await requireUserId();
 
@@ -187,9 +193,7 @@ export async function updateSiteAction(
 export async function deleteSiteAction(siteId: string): Promise<void> {
   const userId = await requireUserId();
 
-  await db
-    .delete(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)));
+  await db.delete(sites).where(and(eq(sites.id, siteId), eq(sites.userId, userId)));
 
   revalidatePath('/dashboard');
   redirect('/dashboard');
@@ -224,7 +228,7 @@ export async function rescrapeSiteAction(siteId: string): Promise<ActionState> {
     const plan = getPlan(user.plan);
     const used = await countManualCrawlsForUserSince(
       user.id,
-      manualCrawlWindowStart(plan)
+      manualCrawlWindowStart(plan),
     );
     if (used >= plan.limits.manualCrawls.count) {
       const { count: max, period } = plan.limits.manualCrawls;
@@ -304,7 +308,7 @@ export async function stopCrawlAction(siteId: string): Promise<ActionState> {
 
 export async function markConversationResolvedAction(
   siteId: string,
-  conversationId: string
+  conversationId: string,
 ): Promise<ActionState> {
   const userId = await requireUserId();
 
@@ -312,12 +316,7 @@ export async function markConversationResolvedAction(
     const result = await db
       .update(conversations)
       .set({ status: 'resolved' })
-      .where(
-        and(
-          eq(conversations.id, conversationId),
-          eq(conversations.siteId, siteId)
-        )
-      )
+      .where(and(eq(conversations.id, conversationId), eq(conversations.siteId, siteId)))
       .returning({ id: conversations.id });
 
     if (result.length === 0) {
@@ -331,7 +330,7 @@ export async function markConversationResolvedAction(
 
 export async function rescrapeArticleAction(
   siteId: string,
-  articleId: string
+  articleId: string,
 ): Promise<ActionState> {
   const userId = await requireUserId();
 

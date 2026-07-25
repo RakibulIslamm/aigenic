@@ -8,7 +8,7 @@ import { env } from './lib/env';
 const project = env.TRIGGER_PROJECT_REF;
 if (!project) {
   throw new Error(
-    'TRIGGER_PROJECT_REF is not set. Add it to .env.local (see .env.local.example) or pass --project-ref.'
+    'TRIGGER_PROJECT_REF is not set. Add it to .env.local (see .env.local.example) or pass --project-ref.',
   );
 }
 

@@ -52,7 +52,7 @@ export const crawlSiteTask = task({
       // from the Trigger.dev project's environment variables.
       throw new Error(
         'Scraper not configured in this Trigger.dev environment. ' +
-          'Set SCRAPER_API_URL and SCRAPER_API_KEY in the Trigger.dev project env.'
+          'Set SCRAPER_API_URL and SCRAPER_API_KEY in the Trigger.dev project env.',
       );
     }
 

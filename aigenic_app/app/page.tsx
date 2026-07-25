@@ -22,12 +22,7 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import {
-  BILLING_MARKETING,
-  PLANS,
-  PLAN_ORDER,
-  type Plan,
-} from '@/lib/billing/plans';
+import { BILLING_MARKETING, PLANS, PLAN_ORDER, type Plan } from '@/lib/billing/plans';
 import { SUPPORT_MODEL_NAME, WIDGET_GZIP_KB } from '@/lib/marketing';
 
 const FEATURES = [
@@ -44,11 +39,11 @@ const FEATURES = [
   {
     icon: Mail,
     title: 'Graceful human handoff',
-    body: 'When the agent isn\'t sure, it collects context and emails your support inbox a clean transcript — no leaks, no awkward dead-ends.',
+    body: "When the agent isn't sure, it collects context and emails your support inbox a clean transcript — no leaks, no awkward dead-ends.",
   },
   {
     icon: Gauge,
-    title: 'Dashboard you\'ll actually open',
+    title: "Dashboard you'll actually open",
     body: 'See live conversations, escalations, resolution rate, and what your visitors keep asking. Built for support, marketing, and product teams.',
   },
   {
@@ -87,8 +82,8 @@ const FAQS = [
     a: `${SUPPORT_MODEL_NAME} via OpenRouter, with tool-use enabled so it can search your KB before answering. The model is swappable server-side, so it can improve without you touching your embed.`,
   },
   {
-    q: 'What happens when the AI doesn\'t know the answer?',
-    a: 'It calls an escalate tool, captures the visitor\'s email if it doesn\'t have one, and sends your support inbox a full transcript with context. No more orphaned chats.',
+    q: "What happens when the AI doesn't know the answer?",
+    a: "It calls an escalate tool, captures the visitor's email if it doesn't have one, and sends your support inbox a full transcript with context. No more orphaned chats.",
   },
   {
     q: 'Can I run this on multiple sites?',
@@ -132,10 +127,18 @@ function Header() {
           <span className="font-heading text-xl tracking-tight">Aigenic</span>
         </Link>
         <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
-          <a href="#features" className="transition hover:text-foreground">Features</a>
-          <a href="#compare" className="transition hover:text-foreground">vs Intercom</a>
-          <a href="#pricing" className="transition hover:text-foreground">Pricing</a>
-          <a href="#faq" className="transition hover:text-foreground">FAQ</a>
+          <a href="#features" className="transition hover:text-foreground">
+            Features
+          </a>
+          <a href="#compare" className="transition hover:text-foreground">
+            vs Intercom
+          </a>
+          <a href="#pricing" className="transition hover:text-foreground">
+            Pricing
+          </a>
+          <a href="#faq" className="transition hover:text-foreground">
+            FAQ
+          </a>
         </nav>
         <div className="flex items-center gap-2">
           <Show when="signed-out">
@@ -166,15 +169,19 @@ function Header() {
 function Hero() {
   return (
     <section className="mx-auto max-w-6xl px-6 pb-24 pt-20 text-center md:pt-28">
-      <Badge variant="secondary" className="mb-6 rounded-full border border-border/60 px-3 py-1 text-xs font-normal text-muted-foreground">
+      <Badge
+        variant="secondary"
+        className="mb-6 rounded-full border border-border/60 px-3 py-1 text-xs font-normal text-muted-foreground"
+      >
         Powered by {SUPPORT_MODEL_NAME} · Tool-use enabled
       </Badge>
       <h1 className="mx-auto max-w-3xl font-heading text-5xl leading-[1.05] tracking-tight md:text-6xl">
         Add an AI support agent to your site in&nbsp;60&nbsp;seconds.
       </h1>
       <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground">
-        Aigenic crawls your entire website, embeds a chat bubble on it, and answers customer questions
-        with citations — escalating to your support inbox when it isn&apos;t sure.
+        Aigenic crawls your entire website, embeds a chat bubble on it, and answers
+        customer questions with citations — escalating to your support inbox when it
+        isn&apos;t sure.
       </p>
       <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
         <Button asChild size="lg" className="h-12 px-6 text-base">
@@ -187,7 +194,9 @@ function Hero() {
           <a href="#features">See how it works</a>
         </Button>
       </div>
-      <p className="mt-4 text-xs text-muted-foreground">No credit card · 1 site free forever · 30 conversations/mo</p>
+      <p className="mt-4 text-xs text-muted-foreground">
+        No credit card · 1 site free forever · 30 conversations/mo
+      </p>
 
       <div className="mx-auto mt-16 max-w-3xl">
         <div className="rounded-2xl border border-border/70 bg-card/60 p-1 shadow-2xl shadow-black/40">
@@ -202,11 +211,20 @@ function Hero() {
               <span />
             </div>
             <div className="relative grid gap-4 bg-background/40 p-6">
-              <ChatBubble role="bot">Hi! I&apos;m Bean, the Northstar Coffee assistant. How can I help?</ChatBubble>
-              <ChatBubble role="user">Do you ship to Canada, and how long does it take?</ChatBubble>
               <ChatBubble role="bot">
-                Yes — we ship to Canada with <span className="font-medium">DHL Express</span>, usually <span className="font-medium">3–5 business days</span> from our Brooklyn roastery. Free over $60, otherwise $14 flat.
-                <span className="mt-2 block text-[11px] text-muted-foreground">Source: northstar-coffee.com/shipping</span>
+                Hi! I&apos;m Bean, the Northstar Coffee assistant. How can I help?
+              </ChatBubble>
+              <ChatBubble role="user">
+                Do you ship to Canada, and how long does it take?
+              </ChatBubble>
+              <ChatBubble role="bot">
+                Yes — we ship to Canada with{' '}
+                <span className="font-medium">DHL Express</span>, usually{' '}
+                <span className="font-medium">3–5 business days</span> from our Brooklyn
+                roastery. Free over $60, otherwise $14 flat.
+                <span className="mt-2 block text-[11px] text-muted-foreground">
+                  Source: northstar-coffee.com/shipping
+                </span>
               </ChatBubble>
             </div>
           </div>
@@ -216,7 +234,13 @@ function Hero() {
   );
 }
 
-function ChatBubble({ role, children }: { role: 'bot' | 'user'; children: React.ReactNode }) {
+function ChatBubble({
+  role,
+  children,
+}: {
+  role: 'bot' | 'user';
+  children: React.ReactNode;
+}) {
   const isBot = role === 'bot';
   return (
     <div className={isBot ? 'flex justify-start' : 'flex justify-end'}>
@@ -254,7 +278,9 @@ function Metric({ value, label }: { value: string; label: string }) {
   return (
     <div>
       <div className="font-heading text-3xl tracking-tight md:text-4xl">{value}</div>
-      <div className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
     </div>
   );
 }
@@ -263,15 +289,22 @@ function Features() {
   return (
     <section id="features" className="mx-auto max-w-6xl px-6 py-24">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-heading text-4xl tracking-tight md:text-5xl">Built for teams who hate chatbots.</h2>
+        <h2 className="font-heading text-4xl tracking-tight md:text-5xl">
+          Built for teams who hate chatbots.
+        </h2>
         <p className="mt-4 text-muted-foreground">
-          Most &ldquo;AI support&rdquo; widgets are dressed-up FAQ bots — they pattern-match keywords and pray. Aigenic reads every page
-          on your site, cites its sources, and hands the conversation to a human the moment it isn&apos;t sure.
+          Most &ldquo;AI support&rdquo; widgets are dressed-up FAQ bots — they
+          pattern-match keywords and pray. Aigenic reads every page on your site, cites
+          its sources, and hands the conversation to a human the moment it isn&apos;t
+          sure.
         </p>
       </div>
       <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
         {FEATURES.map(({ icon: Icon, title, body }) => (
-          <Card key={title} className="border-border/60 bg-card/40 transition hover:border-border hover:bg-card/70">
+          <Card
+            key={title}
+            className="border-border/60 bg-card/40 transition hover:border-border hover:bg-card/70"
+          >
             <CardHeader>
               <div className="grid h-10 w-10 place-items-center rounded-lg border border-border/60 bg-background">
                 <Icon className="h-5 w-5" />
@@ -292,11 +325,17 @@ function EmbedPreview() {
       <Card className="overflow-hidden border-border/60 bg-card/40">
         <div className="grid items-center gap-8 p-6 md:grid-cols-2 md:gap-10 md:p-12">
           <div className="min-w-0">
-            <Badge variant="secondary" className="mb-4 rounded-full">One line of code</Badge>
-            <h3 className="font-heading text-2xl tracking-tight sm:text-3xl md:text-4xl">Paste this. That&apos;s the install.</h3>
+            <Badge variant="secondary" className="mb-4 rounded-full">
+              One line of code
+            </Badge>
+            <h3 className="font-heading text-2xl tracking-tight sm:text-3xl md:text-4xl">
+              Paste this. That&apos;s the install.
+            </h3>
             <p className="mt-3 text-sm text-muted-foreground sm:text-base">
-              Drop the script before <code className="rounded bg-muted px-1 py-0.5 text-xs">&lt;/body&gt;</code>. The bubble appears,
-              connected to your KB. No build step, no SDK — works on Webflow, Shopify, WordPress, Next.js, anywhere.
+              Drop the script before{' '}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">&lt;/body&gt;</code>.
+              The bubble appears, connected to your KB. No build step, no SDK — works on
+              Webflow, Shopify, WordPress, Next.js, anywhere.
             </p>
           </div>
           <div className="min-w-0 rounded-xl border border-border/60 bg-background p-4 font-mono text-sm shadow-inner sm:p-5">
@@ -305,7 +344,7 @@ function EmbedPreview() {
               <span>copy</span>
             </div>
             <pre className="overflow-x-auto whitespace-pre text-[12px] leading-relaxed text-foreground/90 sm:text-[13px]">
-{`<script
+              {`<script
   src="https://aigenicapp.vercel.app/widget.js"
   data-site="{siteId}"
   async
@@ -322,7 +361,9 @@ function Comparison() {
   return (
     <section id="compare" className="mx-auto max-w-5xl px-4 py-24 sm:px-6">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-heading text-3xl tracking-tight sm:text-4xl md:text-5xl">Aigenic vs. Intercom Fin</h2>
+        <h2 className="font-heading text-3xl tracking-tight sm:text-4xl md:text-5xl">
+          Aigenic vs. Intercom Fin
+        </h2>
         <p className="mt-3 text-sm text-muted-foreground sm:text-base">
           Same job. A lot less setup. A lot less invoice.
         </p>
@@ -343,10 +384,18 @@ function Comparison() {
           >
             <div className="min-w-0 pr-2">{row.feature}</div>
             <div className="flex justify-center">
-              {row.aigenic ? <Check className="h-4 w-4 text-foreground" /> : <Minus className="h-4 w-4 text-muted-foreground" />}
+              {row.aigenic ? (
+                <Check className="h-4 w-4 text-foreground" />
+              ) : (
+                <Minus className="h-4 w-4 text-muted-foreground" />
+              )}
             </div>
             <div className="flex justify-center">
-              {row.intercom ? <Check className="h-4 w-4 text-muted-foreground" /> : <Minus className="h-4 w-4 text-muted-foreground" />}
+              {row.intercom ? (
+                <Check className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Minus className="h-4 w-4 text-muted-foreground" />
+              )}
             </div>
           </div>
         ))}
@@ -359,7 +408,9 @@ function Pricing() {
   return (
     <section id="pricing" className="mx-auto max-w-6xl px-6 py-24">
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-heading text-4xl tracking-tight md:text-5xl">{BILLING_MARKETING.heading}</h2>
+        <h2 className="font-heading text-4xl tracking-tight md:text-5xl">
+          {BILLING_MARKETING.heading}
+        </h2>
         <p className="mt-3 text-muted-foreground">{BILLING_MARKETING.subheading}</p>
       </div>
       <div className="mt-14 grid gap-6 md:grid-cols-3">
@@ -377,19 +428,27 @@ function PricingCard({ plan }: { plan: Plan }) {
     <Card
       className={[
         'relative flex flex-col gap-6 border-border/60 p-8',
-        plan.highlighted ? 'border-foreground/40 bg-card/80 shadow-2xl shadow-black/30' : 'bg-card/30',
+        plan.highlighted
+          ? 'border-foreground/40 bg-card/80 shadow-2xl shadow-black/30'
+          : 'bg-card/30',
         disabled ? 'opacity-70' : '',
       ].join(' ')}
     >
       {disabled ? (
-        <Badge variant="secondary" className="absolute right-6 top-6 rounded-full">Coming soon</Badge>
+        <Badge variant="secondary" className="absolute right-6 top-6 rounded-full">
+          Coming soon
+        </Badge>
       ) : (
         plan.highlighted && (
-          <Badge className="absolute right-6 top-6 rounded-full bg-foreground text-background">Most popular</Badge>
+          <Badge className="absolute right-6 top-6 rounded-full bg-foreground text-background">
+            Most popular
+          </Badge>
         )
       )}
       <CardHeader className="p-0">
-        <CardTitle className="text-base font-medium uppercase tracking-wider text-muted-foreground">{plan.name}</CardTitle>
+        <CardTitle className="text-base font-medium uppercase tracking-wider text-muted-foreground">
+          {plan.name}
+        </CardTitle>
         <div className="mt-2 flex items-baseline gap-2">
           <span className="font-heading text-5xl tracking-tight">{plan.priceLabel}</span>
           <span className="text-sm text-muted-foreground">{plan.pricePeriod}</span>
@@ -417,7 +476,12 @@ function PricingCard({ plan }: { plan: Plan }) {
           Coming soon
         </Button>
       ) : (
-        <Button asChild size="lg" variant={plan.highlighted ? 'default' : 'outline'} className="w-full">
+        <Button
+          asChild
+          size="lg"
+          variant={plan.highlighted ? 'default' : 'outline'}
+          className="w-full"
+        >
           <Link href="/sign-up">{plan.landingCtaLabel}</Link>
         </Button>
       )}
@@ -428,13 +492,17 @@ function PricingCard({ plan }: { plan: Plan }) {
 function FAQ() {
   return (
     <section id="faq" className="mx-auto max-w-3xl px-6 py-24">
-      <h2 className="text-center font-heading text-4xl tracking-tight md:text-5xl">Frequently asked</h2>
+      <h2 className="text-center font-heading text-4xl tracking-tight md:text-5xl">
+        Frequently asked
+      </h2>
       <div className="mt-12 divide-y divide-border/60 rounded-2xl border border-border/60 bg-card/30">
         {FAQS.map(({ q, a }) => (
           <details key={q} className="group px-6 py-5">
             <summary className="flex cursor-pointer list-none items-center justify-between text-base font-medium">
               {q}
-              <span className="text-muted-foreground transition group-open:rotate-45">+</span>
+              <span className="text-muted-foreground transition group-open:rotate-45">
+                +
+              </span>
             </summary>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{a}</p>
           </details>
@@ -452,7 +520,8 @@ function CTA() {
           Ship a support agent before your coffee gets cold.
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-          Free forever for your first site. You'll have a working chat bubble in under a minute.
+          Free forever for your first site. You&apos;ll have a working chat bubble in
+          under a minute.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Button asChild size="lg" className="h-12 px-6 text-base">
@@ -481,10 +550,18 @@ function Footer() {
           <span className="font-heading text-base text-foreground">Aigenic</span>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
-          <a href="#features" className="transition hover:text-foreground">Features</a>
-          <a href="#compare" className="transition hover:text-foreground">vs Intercom</a>
-          <a href="#pricing" className="transition hover:text-foreground">Pricing</a>
-          <a href="#faq" className="transition hover:text-foreground">FAQ</a>
+          <a href="#features" className="transition hover:text-foreground">
+            Features
+          </a>
+          <a href="#compare" className="transition hover:text-foreground">
+            vs Intercom
+          </a>
+          <a href="#pricing" className="transition hover:text-foreground">
+            Pricing
+          </a>
+          <a href="#faq" className="transition hover:text-foreground">
+            FAQ
+          </a>
         </div>
         <div className="flex items-center gap-4">
           <a
@@ -514,12 +591,7 @@ function Footer() {
 
 function GithubIcon({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-      className={className}
-    >
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
       <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55v-1.94c-3.2.69-3.87-1.54-3.87-1.54-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.18 1.18a11.04 11.04 0 0 1 5.79 0c2.21-1.49 3.18-1.18 3.18-1.18.62 1.58.23 2.75.11 3.04.74.81 1.18 1.84 1.18 3.1 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.07.78 2.16v3.21c0 .31.21.66.79.55C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5Z" />
     </svg>
   );
@@ -527,12 +599,7 @@ function GithubIcon({ className }: { className?: string }) {
 
 function LinkedinIcon({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-      className={className}
-    >
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
       <path d="M20.45 20.45h-3.55v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.13 1.45-2.13 2.94v5.67H9.37V9h3.41v1.56h.05c.47-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29ZM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12Zm1.78 13.02H3.56V9h3.56v11.45ZM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0Z" />
     </svg>
   );

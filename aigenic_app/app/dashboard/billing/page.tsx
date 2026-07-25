@@ -59,7 +59,8 @@ export default async function BillingPage({
       <header>
         <h1 className="font-heading text-4xl tracking-tight md:text-5xl">Billing</h1>
         <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-          You&apos;re on the <span className="font-medium text-foreground">{plan.name}</span> plan.
+          You&apos;re on the{' '}
+          <span className="font-medium text-foreground">{plan.name}</span> plan.
           {plan.id === 'free'
             ? ' Upgrade to add more sites and lift the per-month conversation cap.'
             : ' Manage or change your plan below.'}
@@ -94,7 +95,11 @@ export default async function BillingPage({
           size="md"
           label="Sites"
           value={`${sites.length} / ${plan.limits.sites}`}
-          hint={sites.length >= plan.limits.sites ? 'At your plan limit' : 'Within your plan limit'}
+          hint={
+            sites.length >= plan.limits.sites
+              ? 'At your plan limit'
+              : 'Within your plan limit'
+          }
           warn={sites.length >= plan.limits.sites}
         />
         <StatCard
@@ -176,7 +181,9 @@ function PlanCard({
     <Card
       className={[
         'relative flex flex-col gap-6 border-border/60 p-8',
-        highlighted ? 'border-foreground/40 bg-card/80 shadow-2xl shadow-black/30' : 'bg-card/30',
+        highlighted
+          ? 'border-foreground/40 bg-card/80 shadow-2xl shadow-black/30'
+          : 'bg-card/30',
         isComingSoon && !isCurrent ? 'opacity-70' : '',
       ].join(' ')}
     >

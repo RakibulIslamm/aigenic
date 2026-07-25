@@ -159,8 +159,9 @@ export function isPlanId(value: string): value is PlanId {
  * counting `crawl_runs` rows for rate-limiting.
  */
 export function manualCrawlWindowStart(plan: Plan, now: Date = new Date()): Date {
-  const ms = plan.limits.manualCrawls.period === 'week'
-    ? 7 * 24 * 60 * 60 * 1000
-    : 24 * 60 * 60 * 1000;
+  const ms =
+    plan.limits.manualCrawls.period === 'week'
+      ? 7 * 24 * 60 * 60 * 1000
+      : 24 * 60 * 60 * 1000;
   return new Date(now.getTime() - ms);
 }

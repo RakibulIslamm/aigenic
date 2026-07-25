@@ -59,7 +59,9 @@ export default async function SiteOverviewPage({
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
             <CardTitle>Recent conversations</CardTitle>
-            <CardDescription>The five most recent chats from your widget.</CardDescription>
+            <CardDescription>
+              The five most recent chats from your widget.
+            </CardDescription>
           </div>
           <Button asChild variant="ghost" size="sm" className="gap-1">
             <Link href={`/dashboard/sites/${siteId}/conversations`}>
@@ -74,7 +76,10 @@ export default async function SiteOverviewPage({
           ) : (
             <ul className="divide-y divide-border/60">
               {conversations.map((c) => (
-                <li key={c.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+                <li
+                  key={c.id}
+                  className="flex items-center justify-between gap-3 py-3 text-sm"
+                >
                   <div className="min-w-0">
                     <div className="truncate font-medium">
                       {c.visitorEmail ?? `Visitor ${c.visitorId.slice(0, 8)}`}
@@ -103,7 +108,8 @@ function EmptyConversations() {
       <MessageSquare className="h-6 w-6 text-muted-foreground" />
       <p className="text-sm font-medium">No conversations yet</p>
       <p className="max-w-sm text-xs text-muted-foreground">
-        Once the chat bubble is live on your site and a visitor sends a message, it&apos;ll appear here.
+        Once the chat bubble is live on your site and a visitor sends a message,
+        it&apos;ll appear here.
       </p>
     </div>
   );

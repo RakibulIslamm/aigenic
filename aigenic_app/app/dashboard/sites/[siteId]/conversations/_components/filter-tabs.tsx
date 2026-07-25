@@ -21,9 +21,8 @@ export function FilterTabs({ counts }: { counts: Record<FilterValue, number> }) 
   return (
     <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border/60 bg-card/40 p-1">
       {FILTERS.map((filter) => {
-        const href = filter.value === 'all'
-          ? pathname
-          : `${pathname}?status=${filter.value}`;
+        const href =
+          filter.value === 'all' ? pathname : `${pathname}?status=${filter.value}`;
         const active = current === filter.value;
         return (
           <Link
@@ -33,7 +32,7 @@ export function FilterTabs({ counts }: { counts: Record<FilterValue, number> }) 
               'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
               active
                 ? 'bg-foreground text-background'
-                : 'text-muted-foreground hover:bg-card hover:text-foreground'
+                : 'text-muted-foreground hover:bg-card hover:text-foreground',
             )}
           >
             {filter.label}
@@ -42,7 +41,7 @@ export function FilterTabs({ counts }: { counts: Record<FilterValue, number> }) 
                 'inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px]',
                 active
                   ? 'bg-background/20 text-background'
-                  : 'bg-muted text-muted-foreground'
+                  : 'bg-muted text-muted-foreground',
               )}
             >
               {counts[filter.value]}

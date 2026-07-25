@@ -56,7 +56,9 @@ export function CrawlActivityFeed({
     <section className="rounded-xl border border-border/60 bg-card/30 p-4">
       <header className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <CircleDashed className={`h-4 w-4 ${connected ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+          <CircleDashed
+            className={`h-4 w-4 ${connected ? 'text-emerald-500' : 'text-muted-foreground'}`}
+          />
           <h3 className="text-sm font-medium">Crawl activity</h3>
         </div>
         <span className="text-xs text-muted-foreground">
@@ -72,16 +74,16 @@ export function CrawlActivityFeed({
 
       {visible.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          {isLive
-            ? 'Waiting for the first event…'
-            : 'No recent events.'}
+          {isLive ? 'Waiting for the first event…' : 'No recent events.'}
         </p>
       ) : (
         <ol className="space-y-2">
           {visible.map((event, i) => {
             const meta = KIND_META[event.kind];
             const Icon = meta.icon;
-            const isSpinning = event.kind === 'crawling' || (event.kind === 'articles' && i === 0 && isLive);
+            const isSpinning =
+              event.kind === 'crawling' ||
+              (event.kind === 'articles' && i === 0 && isLive);
             return (
               <li
                 key={`${event.at}-${event.kind}-${i}`}

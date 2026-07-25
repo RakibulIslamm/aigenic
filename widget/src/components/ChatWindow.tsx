@@ -37,7 +37,9 @@ function initialMessages(config: WidgetConfig): PersistedTextMessage[] {
 }
 
 export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
-  const [messages, setMessages] = useState<PersistedTextMessage[]>(() => initialMessages(config));
+  const [messages, setMessages] = useState<PersistedTextMessage[]>(() =>
+    initialMessages(config),
+  );
   const [streamingText, setStreamingText] = useState<string | null>(null);
   const [tools, setTools] = useState<ToolEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -235,12 +237,31 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
           aria-label="Start a new chat"
           title="New chat"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M12 5v14M5 12h14" />
           </svg>
         </button>
-        <button type="button" class="ad-icon-btn" onClick={onClose} aria-label="Close chat">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <button
+          type="button"
+          class="ad-icon-btn"
+          onClick={onClose}
+          aria-label="Close chat"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
@@ -249,7 +270,12 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
 
       <div class="ad-messages" ref={scrollerRef}>
         {messages.map((m, i) => (
-          <Message key={`m-${i}`} role={m.role} content={m.content} botName={config.botName} />
+          <Message
+            key={`m-${i}`}
+            role={m.role}
+            content={m.content}
+            botName={config.botName}
+          />
         ))}
 
         {tools.map((t, i) => (
@@ -257,7 +283,12 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
         ))}
 
         {streamingText !== null && streamingText.length > 0 && (
-          <Message role="bot" content={streamingText} botName={config.botName} streaming />
+          <Message
+            role="bot"
+            content={streamingText}
+            botName={config.botName}
+            streaming
+          />
         )}
 
         {showTypingDots && (
@@ -266,12 +297,18 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
               {config.botName.slice(0, 1).toUpperCase()}
             </div>
             <div class="ad-typing" aria-label="Bot is typing">
-              <span /><span /><span />
+              <span />
+              <span />
+              <span />
             </div>
           </div>
         )}
 
-        {error && <div class="ad-msg-error" role="alert">{error}</div>}
+        {error && (
+          <div class="ad-msg-error" role="alert">
+            {error}
+          </div>
+        )}
       </div>
 
       <form
@@ -302,7 +339,14 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
           disabled={busy || input.trim().length === 0}
           aria-label="Send"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <line x1="22" y1="2" x2="11" y2="13" />
             <polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>
@@ -311,7 +355,9 @@ export function ChatWindow({ apiBase, config, onClose }: ChatWindowProps) {
 
       <div class="ad-footer">
         Powered by{' '}
-        <a href="https://aigenic.app" target="_blank" rel="noopener noreferrer">Aigenic</a>
+        <a href="https://aigenic.app" target="_blank" rel="noopener noreferrer">
+          Aigenic
+        </a>
       </div>
     </div>
   );

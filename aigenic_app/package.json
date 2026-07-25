@@ -6,7 +6,6 @@
     "dev": "cross-env MallocNanoZone= next dev",
     "build": "cross-env MallocNanoZone= next build",
     "start": "cross-env MallocNanoZone= next start",
-    "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -45,8 +44,6 @@
     "cross-env": "^10.1.0",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
-    "eslint": "^9",
-    "eslint-config-next": "^16.2.6",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -85,7 +85,7 @@ export function loadTranscript(siteId: string): PersistedTextMessage[] {
           m &&
           typeof m === 'object' &&
           (m.role === 'user' || m.role === 'bot') &&
-          typeof m.content === 'string'
+          typeof m.content === 'string',
       )
       .slice(-MAX_PERSISTED_MESSAGES);
   } catch {

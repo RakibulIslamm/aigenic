@@ -11,5 +11,5 @@ export const logger = pino(
           options: { colorize: true, translateTime: 'SYS:HH:MM:ss.l' },
         },
       }
-    : { level: process.env.LOG_LEVEL ?? 'info' }
+    : { level: process.env.LOG_LEVEL ?? 'info' },
 );

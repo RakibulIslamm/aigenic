@@ -17,7 +17,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { deleteSiteAction } from '@/app/dashboard/actions';
 
-export function DeleteSiteButton({ siteId, siteName }: { siteId: string; siteName: string }) {
+export function DeleteSiteButton({
+  siteId,
+  siteName,
+}: {
+  siteId: string;
+  siteName: string;
+}) {
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState('');
   const [pending, startTransition] = useTransition();
@@ -27,7 +33,10 @@ export function DeleteSiteButton({ siteId, siteName }: { siteId: string; siteNam
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-1 text-destructive hover:text-destructive">
+        <Button
+          variant="outline"
+          className="gap-1 text-destructive hover:text-destructive"
+        >
           <Trash2 className="h-4 w-4" />
           Delete site
         </Button>
@@ -36,8 +45,9 @@ export function DeleteSiteButton({ siteId, siteName }: { siteId: string; siteNam
         <DialogHeader>
           <DialogTitle>Delete this site?</DialogTitle>
           <DialogDescription>
-            This permanently deletes the knowledge base, conversations, escalations, and widget config.
-            Visitors hitting your embed will see no bubble. This cannot be undone.
+            This permanently deletes the knowledge base, conversations, escalations, and
+            widget config. Visitors hitting your embed will see no bubble. This cannot be
+            undone.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-2 py-2">

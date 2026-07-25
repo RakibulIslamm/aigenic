@@ -15,13 +15,19 @@ services:
     # Bind to localhost only — Caddy/Nginx terminates TLS and proxies to us.
     # If you don't run a reverse proxy, change this to "3007:3007".
     ports:
-      - "127.0.0.1:3007:3007"
+      - '127.0.0.1:3007:3007'
     # Playwright Chromium needs more shared memory than the Docker default.
     shm_size: '1gb'
     security_opt:
       - seccomp:unconfined
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3007/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3007/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3

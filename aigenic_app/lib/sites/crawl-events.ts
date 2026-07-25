@@ -10,12 +10,7 @@ export interface CrawlSnapshot {
 }
 
 export type CrawlEventKind =
-  | 'queued'
-  | 'crawling'
-  | 'articles'
-  | 'complete'
-  | 'failed'
-  | 'stopped';
+  'queued' | 'crawling' | 'articles' | 'complete' | 'failed' | 'stopped';
 
 export interface CrawlEvent {
   kind: CrawlEventKind;
@@ -32,7 +27,7 @@ export interface CrawlEvent {
  */
 export async function fetchCrawlSnapshot(
   siteId: string,
-  userId: string
+  userId: string,
 ): Promise<CrawlSnapshot | null> {
   const site = await db.query.sites.findFirst({
     where: eq(sites.id, siteId),
@@ -56,10 +51,7 @@ export async function fetchCrawlSnapshot(
  * Diff two snapshots and synthesize the events the UI should display.
  * Returns an empty array when nothing of interest changed.
  */
-export function diffSnapshots(
-  prev: CrawlSnapshot,
-  next: CrawlSnapshot
-): CrawlEvent[] {
+export function diffSnapshots(prev: CrawlSnapshot, next: CrawlSnapshot): CrawlEvent[] {
   const events: CrawlEvent[] = [];
   const now = Date.now();
 

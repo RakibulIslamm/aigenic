@@ -1,8 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  SiteCardSkeleton,
-  StatCardSkeleton,
-} from '@/components/skeletons';
+import { SiteCardSkeleton, StatCardSkeleton } from '@/components/skeletons';
 
 export default function DashboardLoading() {
   return (

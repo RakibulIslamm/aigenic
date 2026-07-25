@@ -14,7 +14,9 @@ interface BootOptions {
 function readBootOptions(): BootOptions | null {
   // Find the <script> tag that loaded us so we can read its data-site attr
   // and derive the API origin from its src.
-  const scripts = document.querySelectorAll<HTMLScriptElement>(`script[src*="${SCRIPT_NAME}"]`);
+  const scripts = document.querySelectorAll<HTMLScriptElement>(
+    `script[src*="${SCRIPT_NAME}"]`,
+  );
   let siteId: string | null = null;
   let apiBase = '';
 
@@ -34,7 +36,9 @@ function readBootOptions(): BootOptions | null {
 
   // Fallback for environments where the script tag isn't discoverable
   // (e.g. injected via fetch + eval, or programmatic loaders).
-  const globalCfg = (window as unknown as { AigenicConfig?: { siteId?: string; apiBase?: string } }).AigenicConfig;
+  const globalCfg = (
+    window as unknown as { AigenicConfig?: { siteId?: string; apiBase?: string } }
+  ).AigenicConfig;
   if (!siteId && globalCfg?.siteId) siteId = globalCfg.siteId;
   if (globalCfg?.apiBase) apiBase = globalCfg.apiBase;
 

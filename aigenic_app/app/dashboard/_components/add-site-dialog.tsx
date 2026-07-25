@@ -16,24 +16,32 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Field } from '@/components/field';
-import {
-  CRAWL_MAX_PAGES_CAP,
-  DEFAULT_CRAWL_MAX_PAGES,
-} from '@/lib/sites/limits';
+import { CRAWL_MAX_PAGES_CAP, DEFAULT_CRAWL_MAX_PAGES } from '@/lib/sites/limits';
 import { createSiteAction, type ActionState } from '../actions';
 
-export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean; disabledReason?: string }) {
+export function AddSiteDialog({
+  disabled,
+  disabledReason,
+}: {
+  disabled?: boolean;
+  disabledReason?: string;
+}) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
     createSiteAction,
-    undefined
+    undefined,
   );
 
   useEffect(() => {
     if (!state) return;
     if (state.ok) {
       toast.success(state.message ?? 'Site created — crawling now');
+      // Reacting to a server-action result, not deriving state: the dialog has
+      // to close once creation succeeds, and the toast/navigation below are
+      // side effects that belong in an effect too. This is a single one-shot
+      // transition per submission, not a cascade.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpen(false);
       if (state.siteId) {
         router.push(`/dashboard/sites/${state.siteId}`);
@@ -45,13 +53,17 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
     }
   }, [state, router]);
 
-  const fieldErrors = state && !state.ok ? state.fieldErrors ?? {} : {};
-  const values = state && !state.ok ? state.values ?? {} : {};
+  const fieldErrors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  const values = state && !state.ok ? (state.values ?? {}) : {};
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" disabled={disabled} title={disabled ? disabledReason : undefined}>
+        <Button
+          size="lg"
+          disabled={disabled}
+          title={disabled ? disabledReason : undefined}
+        >
           <Plus className="mr-1 h-4 w-4" />
           Add a site
         </Button>
@@ -60,7 +72,8 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
         <DialogHeader>
           <DialogTitle className="font-heading text-2xl">Add a site</DialogTitle>
           <DialogDescription>
-            We&apos;ll crawl your URL to build a private knowledge base. The chat bubble appears as soon as the first articles land.
+            We&apos;ll crawl your URL to build a private knowledge base. The chat bubble
+            appears as soon as the first articles land.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -100,7 +113,12 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
             defaultValue={values.maxPages ?? String(DEFAULT_CRAWL_MAX_PAGES)}
           />
           <DialogFooter className="mt-2">
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setOpen(false)}
+              disabled={pending}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={pending}>
@@ -123,7 +141,10 @@ export function AddSiteDialog({ disabled, disabledReason }: { disabled?: boolean
 const MAX_PAGES_OPTIONS = [
   { value: '100', label: '100 pages · marketing site' },
   { value: '500', label: '500 pages · small business' },
-  { value: String(DEFAULT_CRAWL_MAX_PAGES), label: '1,000 pages · standard (recommended)' },
+  {
+    value: String(DEFAULT_CRAWL_MAX_PAGES),
+    label: '1,000 pages · standard (recommended)',
+  },
   { value: String(CRAWL_MAX_PAGES_CAP), label: '2,000 pages · large e-commerce / docs' },
 ];
 
@@ -145,7 +166,11 @@ function MaxPagesField({
         className="h-9 w-full rounded-3xl border border-transparent bg-input/50 px-3 text-sm outline-none transition-[color,box-shadow,background-color] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
       >
         {MAX_PAGES_OPTIONS.map((opt) => (
-          <option key={opt.value} value={opt.value} className="bg-background text-foreground">
+          <option
+            key={opt.value}
+            value={opt.value}
+            className="bg-background text-foreground"
+          >
             {opt.label}
           </option>
         ))}
@@ -154,7 +179,8 @@ function MaxPagesField({
         <p className="text-xs text-destructive">{error}</p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Maximum pages to crawl. The crawler stops once it hits the limit; you can resync any time.
+          Maximum pages to crawl. The crawler stops once it hits the limit; you can resync
+          any time.
         </p>
       )}
     </div>

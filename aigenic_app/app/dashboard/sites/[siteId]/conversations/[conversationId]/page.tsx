@@ -1,7 +1,16 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { format, formatDistanceToNow } from 'date-fns';
-import { ChevronLeft, FileText, Mail, MessageSquare, Search, ShieldAlert, User, Wrench } from 'lucide-react';
+import {
+  ChevronLeft,
+  FileText,
+  Mail,
+  MessageSquare,
+  Search,
+  ShieldAlert,
+  User,
+  Wrench,
+} from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
 import { getSiteForUser } from '@/lib/sites/queries';
 import { getConversationDetail } from '@/lib/sites/conversations';
@@ -78,14 +87,17 @@ export default async function ConversationDetailPage({
             )}
           </CardHeader>
           <CardContent className="flex flex-1 flex-col gap-3 overflow-y-auto pt-0">
-            {thread.length === 0 && (
-              <EmptyTranscript />
-            )}
+            {thread.length === 0 && <EmptyTranscript />}
             {thread.map((m) => {
-              const toolCalls = (m.toolCalls as ToolCallRecord[] | null | undefined) ?? null;
+              const toolCalls =
+                (m.toolCalls as ToolCallRecord[] | null | undefined) ?? null;
               return (
                 <div key={m.id} className="flex min-w-0 flex-col gap-2">
-                  <MessageBubble role={m.role} content={m.content} createdAt={m.createdAt} />
+                  <MessageBubble
+                    role={m.role}
+                    content={m.content}
+                    createdAt={m.createdAt}
+                  />
                   {toolCalls && toolCalls.length > 0 && (
                     <ToolCallsAccordion toolCalls={toolCalls} />
                   )}
@@ -103,7 +115,10 @@ export default async function ConversationDetailPage({
           rows={[
             ['Email', conversation.visitorEmail ?? 'Not provided'],
             ['Visitor ID', shortId(conversation.visitorId)],
-            ['First seen', formatDistanceToNow(visitorStats.firstSeen, { addSuffix: true })],
+            [
+              'First seen',
+              formatDistanceToNow(visitorStats.firstSeen, { addSuffix: true }),
+            ],
             ['Total conversations', String(visitorStats.totalConversations)],
           ]}
         />
@@ -131,7 +146,8 @@ export default async function ConversationDetailPage({
               {escalation.emailSentAt ? (
                 <span className="inline-flex items-center gap-1">
                   <Mail className="h-3 w-3" />
-                  Email sent {formatDistanceToNow(escalation.emailSentAt, { addSuffix: true })}
+                  Email sent{' '}
+                  {formatDistanceToNow(escalation.emailSentAt, { addSuffix: true })}
                 </span>
               ) : (
                 <span>Email delivery pending</span>
@@ -225,7 +241,7 @@ function KvBlock({ label, value }: { label: string; value: unknown }) {
         {label}
       </div>
       <pre className="max-h-64 max-w-full overflow-auto whitespace-pre-wrap wrap-break-word rounded bg-muted/40 p-2 text-[11px] leading-snug text-foreground/80">
-{JSON.stringify(value, null, 2)}
+        {JSON.stringify(value, null, 2)}
       </pre>
     </div>
   );
@@ -252,7 +268,10 @@ function SidebarCard({
         {rows.map(([label, value]) => (
           <div key={label} className="flex items-baseline justify-between gap-3">
             <span className="text-muted-foreground">{label}</span>
-            <span className="truncate text-right font-medium text-foreground" title={value}>
+            <span
+              className="truncate text-right font-medium text-foreground"
+              title={value}
+            >
               {value}
             </span>
           </div>

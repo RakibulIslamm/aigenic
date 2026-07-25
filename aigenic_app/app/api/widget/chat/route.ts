@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
         if (used >= plan.limits.conversationsPerMonth) {
           return jsonError(
             'This site is at its monthly conversation limit. Please come back next month or contact the team.',
-            429
+            429,
           );
         }
       }
@@ -101,10 +101,7 @@ export async function POST(request: NextRequest) {
   const history = await loadHistory(conversationId);
 
   if (!env.OPENROUTER_API_KEY) {
-    return jsonError(
-      'OPENROUTER_API_KEY is not configured on this deployment.',
-      503
-    );
+    return jsonError('OPENROUTER_API_KEY is not configured on this deployment.', 503);
   }
 
   // 5. Run the agent.
@@ -147,7 +144,10 @@ function buildSseStream({
 }): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
 
-  function send(controller: ReadableStreamDefaultController<Uint8Array>, payload: unknown) {
+  function send(
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    payload: unknown,
+  ) {
     controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
   }
 
@@ -158,7 +158,12 @@ function buildSseStream({
       send(controller, { type: 'meta', conversationId });
 
       let assistantText = '';
-      const toolCalls: Array<{ toolName: string; toolCallId: string; input: unknown; output?: unknown }> = [];
+      const toolCalls: Array<{
+        toolName: string;
+        toolCallId: string;
+        input: unknown;
+        output?: unknown;
+      }> = [];
 
       try {
         for await (const part of agentResult.fullStream) {
@@ -190,7 +195,10 @@ function buildSseStream({
               break;
             }
             case 'error': {
-              send(controller, { type: 'error', message: extractErrorMessage(part.error) });
+              send(controller, {
+                type: 'error',
+                message: extractErrorMessage(part.error),
+              });
               break;
             }
             case 'abort': {
@@ -234,7 +242,7 @@ async function loadHistory(conversationId: string): Promise<ModelMessage[]> {
     .map((m) =>
       m.role === 'user'
         ? ({ role: 'user', content: m.content } as ModelMessage)
-        : ({ role: 'assistant', content: m.content } as ModelMessage)
+        : ({ role: 'assistant', content: m.content } as ModelMessage),
     );
 }
 

@@ -85,7 +85,7 @@ function extractCanonicalFromDoc(doc: Document, baseUrl: string): string | null 
 
 function extractReadable(
   doc: Document,
-  url: string
+  url: string,
 ): { title: string; content: string; excerpt: string | null } | null {
   // Deliberately no isProbablyReaderable gate — the heuristic rejects a lot of
   // valid pages (thin product pages still parse cleanly). We validate the
@@ -119,7 +119,7 @@ function extractReadable(
  * BreadcrumbList, etc. We harvest the rich text from whichever ones we find.
  */
 function extractStructured(
-  doc: Document
+  doc: Document,
 ): { title: string; content: string; excerpt: string | null } | null {
   const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
   if (scripts.length === 0) return null;
@@ -199,14 +199,17 @@ function describeProduct(obj: Record<string, unknown>): {
   if (offer) {
     if (offer.price) {
       priceParts.push(
-        offer.currency ? `Price: ${offer.price} ${offer.currency}` : `Price: ${offer.price}`
+        offer.currency
+          ? `Price: ${offer.price} ${offer.currency}`
+          : `Price: ${offer.price}`,
       );
     }
     if (offer.availability) priceParts.push(`Availability: ${offer.availability}`);
   }
 
   const ratingValue = pickString(extractNested(obj, ['aggregateRating', 'ratingValue']));
-  const ratingCount = pickString(extractNested(obj, ['aggregateRating', 'reviewCount'])) ??
+  const ratingCount =
+    pickString(extractNested(obj, ['aggregateRating', 'reviewCount'])) ??
     pickString(extractNested(obj, ['aggregateRating', 'ratingCount']));
   const ratingPart = ratingValue
     ? `Rating: ${ratingValue}${ratingCount ? ` (${ratingCount} reviews)` : ''}`
@@ -264,7 +267,7 @@ function describeFaq(obj: Record<string, unknown>): string | null {
  */
 function extractFallback(
   doc: Document,
-  url: string
+  url: string,
 ): { title: string; content: string; excerpt: string | null } | null {
   const title =
     doc.querySelector('h1')?.textContent?.trim() ||
@@ -274,11 +277,23 @@ function extractFallback(
 
   const metaDesc =
     doc.querySelector('meta[name="description"]')?.getAttribute('content')?.trim() ||
-    doc.querySelector('meta[property="og:description"]')?.getAttribute('content')?.trim() ||
+    doc
+      .querySelector('meta[property="og:description"]')
+      ?.getAttribute('content')
+      ?.trim() ||
     null;
 
   // Strip noise then pull visible text from the main content region.
-  for (const sel of ['script', 'style', 'noscript', 'svg', 'header', 'footer', 'nav', 'aside']) {
+  for (const sel of [
+    'script',
+    'style',
+    'noscript',
+    'svg',
+    'header',
+    'footer',
+    'nav',
+    'aside',
+  ]) {
     for (const node of doc.querySelectorAll(sel)) node.remove();
   }
 
@@ -290,7 +305,7 @@ function extractFallback(
 
   const bodyText = main ? collapseWhitespace(main.textContent ?? '') : '';
   const content = collapseWhitespace(
-    [title, metaDesc, bodyText].filter(Boolean).join('\n\n')
+    [title, metaDesc, bodyText].filter(Boolean).join('\n\n'),
   );
 
   if (!content) return null;
@@ -361,7 +376,7 @@ function pickNamed(v: unknown): string | null {
 }
 
 function pickFirstOffer(
-  v: unknown
+  v: unknown,
 ): { price: string | null; currency: string | null; availability: string | null } | null {
   if (!v) return null;
   const offer = Array.isArray(v) ? v[0] : v;

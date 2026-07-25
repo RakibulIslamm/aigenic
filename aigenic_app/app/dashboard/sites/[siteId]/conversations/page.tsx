@@ -50,7 +50,8 @@ export default async function ConversationsPage({
         <div>
           <h2 className="font-heading text-2xl tracking-tight">Conversations</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every visitor session, with full transcripts and one-click escalation hand-off.
+            Every visitor session, with full transcripts and one-click escalation
+            hand-off.
           </p>
         </div>
         <FilterTabs counts={counts} />
@@ -77,11 +78,14 @@ export default async function ConversationsPage({
                           {c.visitorEmail ?? 'Anonymous visitor'}
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
-                          · {c.messageCount} message{c.messageCount === 1 ? '' : 's'} · {formatDistanceToNow(c.createdAt, { addSuffix: true })}
+                          · {c.messageCount} message{c.messageCount === 1 ? '' : 's'} ·{' '}
+                          {formatDistanceToNow(c.createdAt, { addSuffix: true })}
                         </span>
                       </div>
                       <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">
-                        {c.preview ?? <span className="italic opacity-70">No messages yet</span>}
+                        {c.preview ?? (
+                          <span className="italic opacity-70">No messages yet</span>
+                        )}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
@@ -123,7 +127,9 @@ function EmptyState({ filter }: { filter: ConversationStatusFilter }) {
         <div className="grid h-12 w-12 place-items-center rounded-xl border border-border/60 bg-background">
           <MessageSquare className="h-5 w-5" />
         </div>
-        <CardTitle className="font-heading text-2xl tracking-tight">No conversations</CardTitle>
+        <CardTitle className="font-heading text-2xl tracking-tight">
+          No conversations
+        </CardTitle>
         <CardDescription className="max-w-md">{blurb}</CardDescription>
       </CardHeader>
     </Card>

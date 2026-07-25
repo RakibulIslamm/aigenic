@@ -6,8 +6,7 @@ import { startSiteCrawl } from '@/lib/scraper/client';
 export type DispatchSkipReason = 'site-deleted' | 'already-crawling';
 
 export type DispatchResult =
-  | { dispatched: true }
-  | { dispatched: false; reason: DispatchSkipReason };
+  { dispatched: true } | { dispatched: false; reason: DispatchSkipReason };
 
 /**
  * Single source of truth for the "kick off a crawl for this site" sequence:
@@ -40,18 +39,12 @@ export async function dispatchSiteCrawl(params: {
   }
 
   await db.delete(articles).where(eq(articles.siteId, siteId));
-  await db
-    .update(sites)
-    .set({ kbStatus: 'crawling' })
-    .where(eq(sites.id, siteId));
+  await db.update(sites).set({ kbStatus: 'crawling' }).where(eq(sites.id, siteId));
 
   try {
     await startSiteCrawl({ siteId, domain, maxPages });
   } catch (err) {
-    await db
-      .update(sites)
-      .set({ kbStatus: 'failed' })
-      .where(eq(sites.id, siteId));
+    await db.update(sites).set({ kbStatus: 'failed' }).where(eq(sites.id, siteId));
     throw err instanceof Error ? err : new Error(String(err));
   }
 

@@ -17,10 +17,7 @@ export function widgetCors(methods: string) {
   return {
     headers,
     preflight: () => new Response(null, { status: 204, headers }),
-    jsonError: (
-      error: string,
-      status: number,
-      extra?: Record<string, unknown>
-    ) => NextResponse.json({ error, ...extra }, { status, headers }),
+    jsonError: (error: string, status: number, extra?: Record<string, unknown>) =>
+      NextResponse.json({ error, ...extra }, { status, headers }),
   };
 }

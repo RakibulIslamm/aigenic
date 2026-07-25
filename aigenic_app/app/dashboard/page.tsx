@@ -6,11 +6,17 @@ import { listSitesForUser, type SiteListItem } from '@/lib/sites/queries';
 import { countConversationsThisMonthForUser } from '@/lib/sites/conversations';
 import { getPlan } from '@/lib/billing/plans';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { StatCard } from '@/components/stat-card';
 import { AddSiteDialog } from './_components/add-site-dialog';
 import { KbStatusBadge } from './_components/kb-status-badge';
 import { CrawlProgress } from './_components/crawl-progress';
-import { StatCard } from '@/components/stat-card';
 
 export default async function DashboardPage() {
   const user = await getOrCreateUser();
@@ -27,7 +33,7 @@ export default async function DashboardPage() {
     conversations: plan.limits.conversationsPerMonth,
   };
   const anyInProgress = sites.some(
-    (s) => s.kbStatus === 'pending' || s.kbStatus === 'crawling'
+    (s) => s.kbStatus === 'pending' || s.kbStatus === 'crawling',
   );
 
   return (
@@ -41,7 +47,8 @@ export default async function DashboardPage() {
             Your sites
           </h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            A site is one website you&apos;ve connected Aigenic to. Each has its own knowledge base, widget config, and escalation inbox.
+            A site is one website you&apos;ve connected Aigenic to. Each has its own
+            knowledge base, widget config, and escalation inbox.
           </p>
         </div>
         <AddSiteDialog
@@ -51,7 +58,12 @@ export default async function DashboardPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <StatCard icon={Globe} label="Sites" value={sites.length} hint={`of ${limits.sites} on ${plan.name}`} />
+        <StatCard
+          icon={Globe}
+          label="Sites"
+          value={sites.length}
+          hint={`of ${limits.sites} on ${plan.name}`}
+        />
         <StatCard
           icon={MessageSquare}
           label="Conversations this month"
@@ -123,7 +135,9 @@ function Stat({ label, value }: { label: string; value: number | string }) {
   return (
     <div>
       <div className="font-heading text-2xl tracking-tight">{value}</div>
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
     </div>
   );
 }
@@ -138,7 +152,8 @@ function EmptyState() {
         <div>
           <h3 className="font-heading text-2xl tracking-tight">No sites yet</h3>
           <p className="mt-1 max-w-md text-sm text-muted-foreground">
-            Add your website&apos;s URL — we&apos;ll crawl it to build a knowledge base, and hand you a one-line embed code.
+            Add your website&apos;s URL — we&apos;ll crawl it to build a knowledge base,
+            and hand you a one-line embed code.
           </p>
         </div>
         <AddSiteDialog />

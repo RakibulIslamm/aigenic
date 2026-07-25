@@ -14,7 +14,7 @@ type LogFields = Record<string, unknown>;
 function write(
   method: 'info' | 'warn' | 'error',
   message: string,
-  fields?: LogFields
+  fields?: LogFields,
 ): void {
   if (fields && Object.keys(fields).length > 0) {
     console[method](message, fields);

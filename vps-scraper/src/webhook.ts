@@ -76,13 +76,11 @@ export async function sendWebhook({
       const backoff = 500 * 2 ** (attempt - 1);
       logger.warn(
         { url, attempt, backoff, err: lastError },
-        'webhook delivery failed, retrying'
+        'webhook delivery failed, retrying',
       );
       await new Promise((resolve) => setTimeout(resolve, backoff));
     }
   }
 
-  throw lastError instanceof Error
-    ? lastError
-    : new Error('Webhook delivery failed');
+  throw lastError instanceof Error ? lastError : new Error('Webhook delivery failed');
 }

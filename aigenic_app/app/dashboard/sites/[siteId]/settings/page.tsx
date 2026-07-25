@@ -2,7 +2,13 @@ import { notFound } from 'next/navigation';
 import { requireUserId } from '@/lib/auth/user';
 import { getSiteForUser } from '@/lib/sites/queries';
 import { DEFAULT_WIDGET_CONFIG } from '@/lib/sites/schemas';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { SettingsForm } from '../_components/settings-form';
 import { DeleteSiteButton } from '../_components/delete-site-button';
 
@@ -43,7 +49,8 @@ export default async function SiteSettingsPage({
         <CardHeader>
           <CardTitle className="text-destructive">Danger zone</CardTitle>
           <CardDescription>
-            Deleting a site removes its knowledge base, conversations, and widget. Visitors will stop seeing the bubble immediately.
+            Deleting a site removes its knowledge base, conversations, and widget.
+            Visitors will stop seeing the bubble immediately.
           </CardDescription>
         </CardHeader>
         <CardContent>

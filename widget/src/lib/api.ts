@@ -16,9 +16,11 @@ export type ChatEvent =
 
 export async function fetchConfig(
   apiBase: string,
-  siteId: string
+  siteId: string,
 ): Promise<WidgetConfig> {
-  const res = await fetch(`${apiBase}/api/widget/config?siteId=${encodeURIComponent(siteId)}`);
+  const res = await fetch(
+    `${apiBase}/api/widget/config?siteId=${encodeURIComponent(siteId)}`,
+  );
   if (!res.ok) {
     throw new Error(`Config fetch failed (${res.status})`);
   }

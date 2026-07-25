@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
   if (!expectedKey) {
     return NextResponse.json(
       { error: 'Scraper webhook not configured on this deployment' },
-      { status: 503 }
+      { status: 503 },
     );
   }
 
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json(
       { error: 'Invalid payload', issues: parsed.error.issues },
-      { status: 400 }
+      { status: 400 },
     );
   }
 

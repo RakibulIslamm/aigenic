@@ -1,9 +1,5 @@
 import { z } from 'zod';
-import {
-  CRAWL_MAX_PAGES_CAP,
-  DEFAULT_CRAWL_MAX_PAGES,
-  MIN_CRAWL_PAGES,
-} from './limits';
+import { CRAWL_MAX_PAGES_CAP, DEFAULT_CRAWL_MAX_PAGES, MIN_CRAWL_PAGES } from './limits';
 
 export const createSiteSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100),

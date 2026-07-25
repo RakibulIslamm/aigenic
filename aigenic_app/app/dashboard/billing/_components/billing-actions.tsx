@@ -9,7 +9,7 @@ import type { PlanId } from '@/lib/billing/plans';
 
 async function postToStripeRoute(
   path: string,
-  body?: Record<string, unknown>
+  body?: Record<string, unknown>,
 ): Promise<string> {
   const res = await fetch(path, {
     method: 'POST',
@@ -86,7 +86,9 @@ export function ManageBillingButton({ disabled }: { disabled?: boolean }) {
           const url = await postToStripeRoute('/api/stripe/portal');
           window.location.href = url;
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : 'Could not open billing portal');
+          toast.error(
+            err instanceof Error ? err.message : 'Could not open billing portal',
+          );
           setPending(false);
           router.refresh();
         }

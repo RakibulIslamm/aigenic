@@ -24,11 +24,7 @@ export const metadata: Metadata = {
     'Add a trained AI support agent to your site in 60 seconds. Knowledge-base aware, multi-tenant, embeddable.',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider
       afterSignOutUrl="/"
@@ -40,16 +36,19 @@ export default function RootLayout({
     >
       <html
         lang="en"
-        
+
         className={cn(
           'h-full dark',
           inter.variable,
           geistMono.variable,
-          spaceGrotesk.variable
+          spaceGrotesk.variable,
         )}
         suppressHydrationWarning
       >
-        <body suppressHydrationWarning className="min-h-full bg-background font-sans text-foreground antialiased">
+        <body
+          suppressHydrationWarning
+          className="min-h-full bg-background font-sans text-foreground antialiased"
+        >
           {children}
           <Toaster richColors position="top-right" theme="dark" />
         </body>

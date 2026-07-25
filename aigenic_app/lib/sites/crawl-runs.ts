@@ -10,7 +10,7 @@ export type CrawlKind = 'manual' | 'scheduled';
  */
 export async function countManualCrawlsForUserSince(
   userId: string,
-  since: Date
+  since: Date,
 ): Promise<number> {
   const [row] = await db
     .select({ value: count() })
@@ -19,8 +19,8 @@ export async function countManualCrawlsForUserSince(
       and(
         eq(crawlRuns.userId, userId),
         eq(crawlRuns.kind, 'manual'),
-        gte(crawlRuns.createdAt, since)
-      )
+        gte(crawlRuns.createdAt, since),
+      ),
     );
   return row?.value ?? 0;
 }
@@ -47,7 +47,7 @@ export async function recordCrawlRun(params: {
 
 /** Bulk insert. Skips the work when items is empty. */
 export async function recordCrawlRunsBulk(
-  items: Array<{ userId: string; siteId: string; kind: CrawlKind }>
+  items: Array<{ userId: string; siteId: string; kind: CrawlKind }>,
 ): Promise<void> {
   if (items.length === 0) return;
   await db.insert(crawlRuns).values(items);

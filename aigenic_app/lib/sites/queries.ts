@@ -1,13 +1,7 @@
 import { cache } from 'react';
 import { and, count, desc, eq, gte, ilike, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import {
-  articles,
-  conversations,
-  escalations,
-  sites,
-  type Site,
-} from '@/db/schema';
+import { articles, conversations, escalations, sites, type Site } from '@/db/schema';
 import { startOfCurrentMonthUTC } from '@/lib/dates';
 import { KB_PAGE_SIZE } from '@/lib/sites/limits';
 
@@ -48,43 +42,33 @@ export const getSiteForUser = cache(
     return db.query.sites.findFirst({
       where: and(eq(sites.id, siteId), eq(sites.userId, userId)),
     });
-  }
+  },
 );
 
 export async function getSiteStats(siteId: string) {
   const monthStart = startOfCurrentMonthUTC();
 
   const [[articleAgg], [conversationAgg], [escalationAgg]] = await Promise.all([
-    db
-      .select({ value: count() })
-      .from(articles)
-      .where(eq(articles.siteId, siteId)),
+    db.select({ value: count() }).from(articles).where(eq(articles.siteId, siteId)),
     db
       .select({ value: count() })
       .from(conversations)
       .where(
-        and(
-          eq(conversations.siteId, siteId),
-          gte(conversations.createdAt, monthStart)
-        )
+        and(eq(conversations.siteId, siteId), gte(conversations.createdAt, monthStart)),
       ),
     db
       .select({ value: count() })
       .from(escalations)
       .innerJoin(conversations, eq(escalations.conversationId, conversations.id))
       .where(
-        and(
-          eq(conversations.siteId, siteId),
-          gte(escalations.createdAt, monthStart)
-        )
+        and(eq(conversations.siteId, siteId), gte(escalations.createdAt, monthStart)),
       ),
   ]);
 
   const articleCount = articleAgg?.value ?? 0;
   const conversationCount = conversationAgg?.value ?? 0;
   const escalationCount = escalationAgg?.value ?? 0;
-  const escalationRate =
-    conversationCount > 0 ? escalationCount / conversationCount : 0;
+  const escalationRate = conversationCount > 0 ? escalationCount / conversationCount : 0;
 
   return {
     articleCount,
@@ -109,7 +93,7 @@ export interface ArticlePage {
  */
 export async function listArticlesForSitePaged(
   siteId: string,
-  { page, pageSize, q }: { page: number; pageSize: number; q?: string }
+  { page, pageSize, q }: { page: number; pageSize: number; q?: string },
 ): Promise<ArticlePage> {
   const safePage = Math.max(1, Math.floor(page) || 1);
   const safePageSize = Math.max(1, Math.min(100, Math.floor(pageSize) || KB_PAGE_SIZE));
@@ -127,10 +111,7 @@ export async function listArticlesForSitePaged(
       limit: safePageSize,
       offset,
     }),
-    db
-      .select({ value: count() })
-      .from(articles)
-      .where(whereExpr),
+    db.select({ value: count() }).from(articles).where(whereExpr),
   ]);
 
   const total = totalRow?.value ?? 0;
@@ -142,4 +123,3 @@ export async function listArticlesForSitePaged(
     totalPages: total === 0 ? 1 : Math.ceil(total / safePageSize),
   };
 }
-

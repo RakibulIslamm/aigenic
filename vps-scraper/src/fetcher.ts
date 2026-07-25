@@ -64,7 +64,7 @@ export async function fetchPage(opts: {
   } catch (err) {
     logger.debug(
       { url, reason: err instanceof Error ? err.message.split('\n')[0] : 'unknown' },
-      'browser escalation failed'
+      'browser escalation failed',
     );
     return httpResult; // fall back to whatever HTTP gave us, even if thin
   }
@@ -73,7 +73,7 @@ export async function fetchPage(opts: {
 async function tryHttp(
   url: string,
   userAgent: string,
-  userSignal?: AbortSignal
+  userSignal?: AbortSignal,
 ): Promise<FetchResult | null> {
   for (let attempt = 1; attempt <= HTTP_MAX_ATTEMPTS; attempt++) {
     if (userSignal?.aborted) return null;
@@ -98,7 +98,10 @@ async function tryHttp(
       if (!res.ok) return null;
 
       const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
-      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+      if (
+        !contentType.includes('text/html') &&
+        !contentType.includes('application/xhtml')
+      ) {
         return null;
       }
 
@@ -119,7 +122,7 @@ async function tryHttp(
       }
       logger.debug(
         { url, attempt, code: code ?? (err instanceof Error ? err.name : 'unknown') },
-        'http fetch gave up'
+        'http fetch gave up',
       );
       return null;
     }
@@ -212,7 +215,7 @@ function looksRendered(html: string): boolean {
   // it's just a short page and Playwright won't add anything.
   const hasSpaShell =
     /__NEXT_DATA__|__NUXT__|__INITIAL_STATE__|window\.__data|id=["']root["']|id=["']app["']|id=["']__next["']/i.test(
-      html
+      html,
     );
   return !hasSpaShell;
 }
@@ -220,7 +223,7 @@ function looksRendered(html: string): boolean {
 async function tryPlaywright(
   context: BrowserContext,
   url: string,
-  userSignal?: AbortSignal
+  userSignal?: AbortSignal,
 ): Promise<FetchResult | null> {
   if (userSignal?.aborted) return null;
   const page = await context.newPage();
@@ -253,7 +256,7 @@ async function tryPlaywright(
   } catch (err) {
     logger.debug(
       { url, reason: err instanceof Error ? err.message.split('\n')[0] : 'unknown' },
-      'playwright fetch failed'
+      'playwright fetch failed',
     );
     return null;
   } finally {

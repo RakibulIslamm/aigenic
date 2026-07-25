@@ -243,7 +243,7 @@ Redeploy. Adding a new site from the dashboard should now trigger a real crawl.
 | Follow logs                | `docker compose logs -f --tail=200 scraper`       |
 | Restart                    | `docker compose restart scraper`                  |
 | Pull latest code + rebuild | `git pull && docker compose up -d --build`        |
-| See resource use           | `docker stats aigenic-scraper`                  |
+| See resource use           | `docker stats aigenic-scraper`                    |
 | Update Caddy config        | `sudo caddy reload --config /etc/caddy/Caddyfile` |
 
 If the box runs out of memory during a large crawl, raise `deploy.resources.limits.memory` in `docker-compose.yml` (Contabo's smallest plan handles ~1.5 GB comfortably) or lower `CONCURRENCY` in `src/crawler.ts`.

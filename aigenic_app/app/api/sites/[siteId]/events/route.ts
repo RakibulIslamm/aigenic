@@ -23,7 +23,7 @@ const paramsSchema = z.object({ siteId: z.string().uuid() });
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ siteId: string }> }
+  { params }: { params: Promise<{ siteId: string }> },
 ) {
   const parsed = paramsSchema.safeParse(await params);
   if (!parsed.success) {
@@ -45,9 +45,7 @@ export async function GET(
       const send = (payload: unknown) => {
         if (closed) return;
         try {
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(payload)}\n\n`)
-          );
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
         } catch {
           closed = true;
         }
@@ -100,7 +98,10 @@ export async function GET(
           const events: CrawlEvent[] = diffSnapshots(prev, next);
           if (events.length > 0) {
             send({ type: 'events', events, snapshot: next });
-          } else if (next.articleCount !== prev.articleCount || next.status !== prev.status) {
+          } else if (
+            next.articleCount !== prev.articleCount ||
+            next.status !== prev.status
+          ) {
             send({ type: 'snapshot', snapshot: next });
           }
 

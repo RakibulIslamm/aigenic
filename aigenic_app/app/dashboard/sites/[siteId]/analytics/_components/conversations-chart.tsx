@@ -25,7 +25,11 @@ export function ConversationsChart({ data }: ConversationsChartProps) {
             <stop offset="95%" stopColor="oklch(0.85 0 0)" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid stroke="oklch(1 0 0 / 8%)" strokeDasharray="3 3" vertical={false} />
+        <CartesianGrid
+          stroke="oklch(1 0 0 / 8%)"
+          strokeDasharray="3 3"
+          vertical={false}
+        />
         <XAxis
           dataKey="date"
           stroke="oklch(0.708 0 0)"
@@ -35,12 +39,7 @@ export function ConversationsChart({ data }: ConversationsChartProps) {
           interval="preserveStartEnd"
           minTickGap={28}
         />
-        <YAxis
-          stroke="oklch(0.708 0 0)"
-          fontSize={11}
-          allowDecimals={false}
-          width={32}
-        />
+        <YAxis stroke="oklch(0.708 0 0)" fontSize={11} allowDecimals={false} width={32} />
         <Tooltip
           cursor={{ stroke: 'oklch(1 0 0 / 16%)', strokeWidth: 1 }}
           contentStyle={{
@@ -50,7 +49,9 @@ export function ConversationsChart({ data }: ConversationsChartProps) {
             color: 'oklch(0.985 0 0)',
             fontSize: 12,
           }}
-          labelFormatter={(value) => (typeof value === 'string' ? format(parseISO(value), 'PP') : '')}
+          labelFormatter={(value) =>
+            typeof value === 'string' ? format(parseISO(value), 'PP') : ''
+          }
           formatter={(value) => [`${value ?? 0}`, 'Conversations']}
         />
         <Area
