@@ -58,16 +58,18 @@ export function buildSupportTools(ctx: SupportToolContext) {
             title: articles.title,
             content: articles.content,
             sourceUrl: articles.sourceUrl,
-            rank: sql<number>`ts_rank(content_tsv, plainto_tsquery('english', ${trimmed}))`,
+            rank: sql<number>`ts_rank(${articles.contentTsv}, plainto_tsquery('english', ${trimmed}))`,
           })
           .from(articles)
           .where(
             and(
               eq(articles.siteId, ctx.siteId),
-              sql`content_tsv @@ plainto_tsquery('english', ${trimmed})`,
+              sql`${articles.contentTsv} @@ plainto_tsquery('english', ${trimmed})`,
             ),
           )
-          .orderBy(sql`ts_rank(content_tsv, plainto_tsquery('english', ${trimmed})) DESC`)
+          .orderBy(
+            sql`ts_rank(${articles.contentTsv}, plainto_tsquery('english', ${trimmed})) DESC`,
+          )
           .limit(FTS_RESULT_LIMIT);
 
         return {

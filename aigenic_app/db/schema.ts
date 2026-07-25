@@ -1,5 +1,29 @@
-import { pgTable, uuid, text, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import {
+  customType,
+  pgTable,
+  uuid,
+  text,
+  timestamp,
+  jsonb,
+  index,
+} from 'drizzle-orm/pg-core';
+import { relations, sql, type SQL } from 'drizzle-orm';
+
+/**
+ * Postgres `tsvector`, which Drizzle has no built-in column type for.
+ * Declaring it here (instead of only in hand-written SQL) makes the schema the
+ * single source of truth: `drizzle-kit generate` emits the generated column
+ * and its GIN index like any other, and the column is visible to queries as
+ * `articles.contentTsv`.
+ *
+ * It is never written directly — Postgres computes it — so the type only has
+ * to describe what comes back out.
+ */
+const tsvector = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return 'tsvector';
+  },
+});
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(), // Clerk user ID
@@ -43,10 +67,27 @@ export const articles = pgTable(
     title: text('title').notNull(),
     content: text('content').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    /**
+     * Stored generated tsvector over title + content — what
+     * `search_knowledge_base` matches against. Postgres maintains it on every
+     * insert/update, so there is no trigger to keep in sync and nothing to
+     * write from application code (Drizzle omits generated columns from
+     * `$inferInsert`).
+     *
+     * The expression is kept byte-identical to the original hand-written
+     * migration (`0001_fts_index.sql`) so it describes the column that is
+     * already live, rather than proposing a different one.
+     */
+    contentTsv: tsvector('content_tsv').generatedAlwaysAs(
+      (): SQL =>
+        sql`to_tsvector('english', coalesce("title", '') || ' ' || coalesce("content", ''))`,
+    ),
   },
   (t) => [
     index('articles_site_id_idx').on(t.siteId),
     index('articles_site_id_created_at_idx').on(t.siteId, t.createdAt),
+    // Matches the index name created by 0001_fts_index.sql.
+    index('idx_articles_tsv').using('gin', t.contentTsv),
   ],
 );
 

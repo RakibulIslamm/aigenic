@@ -57,6 +57,63 @@ jobs:
       - name: Build app
         run: pnpm --filter aigenic-app build
 
+  # Nothing else exercises the migrations, and a broken one only shows up at
+  # deploy time. This proves both halves: the committed migrations still apply
+  # to an empty database, and db/schema.ts has no changes that were never
+  # turned into a migration.
+  database:
+    name: migrations · schema drift
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # A throwaway service container — never a real database. drizzle.config.ts
+      # loads .env.local first, but dotenv does not override an existing value,
+      # so this wins.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Catches a migration that is invalid, out of order, or (as happened once)
+      # re-creates something an earlier migration already made.
+      - name: Migrations apply to an empty database
+        run: pnpm --filter aigenic-app db:migrate
+
+      # `drizzle-kit generate` is a pure schema-vs-snapshot diff and writes a
+      # file only when they disagree, so a dirty tree afterwards means someone
+      # edited db/schema.ts without generating the migration for it.
+      - name: Schema matches the committed migrations
+        run: |
+          pnpm --filter aigenic-app db:generate
+          if [ -n "$(git status --porcelain aigenic_app/drizzle)" ]; then
+            echo "::error::db/schema.ts has changes with no matching migration. Run 'pnpm --filter aigenic-app db:generate' and commit the result."
+            git status --porcelain aigenic_app/drizzle
+            git --no-pager diff -- aigenic_app/drizzle
+            exit 1
+          fi
+          echo "schema and migrations agree"
+
   # vps-scraper is a standalone tree with its own lockfile (its Docker build
   # context is that directory alone), so it installs and builds separately.
   scraper:

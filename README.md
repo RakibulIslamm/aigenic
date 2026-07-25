@@ -349,6 +349,9 @@ per test file; `server-only` and `next/cache` are stubbed at the resolver level 
 `main`, in two parallel jobs matching the two dependency trees:
 
 - **app + widget** — frozen install → lint → format check → typecheck → **test** → widget build → app build
+- **migrations · schema drift** — applies every committed migration to a throwaway Postgres
+  service container, then fails if `drizzle-kit generate` produces anything, which means
+  `db/schema.ts` was edited without generating the matching migration
 - **vps-scraper** — frozen install → typecheck → build
 
 The frozen install is deliberate: a drifted lockfile fails the job instead of silently
