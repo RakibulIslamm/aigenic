@@ -52,7 +52,7 @@ export default defineConfig([
   // Plain TypeScript packages — no React/Next rules apply to the scraper,
   // and the widget's Preact JSX doesn't want the Next preset either.
   {
-    files: ['vps-scraper/**/*.ts', 'widget/**/*.{ts,tsx}'],
+    files: ['vps-scraper/**/*.ts', 'widget/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}'],
     extends: [...tseslint.configs.recommended],
     rules: {
       // A leading underscore marks a binding that exists only to satisfy a

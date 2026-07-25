@@ -96,7 +96,9 @@ const TOKEN_RE =
   /(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\))|(\*\*([^*]+)\*\*)|(https?:\/\/[^\s<>"'*[\]]+)/g;
 const URL_TRAIL_RE = /[).,;:!?'"]+$/;
 
-function renderRichText(text: string): JSX.Element[] {
+// Exported for unit tests (tests/widget/render-rich-text.test.tsx); only
+// <Message> uses it at runtime.
+export function renderRichText(text: string): JSX.Element[] {
   const out: JSX.Element[] = [];
 
   text.split(/\n/).forEach((line, lineIdx, all) => {

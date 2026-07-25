@@ -1,0 +1,20 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+    "noEmit": true,
+    // Mirrors aigenic_app's opt-out so tests can use app types unchanged.
+    // Delete alongside the app's override when 04-code-optimization lands.
+    "exactOptionalPropertyTypes": false,
+    "paths": {
+      "@/*": ["../aigenic_app/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx"]
+}

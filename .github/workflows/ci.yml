@@ -10,11 +10,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The pnpm workspace: the Next.js app + the widget. Lint and format run
-  # here only — the root ESLint/Prettier configs cover vps-scraper/src too,
-  # so the scraper job doesn't repeat them.
+  # The pnpm workspace: the Next.js app + the widget. Lint, format and the
+  # test suite run here only — the root ESLint/Prettier configs and the root
+  # vitest setup cover vps-scraper/src too, so the scraper job doesn't repeat
+  # them (keeping ESLint and vitest out of the scraper's dependency tree is
+  # deliberate: its Docker build installs devDependencies into the image).
   workspace:
-    name: app + widget
+    name: lint · types · tests · build
     runs-on: ubuntu-latest
     env:
       # `next build` imports db/index.ts, which throws when DATABASE_URL is
@@ -44,7 +46,10 @@ jobs:
         run: pnpm format:check
 
       - name: Typecheck
-        run: pnpm -r typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
 
       - name: Build widget
         run: pnpm --filter aigenic-widget build

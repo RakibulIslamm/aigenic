@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "pnpm --filter aigenic-app dev",
     "build": "pnpm --filter aigenic-widget build && pnpm --filter aigenic-app build && pnpm --dir vps-scraper build",
-    "typecheck": "pnpm -r typecheck && pnpm --dir vps-scraper typecheck",
+    "typecheck": "pnpm -r typecheck && pnpm --dir vps-scraper typecheck && tsc -p tests --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -18,6 +20,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import": "^2.32.0",
     "prettier": "^3.9.6",
-    "typescript-eslint": "^8.65.0"
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10"
   }
 }

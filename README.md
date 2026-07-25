@@ -296,7 +296,9 @@ From the **repo root** (these span packages):
 | ------------------- | ----------------------------------------------------- |
 | `pnpm dev`          | Next.js dev server (Turbopack)                        |
 | `pnpm build`        | Widget bundle → app production build → scraper `tsc`  |
-| `pnpm typecheck`    | `tsc --noEmit` across app, widget **and** scraper     |
+| `pnpm typecheck`    | `tsc --noEmit` across app, widget, scraper and tests  |
+| `pnpm test`         | Vitest, once                                          |
+| `pnpm test:watch`   | Vitest in watch mode                                  |
 | `pnpm lint`         | ESLint over all three packages (one root flat config) |
 | `pnpm lint:fix`     | Same, with `--fix` (import ordering is auto-fixable)  |
 | `pnpm format`       | Prettier write                                        |
@@ -321,12 +323,32 @@ From **`aigenic_app/`**:
 
 All scripts are prefixed with `cross-env MallocNanoZone=` — a macOS workaround for a malloc-zone issue that surfaces under Turbopack.
 
+## Tests
+
+Vitest, run from the repo root (`pnpm test`). Tests live in [`tests/`](./tests) rather than
+beside the source, so no test file lands in a package's build inputs — the scraper's `tsc`
+emits `src/**` into `dist/` and its Dockerfile copies `src`.
+
+| Area                                                                        | What it pins                                                                    |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [`tests/scraper/url-utils`](./tests/scraper/url-utils.test.ts)              | URL normalization, same-site guard, skip filter — the crawler's core            |
+| [`tests/app/plans`](./tests/app/plans.test.ts)                              | Every plan limit, as a table — a pricing edit can't silently change enforcement |
+| [`tests/app/site-schemas`](./tests/app/site-schemas.test.ts)                | The validation boundary between the dashboard forms and the DB                  |
+| [`tests/app/scraper-webhook`](./tests/app/scraper-webhook.test.ts)          | Auth gate, Zod contract with the VPS, and the `kbStatus` transition matrix      |
+| [`tests/app/crawl-events`](./tests/app/crawl-events.test.ts)                | Snapshot→event diffing behind the SSE feed, and terminal-status detection       |
+| [`tests/app/rescrape-quota`](./tests/app/rescrape-quota.test.ts)            | Manual re-crawl quota: claim-before-enqueue and rollback on failure             |
+| [`tests/widget/render-rich-text`](./tests/widget/render-rich-text.test.tsx) | The widget's markdown/URL tokenizer, incl. paren balancing                      |
+
+Everything is pure or mocked — no Postgres, no network, no browser. The database is faked
+per test file; `server-only` and `next/cache` are stubbed at the resolver level in
+[`vitest.config.ts`](./vitest.config.ts) because both throw outside a request scope.
+
 ## CI
 
 [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs on every PR and on pushes to
 `main`, in two parallel jobs matching the two dependency trees:
 
-- **app + widget** — frozen install → lint → format check → typecheck → widget build → app build
+- **app + widget** — frozen install → lint → format check → typecheck → **test** → widget build → app build
 - **vps-scraper** — frozen install → typecheck → build
 
 The frozen install is deliberate: a drifted lockfile fails the job instead of silently
