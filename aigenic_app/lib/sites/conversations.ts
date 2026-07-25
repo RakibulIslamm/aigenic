@@ -355,6 +355,59 @@ export async function getSiteAnalytics(siteId: string): Promise<SiteAnalytics> {
 }
 
 /**
+ * Total messages ever stored for a conversation (all roles). The chat
+ * endpoint's hard per-conversation cap — one conversation can't be reused as
+ * an unbounded LLM channel.
+ */
+export async function countMessagesForConversation(
+  conversationId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(messages)
+    .where(eq(messages.conversationId, conversationId));
+  return Number(row?.value ?? 0);
+}
+
+/**
+ * Conversations a single visitor has opened on a site since `since`. Bounds
+ * how fast one visitor can mint fresh conversations to dodge the
+ * per-conversation message cap.
+ */
+export async function countConversationsForVisitorSince(
+  siteId: string,
+  visitorId: string,
+  since: Date,
+): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.siteId, siteId),
+        eq(conversations.visitorId, visitorId),
+        gte(conversations.createdAt, since),
+      ),
+    );
+  return Number(row?.value ?? 0);
+}
+
+/**
+ * Messages stored for a site this calendar month, across all conversations
+ * and roles. The chat endpoint checks this on every turn — including reused
+ * conversations, which the conversation-creation cap alone never sees.
+ */
+export async function countMessagesThisMonthForSite(siteId: string): Promise<number> {
+  const monthStart = startOfCurrentMonthUTC();
+  const [row] = await db
+    .select({ value: count() })
+    .from(messages)
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .where(and(eq(conversations.siteId, siteId), gte(messages.createdAt, monthStart)));
+  return Number(row?.value ?? 0);
+}
+
+/**
  * Counts conversations for a user across all their sites this calendar month.
  * Used to enforce the plan's monthly conversation cap (see `plans.ts`) before
  * the chat endpoint runs the model.
