@@ -183,16 +183,39 @@ export const crawlRuns = pgTable(
   ],
 );
 
-export const escalations = pgTable('escalations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  conversationId: uuid('conversation_id')
-    .references(() => conversations.id, { onDelete: 'cascade' })
-    .notNull()
-    .unique(),
-  reason: text('reason').notNull(),
-  emailSentAt: timestamp('email_sent_at'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const escalations = pgTable(
+  'escalations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    conversationId: uuid('conversation_id')
+      .references(() => conversations.id, { onDelete: 'cascade' })
+      .notNull()
+      .unique(),
+    reason: text('reason').notNull(),
+    /**
+     * When the owner-notification email was actually accepted by Resend.
+     * Null means the owner has NOT heard about this escalation yet — the
+     * retry task keeps re-sending (bounded by `emailAttempts`) and the
+     * dashboard surfaces the row as pending until this is set.
+     */
+    emailSentAt: timestamp('email_sent_at'),
+    /**
+     * Real delivery attempts (Resend was called), not wishes: a missing
+     * API key doesn't count, so the bound can't be burned before the key
+     * is even configured.
+     */
+    emailAttempts: integer('email_attempts').notNull().default(0),
+    emailLastAttemptAt: timestamp('email_last_attempt_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    // The retry task's scan: pending rows only, oldest first. Partial so the
+    // index stays as small as the backlog, not the table.
+    index('escalations_email_pending_idx')
+      .on(t.createdAt)
+      .where(sql`${t.emailSentAt} IS NULL`),
+  ],
+);
 
 export const usersRelations = relations(users, ({ many }) => ({
   sites: many(sites),
