@@ -33,32 +33,36 @@ export async function dispatchSiteCrawl(params: {
 }): Promise<DispatchResult> {
   const { siteId, domain, maxPages } = params;
 
-  const existing = await db.query.sites.findFirst({
-    where: eq(sites.id, siteId),
-    columns: { id: true, kbStatus: true },
-  });
-  if (!existing) {
-    return { dispatched: false, reason: 'site-deleted' };
-  }
-  if (existing.kbStatus === 'crawling') {
-    return { dispatched: false, reason: 'already-crawling' };
-  }
-
-  // Claim the generation this crawl writes into. Incrementing in SQL rather
-  // than read-add-write means two dispatches racing here get two different
-  // generations instead of both streaming articles into one.
+  // Atomic claim: status flip, crawl start time and generation bump in ONE
+  // conditional UPDATE. Two dispatches racing here can't both win — the
+  // `kb_status <> 'crawling'` guard makes the loser's update match zero rows,
+  // where the previous read-then-update let both proceed (double crawl,
+  // double staging-delete). The generation increments in SQL for the same
+  // reason: two winners across time still get distinct generations.
   const [claimed] = await db
     .update(sites)
-    .set({ kbStatus: 'crawling', crawlGeneration: sql`${sites.crawlGeneration} + 1` })
-    .where(eq(sites.id, siteId))
+    .set({
+      kbStatus: 'crawling',
+      crawlStartedAt: new Date(),
+      // The queued task this dispatch came from (if any) is now running —
+      // there is nothing left for Stop to cancel on the queue.
+      pendingCrawlRunId: null,
+      crawlGeneration: sql`${sites.crawlGeneration} + 1`,
+    })
+    .where(and(eq(sites.id, siteId), ne(sites.kbStatus, 'crawling')))
     .returning({
       generation: sites.crawlGeneration,
       activeGeneration: sites.activeGeneration,
     });
 
   if (!claimed) {
-    // Deleted between the read above and this update.
-    return { dispatched: false, reason: 'site-deleted' };
+    // Zero rows matched: the site is gone, or another dispatch holds the
+    // claim. One read only to name the reason for the caller's logs.
+    const existing = await db.query.sites.findFirst({
+      where: eq(sites.id, siteId),
+      columns: { id: true },
+    });
+    return { dispatched: false, reason: existing ? 'already-crawling' : 'site-deleted' };
   }
 
   // Clear staging rows an earlier crawl abandoned — one that died without a

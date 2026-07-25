@@ -32,7 +32,14 @@ let enqueueResult: { ok: true; via: 'trigger' } | { ok: false; error: string } =
   via: 'trigger',
 };
 
-const recordCrawlRun = vi.fn(async () => 'claim-1');
+/**
+ * Mirrors the real claim's contract: over-quota returns null (no row
+ * inserted), under-quota returns the claimed id. The count-vs-limit decision
+ * itself now lives inside the locked transaction in `crawl-runs.ts`.
+ */
+const claimManualCrawlSlot = vi.fn(async ({ limit }: { limit: number }) =>
+  manualCrawlsUsed >= limit ? null : 'claim-1',
+);
 const deleteCrawlRun = vi.fn(async () => {});
 const enqueueSiteCrawl = vi.fn(async () => enqueueResult);
 
@@ -47,6 +54,10 @@ vi.mock('@/lib/env', () => ({
   isTriggerConfigured: () => true,
   env: {},
 }));
+vi.mock('@/lib/trigger/config', () => ({ ensureTriggerConfigured: () => {} }));
+vi.mock('@trigger.dev/sdk/v3', () => ({
+  runs: { cancel: vi.fn(async () => ({})) },
+}));
 vi.mock('@/lib/scraper/client', () => ({
   startSiteCrawl: async () => ({}),
   stopSiteCrawl: async () => ({ stopped: true }),
@@ -54,8 +65,7 @@ vi.mock('@/lib/scraper/client', () => ({
 vi.mock('@/lib/sites/queries', () => ({ getSiteForUser: async () => siteRow }));
 vi.mock('@/lib/sites/enqueue-crawl', () => ({ enqueueSiteCrawl }));
 vi.mock('@/lib/sites/crawl-runs', () => ({
-  countManualCrawlsForUserSince: async () => manualCrawlsUsed,
-  recordCrawlRun,
+  claimManualCrawlSlot,
   deleteCrawlRun,
 }));
 
@@ -75,7 +85,7 @@ describe('preconditions — no quota slot may be claimed', () => {
     scraperConfigured = false;
     const res = await rescrapeSiteAction(SITE_ID);
     expect(res.ok).toBe(false);
-    expect(recordCrawlRun).not.toHaveBeenCalled();
+    expect(claimManualCrawlSlot).not.toHaveBeenCalled();
     expect(enqueueSiteCrawl).not.toHaveBeenCalled();
   });
 
@@ -85,7 +95,7 @@ describe('preconditions — no quota slot may be claimed', () => {
     // ActionState. It must now stop at the action's own guard.
     const res = await rescrapeSiteAction('site-1');
     expect(res).toEqual({ ok: false, error: 'Site not found' });
-    expect(recordCrawlRun).not.toHaveBeenCalled();
+    expect(claimManualCrawlSlot).not.toHaveBeenCalled();
     expect(enqueueSiteCrawl).not.toHaveBeenCalled();
   });
 
@@ -93,7 +103,7 @@ describe('preconditions — no quota slot may be claimed', () => {
     siteRow = undefined;
     const res = await rescrapeSiteAction(SITE_ID);
     expect(res).toEqual({ ok: false, error: 'Site not found' });
-    expect(recordCrawlRun).not.toHaveBeenCalled();
+    expect(claimManualCrawlSlot).not.toHaveBeenCalled();
   });
 
   it.each(['crawling', 'pending'])('refuses while a crawl is %s', async (kbStatus) => {
@@ -102,7 +112,7 @@ describe('preconditions — no quota slot may be claimed', () => {
     expect(res.ok).toBe(false);
     expect(res.ok === false && res.error).toMatch(/already in progress/i);
     // The whole point: an in-flight crawl must not cost a quota slot.
-    expect(recordCrawlRun).not.toHaveBeenCalled();
+    expect(claimManualCrawlSlot).not.toHaveBeenCalled();
     expect(enqueueSiteCrawl).not.toHaveBeenCalled();
   });
 });
@@ -113,7 +123,11 @@ describe('quota enforcement', () => {
     const res = await rescrapeSiteAction(SITE_ID);
     expect(res.ok).toBe(false);
     expect(res.ok === false && res.error).toContain('1 manual re-crawl for this week');
-    expect(recordCrawlRun).not.toHaveBeenCalled();
+    // The claim IS the quota check now (count + insert under one lock): it
+    // ran, returned null, and nothing was enqueued or rolled back.
+    expect(claimManualCrawlSlot).toHaveBeenCalledTimes(1);
+    expect(enqueueSiteCrawl).not.toHaveBeenCalled();
+    expect(deleteCrawlRun).not.toHaveBeenCalled();
   });
 
   it('allows the pro plan 5 per day and refuses the 6th', async () => {
@@ -140,16 +154,17 @@ describe('claim / rollback', () => {
     const res = await rescrapeSiteAction(SITE_ID);
 
     expect(res).toEqual({ ok: true, siteId: SITE_ID, message: 'Re-crawl queued' });
-    expect(recordCrawlRun).toHaveBeenCalledWith({
+    expect(claimManualCrawlSlot).toHaveBeenCalledWith({
       userId: 'user-1',
       siteId: SITE_ID,
-      kind: 'manual',
+      since: expect.any(Date),
+      limit: 1,
     });
     expect(deleteCrawlRun).not.toHaveBeenCalled();
 
     // Ordering matters: claiming after dispatch would let a double-click
     // through while the first crawl is still being queued.
-    expect(recordCrawlRun.mock.invocationCallOrder[0]!).toBeLessThan(
+    expect(claimManualCrawlSlot.mock.invocationCallOrder[0]!).toBeLessThan(
       enqueueSiteCrawl.mock.invocationCallOrder[0]!,
     );
   });
@@ -163,7 +178,7 @@ describe('claim / rollback', () => {
     expect(res.ok === false && res.error).toBe(
       'Could not enqueue crawl: scraper unreachable',
     );
-    expect(recordCrawlRun).toHaveBeenCalledTimes(1);
+    expect(claimManualCrawlSlot).toHaveBeenCalledTimes(1);
     // Rolled back with the id that was claimed — not a guess.
     expect(deleteCrawlRun).toHaveBeenCalledWith('claim-1');
   });
@@ -175,6 +190,8 @@ describe('claim / rollback', () => {
       userId: 'user-1',
       domain: 'https://acme.com',
       optimisticPending: true,
+      // The claim id travels with the task so a skipped run can refund it.
+      crawlRunId: 'claim-1',
     });
   });
 });

@@ -1,8 +1,50 @@
-import { and, count, eq, gte } from 'drizzle-orm';
+import { and, count, eq, gte, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { crawlRuns } from '@/db/schema';
 
 export type CrawlKind = 'manual' | 'scheduled';
+
+/**
+ * Atomically checks the manual-crawl quota and claims a slot. The
+ * count-then-insert runs inside one transaction holding a per-user advisory
+ * lock, so two rapid rescrapes can't both read "0 used" and both claim the
+ * last slot — the second waits on the lock and then sees the first's row.
+ *
+ * Returns the claimed `crawl_runs` id, or `null` when the quota is spent
+ * (nothing inserted). The claim is released with [deleteCrawlRun] if the
+ * dispatch it paid for never happens.
+ */
+export async function claimManualCrawlSlot(params: {
+  userId: string;
+  siteId: string;
+  since: Date;
+  limit: number;
+}): Promise<string | null> {
+  const { userId, siteId, since, limit } = params;
+  return db.transaction(async (tx) => {
+    // hashtext() folds the user id into the int key space the advisory-lock
+    // API wants; xact-scoped, so it releases itself on commit/rollback.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
+
+    const [row] = await tx
+      .select({ value: count() })
+      .from(crawlRuns)
+      .where(
+        and(
+          eq(crawlRuns.userId, userId),
+          eq(crawlRuns.kind, 'manual'),
+          gte(crawlRuns.createdAt, since),
+        ),
+      );
+    if ((row?.value ?? 0) >= limit) return null;
+
+    const [claimed] = await tx
+      .insert(crawlRuns)
+      .values({ userId, siteId, kind: 'manual' })
+      .returning({ id: crawlRuns.id });
+    return claimed!.id;
+  });
+}
 
 /**
  * Counts crawl runs for a user with `kind = 'manual'` since `since`.
@@ -23,26 +65,6 @@ export async function countManualCrawlsForUserSince(
       ),
     );
   return row?.value ?? 0;
-}
-
-/**
- * Inserts one crawl_runs row and returns its id, so the caller can roll back
- * the quota claim if the subsequent task trigger fails.
- */
-export async function recordCrawlRun(params: {
-  userId: string;
-  siteId: string;
-  kind: CrawlKind;
-}): Promise<string> {
-  const [row] = await db
-    .insert(crawlRuns)
-    .values({
-      userId: params.userId,
-      siteId: params.siteId,
-      kind: params.kind,
-    })
-    .returning({ id: crawlRuns.id });
-  return row!.id;
 }
 
 /** Bulk insert. Skips the work when items is empty. */

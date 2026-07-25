@@ -65,7 +65,25 @@ export const sites = pgTable(
      * a superseded crawl's late webhooks identifiable, and therefore ignorable.
      */
     crawlGeneration: integer('crawl_generation').notNull().default(0),
+    /**
+     * When the current crawl was claimed (set by the dispatch that flips
+     * `kbStatus` to `crawling`, and by the enqueue that flips it to
+     * `pending`). The watchdog task uses it to detect crawls that died
+     * without a terminal webhook. Null once terminal state is reached is NOT
+     * guaranteed — always interpret it together with `kbStatus`.
+     */
+    crawlStartedAt: timestamp('crawl_started_at'),
+    /**
+     * Trigger.dev run id of a queued-but-not-yet-running crawl task, so Stop
+     * can cancel the queue entry instead of letting it crawl a cancelled job.
+     * Cleared when the dispatch claims the crawl (or Stop cancels it).
+     */
+    pendingCrawlRunId: text('pending_crawl_run_id'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
   },
   (t) => [index('sites_user_id_idx').on(t.userId)],
 );

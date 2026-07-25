@@ -1,7 +1,10 @@
 import { logger, task } from '@trigger.dev/sdk/v3';
+import { and, eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { sites } from '@/db/schema';
 import { isScraperConfigured } from '@/lib/env';
 import { dispatchSiteCrawl } from '@/lib/sites/dispatch';
-import type { CrawlKind } from '@/lib/sites/crawl-runs';
+import { deleteCrawlRun, type CrawlKind } from '@/lib/sites/crawl-runs';
 
 export interface CrawlSitePayload {
   siteId: string;
@@ -16,6 +19,12 @@ export interface CrawlSitePayload {
   kind: CrawlKind;
   /** Optional per-site cap. Defaults to the scraper client default (1000). */
   maxPages?: number;
+  /**
+   * The quota claim the caller recorded for this crawl, if any. Released
+   * here when the task skips without dispatching — the user shouldn't lose
+   * a slot to a crawl that never ran.
+   */
+  crawlRunId?: string;
 }
 
 /**
@@ -40,7 +49,7 @@ export const crawlSiteTask = task({
     randomize: true,
   },
   run: async (payload: CrawlSitePayload) => {
-    const { siteId, userId, domain, kind, maxPages } = payload;
+    const { siteId, userId, domain, kind, maxPages, crawlRunId } = payload;
 
     logger.log('Starting crawl', { siteId, userId, domain, kind, maxPages });
 
@@ -59,12 +68,29 @@ export const crawlSiteTask = task({
     const result = await dispatchSiteCrawl({ siteId, domain, maxPages });
     if (!result.dispatched) {
       // `site-deleted` and `already-crawling` are legitimate no-ops — log them
-      // visibly but don't fail the run (retrying won't help).
+      // visibly but don't fail the run (retrying won't help). The quota slot
+      // the caller claimed for this crawl is refunded: no crawl, no charge.
       logger.warn('Crawl skipped', { siteId, reason: result.reason });
+      if (crawlRunId) {
+        await deleteCrawlRun(crawlRunId);
+      }
       return { siteId, dispatched: false, reason: result.reason };
     }
 
     logger.log('Crawl dispatched to scraper', { siteId });
     return { siteId, userId, dispatched: true, kind };
+  },
+  onFailure: async ({ payload, error }) => {
+    // Final-retry failure (scraper env missing, DB down, VPS refused every
+    // attempt). If the dispatch never claimed the crawl, the site is still
+    // `pending` — flip it to `failed` so it's recoverable via Resync instead
+    // of stuck behind the "crawl in progress" guard forever. A site already
+    // in `crawling` had a successful dispatch; the watchdog owns that case.
+    const { siteId } = payload as CrawlSitePayload;
+    logger.error('Crawl task failed after final retry', { siteId, error });
+    await db
+      .update(sites)
+      .set({ kbStatus: 'failed', pendingCrawlRunId: null })
+      .where(and(eq(sites.id, siteId), eq(sites.kbStatus, 'pending')));
   },
 });

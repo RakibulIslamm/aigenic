@@ -18,6 +18,12 @@ export interface EnqueueSiteCrawlInput {
    * Trigger.dev path — the synchronous fallback flips status itself.
    */
   optimisticPending?: boolean;
+  /**
+   * The `crawl_runs` quota claim paying for this crawl, if any. Passed into
+   * the queued task so it can release the slot when it skips instead of
+   * dispatching (the user shouldn't pay for a crawl that never ran).
+   */
+  crawlRunId?: string;
 }
 
 export type EnqueueSiteCrawlResult =
@@ -35,20 +41,31 @@ export type EnqueueSiteCrawlResult =
 export async function enqueueSiteCrawl(
   input: EnqueueSiteCrawlInput,
 ): Promise<EnqueueSiteCrawlResult> {
-  const { siteId, userId, domain, maxPages, optimisticPending } = input;
+  const { siteId, userId, domain, maxPages, optimisticPending, crawlRunId } = input;
 
   if (isTriggerConfigured()) {
     ensureTriggerConfigured();
     try {
-      await crawlSiteTask.trigger({
+      const handle = await crawlSiteTask.trigger({
         siteId,
         userId,
         domain,
         kind: 'manual',
         maxPages,
+        crawlRunId,
       });
       if (optimisticPending) {
-        await db.update(sites).set({ kbStatus: 'pending' }).where(eq(sites.id, siteId));
+        // The run id is stored alongside the flip so Stop can cancel the
+        // queue entry; dispatch clears it again the moment the task claims
+        // the crawl.
+        await db
+          .update(sites)
+          .set({
+            kbStatus: 'pending',
+            crawlStartedAt: new Date(),
+            pendingCrawlRunId: handle.id,
+          })
+          .where(eq(sites.id, siteId));
       }
       return { ok: true, via: 'trigger' };
     } catch (err) {
@@ -61,7 +78,18 @@ export async function enqueueSiteCrawl(
 
   if (isScraperConfigured()) {
     try {
-      await dispatchSiteCrawl({ siteId, domain, maxPages });
+      const result = await dispatchSiteCrawl({ siteId, domain, maxPages });
+      if (!result.dispatched) {
+        // Surface the skip as a failure so the caller's cleanup runs (the
+        // rescrape action releases its quota claim on `ok: false`).
+        return {
+          ok: false,
+          error:
+            result.reason === 'already-crawling'
+              ? 'A crawl is already in progress for this site.'
+              : 'Site no longer exists.',
+        };
+      }
       return { ok: true, via: 'sync' };
     } catch (err) {
       return {
