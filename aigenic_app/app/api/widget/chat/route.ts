@@ -45,7 +45,7 @@ const IP_SUSTAINED = { limit: 200, windowSeconds: 60 * 60 };
  */
 const SITE_HOURLY = { limit: 600, windowSeconds: 60 * 60 };
 /** Hard length cap per conversation, counting stored user+assistant rows. */
-const MAX_MESSAGES_PER_CONVERSATION = 5;
+const MAX_MESSAGES_PER_CONVERSATION = 50;
 /** How many fresh conversations one visitor may open on a site per hour. */
 const MAX_CONVERSATIONS_PER_VISITOR_PER_HOUR = 5;
 /**
