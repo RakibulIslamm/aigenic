@@ -107,7 +107,12 @@ export async function POST(request: NextRequest) {
   // 5. Run the agent.
   const widgetConfig = site.widgetConfig ?? DEFAULT_WIDGET_CONFIG;
   const agentResult = runSupportAgent({
-    context: { siteId, conversationId, visitorId },
+    context: {
+      siteId,
+      conversationId,
+      visitorId,
+      activeGeneration: site.activeGeneration,
+    },
     prompt: {
       siteName: site.name,
       botName: widgetConfig.botName,

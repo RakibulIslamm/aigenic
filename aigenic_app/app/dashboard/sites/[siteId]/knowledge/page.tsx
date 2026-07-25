@@ -40,6 +40,9 @@ export default async function KnowledgeBasePage({
     page: Number.isFinite(requestedPage) ? requestedPage : 1,
     pageSize: KB_PAGE_SIZE,
     q: trimmedQ || undefined,
+    // The KB the site serves. During a re-crawl this stays the previous,
+    // working one until the new crawl succeeds.
+    generation: site.activeGeneration,
   });
 
   const rangeStart = total === 0 ? 0 : (page - 1) * KB_PAGE_SIZE + 1;

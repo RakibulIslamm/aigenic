@@ -34,6 +34,12 @@ export const crawlRequestSchema = z.object({
     .url()
     .refine(isPublicHttpUrl, 'startUrl must be a public http(s) URL'),
   maxPages: z.number().int().positive().max(MAX_PAGES_CAP).default(DEFAULT_MAX_PAGES),
+  /**
+   * Opaque to us: the app's staging generation for this crawl, echoed back on
+   * every webhook so the receiver can tell this crawl's articles apart from a
+   * superseded crawl's. Defaults to 0 for direct API calls that don't care.
+   */
+  generation: z.number().int().nonnegative().default(0),
   webhookUrl: z.string().url(),
 });
 

@@ -2,6 +2,7 @@ import 'server-only';
 import { count, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { articles, sites } from '@/db/schema';
+import { articlesInGeneration, generationForProgress } from '@/lib/sites/generations';
 
 export interface CrawlSnapshot {
   status: string;
@@ -31,14 +32,26 @@ export async function fetchCrawlSnapshot(
 ): Promise<CrawlSnapshot | null> {
   const site = await db.query.sites.findFirst({
     where: eq(sites.id, siteId),
-    columns: { id: true, userId: true, kbStatus: true, kbLastSyncedAt: true },
+    columns: {
+      id: true,
+      userId: true,
+      kbStatus: true,
+      kbLastSyncedAt: true,
+      activeGeneration: true,
+      crawlGeneration: true,
+    },
   });
   if (!site || site.userId !== userId) return null;
 
+  // This feed reports *crawl progress*, so while one is running it counts the
+  // staging generation — the rows landing right now, which no other read path
+  // is allowed to see. Once the crawl ends, the served generation is the honest
+  // answer: a promoted crawl has both counters equal anyway, and a failed one
+  // should report the KB that survived, not the staging rows just discarded.
   const [agg] = await db
     .select({ value: count() })
     .from(articles)
-    .where(eq(articles.siteId, siteId));
+    .where(articlesInGeneration(siteId, generationForProgress(site)));
 
   return {
     status: site.kbStatus,

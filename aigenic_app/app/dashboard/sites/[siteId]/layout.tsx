@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { ChevronLeft, ExternalLink } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
 import { getSiteForUser, getSiteStats } from '@/lib/sites/queries';
+import { generationForProgress } from '@/lib/sites/generations';
 import { KbStatusBadge } from '../../_components/kb-status-badge';
 import { CrawlActivityFeed } from '../../_components/crawl-activity-feed';
 import { TabNav } from './_components/tab-nav';
@@ -23,8 +24,12 @@ export default async function SiteLayout({
 
   const isCrawling = site.kbStatus === 'pending' || site.kbStatus === 'crawling';
   // Only pay for the count query while a crawl is in flight — when the KB is
-  // ready/failed the banner doesn't render anyway.
-  const liveCount = isCrawling ? (await getSiteStats(siteId)).articleCount : undefined;
+  // ready/failed the banner doesn't render anyway. Counts the *staging*
+  // generation, matching what the SSE feed then streams, so the banner doesn't
+  // start at the old KB's size and jump.
+  const liveCount = isCrawling
+    ? (await getSiteStats(siteId, generationForProgress(site))).articleCount
+    : undefined;
 
   const isCrawlPhase =
     isCrawling || site.kbStatus === 'failed' || site.kbStatus === 'stopped';

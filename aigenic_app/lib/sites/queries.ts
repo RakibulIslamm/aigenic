@@ -4,6 +4,7 @@ import { db, withDbRetry } from '@/db';
 import { articles, conversations, escalations, sites, type Site } from '@/db/schema';
 import { startOfCurrentMonthUTC } from '@/lib/dates';
 import { isUuid } from '@/lib/ids';
+import { articlesInGeneration } from '@/lib/sites/generations';
 import { KB_PAGE_SIZE, KB_SEARCH_MAX_CHARS } from '@/lib/sites/limits';
 
 export interface SiteListItem extends Site {
@@ -24,12 +25,22 @@ export async function listSitesForUser(userId: string): Promise<SiteListItem[]> 
         widgetConfig: sites.widgetConfig,
         kbStatus: sites.kbStatus,
         kbLastSyncedAt: sites.kbLastSyncedAt,
+        activeGeneration: sites.activeGeneration,
+        crawlGeneration: sites.crawlGeneration,
         createdAt: sites.createdAt,
         articleCount: sql<number>`count(distinct ${articles.id})::int`,
         conversationCount: sql<number>`count(distinct ${conversations.id})::int`,
       })
       .from(sites)
-      .leftJoin(articles, eq(articles.siteId, sites.id))
+      // Only the generation each site serves — mid-crawl staging rows must not
+      // inflate the count the owner sees on the dashboard.
+      .leftJoin(
+        articles,
+        and(
+          eq(articles.siteId, sites.id),
+          eq(articles.crawlGeneration, sites.activeGeneration),
+        ),
+      )
       .leftJoin(conversations, eq(conversations.siteId, sites.id))
       .where(eq(sites.userId, userId))
       .groupBy(sites.id)
@@ -56,11 +67,19 @@ export const getSiteForUser = cache(
   },
 );
 
-export async function getSiteStats(siteId: string) {
+/**
+ * `generation` decides which articles are counted — pass the site's
+ * `activeGeneration` for the KB it serves, or `crawlGeneration` to report the
+ * progress of a crawl in flight. Callers always have the site row already.
+ */
+export async function getSiteStats(siteId: string, generation: number) {
   const monthStart = startOfCurrentMonthUTC();
 
   const [[articleAgg], [conversationAgg], [escalationAgg]] = await Promise.all([
-    db.select({ value: count() }).from(articles).where(eq(articles.siteId, siteId)),
+    db
+      .select({ value: count() })
+      .from(articles)
+      .where(articlesInGeneration(siteId, generation)),
     db
       .select({ value: count() })
       .from(conversations)
@@ -104,7 +123,12 @@ export interface ArticlePage {
  */
 export async function listArticlesForSitePaged(
   siteId: string,
-  { page, pageSize, q }: { page: number; pageSize: number; q?: string },
+  {
+    page,
+    pageSize,
+    q,
+    generation,
+  }: { page: number; pageSize: number; q?: string; generation: number },
 ): Promise<ArticlePage> {
   const safePage = Math.max(1, Math.floor(page) || 1);
   const safePageSize = Math.max(1, Math.min(100, Math.floor(pageSize) || KB_PAGE_SIZE));
@@ -113,9 +137,12 @@ export async function listArticlesForSitePaged(
   // `ILIKE` scan, and it's a public-ish surface (any caller, any `q`).
   const trimmedQ = q?.trim().slice(0, KB_SEARCH_MAX_CHARS);
   // `%foo%` matches any title containing the term; PG ILIKE is case-insensitive.
+  // Scoped to one generation, so the knowledge tab shows the working KB
+  // throughout a re-crawl instead of a half-built one.
+  const inGeneration = articlesInGeneration(siteId, generation);
   const whereExpr = trimmedQ
-    ? and(eq(articles.siteId, siteId), ilike(articles.title, `%${trimmedQ}%`))
-    : eq(articles.siteId, siteId);
+    ? and(inGeneration, ilike(articles.title, `%${trimmedQ}%`))
+    : inGeneration;
 
   const [rows, [totalRow]] = await Promise.all([
     db.query.articles.findMany({

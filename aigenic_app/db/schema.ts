@@ -1,6 +1,8 @@
 import {
   customType,
+  integer,
   pgTable,
+  uniqueIndex,
   uuid,
   text,
   timestamp,
@@ -51,6 +53,18 @@ export const sites = pgTable(
     }>(),
     kbStatus: text('kb_status').notNull().default('pending'),
     kbLastSyncedAt: timestamp('kb_last_synced_at'),
+    /**
+     * The article generation this site's knowledge base **serves**. Every read
+     * path filters to it, so a crawl in progress is invisible to visitors and
+     * to the dashboard until it succeeds. See `lib/sites/generations.ts`.
+     */
+    activeGeneration: integer('active_generation').notNull().default(0),
+    /**
+     * The generation currently being **written** — bumped on every dispatch.
+     * Equal to `activeGeneration` when no crawl is in flight. It's what makes
+     * a superseded crawl's late webhooks identifiable, and therefore ignorable.
+     */
+    crawlGeneration: integer('crawl_generation').notNull().default(0),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (t) => [index('sites_user_id_idx').on(t.userId)],
@@ -66,6 +80,15 @@ export const articles = pgTable(
     sourceUrl: text('source_url'),
     title: text('title').notNull(),
     content: text('content').notNull(),
+    /**
+     * Which crawl produced this row. Only rows matching the site's
+     * `activeGeneration` are ever read; the rest are staging for an in-flight
+     * crawl, or leftovers a failed one didn't get to promote.
+     *
+     * Default 0 so every row that existed before generations were introduced
+     * is the active generation of a site whose counter also starts at 0.
+     */
+    crawlGeneration: integer('crawl_generation').notNull().default(0),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     /**
      * Stored generated tsvector over title + content — what
@@ -88,6 +111,20 @@ export const articles = pgTable(
     index('articles_site_id_created_at_idx').on(t.siteId, t.createdAt),
     // Matches the index name created by 0001_fts_index.sql.
     index('idx_articles_tsv').using('gin', t.contentTsv),
+    /**
+     * One row per URL per crawl. The generation has to be part of the key:
+     * during a re-crawl the staging rows legitimately carry the same URLs as
+     * the live ones, so `(site_id, source_url)` alone would collide.
+     *
+     * This is what makes a redelivered `article` webhook an upsert instead of
+     * a duplicate. Rows with a null `source_url` don't participate (Postgres
+     * treats nulls as distinct) — the scraper always sends one.
+     */
+    uniqueIndex('articles_site_generation_source_url_key').on(
+      t.siteId,
+      t.crawlGeneration,
+      t.sourceUrl,
+    ),
   ],
 );
 

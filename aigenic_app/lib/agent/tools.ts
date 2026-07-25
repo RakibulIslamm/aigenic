@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { articles, conversations, escalations, messages, sites } from '@/db/schema';
 import { ESCALATION_FROM_ADDRESS, getResendClient } from '@/lib/email/resend';
 import { log } from '@/lib/log';
+import { articlesInGeneration } from '@/lib/sites/generations';
 
 /** How many articles a full-text search returns to the model. */
 const FTS_RESULT_LIMIT = 5;
@@ -21,6 +22,12 @@ export interface SupportToolContext {
   siteId: string;
   conversationId: string;
   visitorId: string;
+  /**
+   * The article generation this site serves. Read from the site row the chat
+   * route already loaded, so the bot answers from the live knowledge base and
+   * never from a crawl that's still streaming in. See `lib/sites/generations.ts`.
+   */
+  activeGeneration: number;
 }
 
 export function buildSupportTools(ctx: SupportToolContext) {
@@ -63,7 +70,10 @@ export function buildSupportTools(ctx: SupportToolContext) {
           .from(articles)
           .where(
             and(
-              eq(articles.siteId, ctx.siteId),
+              // The generation the site serves — never a crawl in progress.
+              // Without this the bot would answer from a half-built KB the
+              // owner can't even see yet.
+              articlesInGeneration(ctx.siteId, ctx.activeGeneration),
               sql`${articles.contentTsv} @@ plainto_tsquery('english', ${trimmed})`,
             ),
           )
@@ -98,7 +108,10 @@ export function buildSupportTools(ctx: SupportToolContext) {
       }),
       execute: async ({ articleId }) => {
         const article = await db.query.articles.findFirst({
-          where: and(eq(articles.id, articleId), eq(articles.siteId, ctx.siteId)),
+          where: and(
+            eq(articles.id, articleId),
+            articlesInGeneration(ctx.siteId, ctx.activeGeneration),
+          ),
         });
         if (!article) {
           return { found: false as const, message: 'Article not found.' };

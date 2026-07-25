@@ -1,9 +1,16 @@
 import { logger } from './logger.js';
 
+/**
+ * Every event carries the `generation` from the `/crawl` request. The app uses
+ * it to route articles into a staging generation and to ignore a superseded
+ * crawl's terminal events — so omitting it on any variant would let a dead
+ * crawl overwrite a live knowledge base.
+ */
 export type WebhookEvent =
   | {
       event: 'article';
       siteId: string;
+      generation: number;
       article: {
         title: string;
         content: string;
@@ -13,16 +20,19 @@ export type WebhookEvent =
   | {
       event: 'complete';
       siteId: string;
+      generation: number;
       totalPages: number;
     }
   | {
       event: 'stopped';
       siteId: string;
+      generation: number;
       totalPages: number;
     }
   | {
       event: 'error';
       siteId: string;
+      generation: number;
       error: string;
     };
 

@@ -9,6 +9,12 @@ export interface StartCrawlOptions {
   siteId: string;
   domain: string;
   maxPages?: number;
+  /**
+   * The staging generation this crawl writes into. The scraper echoes it back
+   * on every webhook, which is how the receiver tells this crawl's articles
+   * apart from a superseded one's. See `lib/sites/generations.ts`.
+   */
+  generation: number;
 }
 
 export interface StartCrawlResponse {
@@ -26,6 +32,7 @@ export async function startSiteCrawl({
   siteId,
   domain,
   maxPages = DEFAULT_CRAWL_MAX_PAGES,
+  generation,
 }: StartCrawlOptions): Promise<StartCrawlResponse> {
   if (!SCRAPER_API_URL || !SCRAPER_API_KEY) {
     throw new Error(
@@ -43,6 +50,7 @@ export async function startSiteCrawl({
       siteId,
       startUrl: domain,
       maxPages,
+      generation,
       webhookUrl: `${APP_URL}/api/scraper/webhook`,
     }),
     cache: 'no-store',

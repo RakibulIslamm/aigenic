@@ -43,6 +43,13 @@
       "when": 1784944196086,
       "tag": "0005_warm_arachne",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784964025128,
+      "tag": "0006_fat_madrox",
+      "breakpoints": true
     }
   ]
 }

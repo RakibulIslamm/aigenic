@@ -28,7 +28,7 @@ export default async function SiteOverviewPage({
   if (!site) notFound();
 
   const [stats, conversations] = await Promise.all([
-    getSiteStats(siteId),
+    getSiteStats(siteId, site.activeGeneration),
     listConversationsFiltered(siteId, 'all', RECENT_CONVERSATIONS_LIMIT),
   ]);
 

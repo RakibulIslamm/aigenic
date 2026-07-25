@@ -69,6 +69,31 @@ describe('crawlRequestSchema', () => {
     ).toBe(true);
   });
 
+  describe('generation', () => {
+    // Echoed back on every webhook so the app can tell this crawl's articles
+    // apart from a superseded crawl's. See aigenic_app/lib/sites/generations.ts.
+    it('defaults to 0 for a direct API call that omits it', () => {
+      const { generation, ...without } = { ...validRequest, generation: 3 };
+      void generation;
+      expect(crawlRequestSchema.parse(without).generation).toBe(0);
+    });
+
+    it('passes a supplied generation straight through', () => {
+      expect(
+        crawlRequestSchema.parse({ ...validRequest, generation: 7 }).generation,
+      ).toBe(7);
+    });
+
+    it('rejects a negative or fractional generation', () => {
+      for (const generation of [-1, 2.5, 'three']) {
+        expect(
+          crawlRequestSchema.safeParse({ ...validRequest, generation }).success,
+          String(generation),
+        ).toBe(false);
+      }
+    });
+  });
+
   it('rejects a malformed siteId or page budget', () => {
     expect(
       crawlRequestSchema.safeParse({ ...validRequest, siteId: 'nope' }).success,

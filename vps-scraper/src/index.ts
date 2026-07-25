@@ -52,7 +52,7 @@ app.post('/crawl', (req, res) => {
       .json({ error: 'Invalid payload', issues: parsed.error.issues });
   }
 
-  const { siteId, startUrl, maxPages, webhookUrl } = parsed.data;
+  const { siteId, startUrl, maxPages, generation, webhookUrl } = parsed.data;
   const jobId = randomUUID();
 
   // If a crawl is already running for this site (e.g. user hit "recrawl"
@@ -66,13 +66,14 @@ app.post('/crawl', (req, res) => {
   const controller = new AbortController();
   activeCrawls.set(siteId, controller);
 
-  logger.info({ jobId, siteId, startUrl, maxPages }, 'crawl job accepted');
+  logger.info({ jobId, siteId, startUrl, maxPages, generation }, 'crawl job accepted');
 
   // Detach the crawl from the request lifecycle — the webhook is the result channel.
   void runCrawl({
     siteId,
     startUrl,
     maxPages,
+    generation,
     webhookUrl,
     webhookApiKey: API_KEY,
     signal: controller.signal,

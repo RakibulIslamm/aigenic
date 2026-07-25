@@ -44,6 +44,12 @@ export interface CrawlJob {
   webhookUrl: string;
   webhookApiKey: string;
   /**
+   * The app's staging generation for this crawl. Echoed back on every webhook
+   * so the app can route these articles into a generation nothing reads yet,
+   * and can ignore our events entirely if a newer crawl has superseded us.
+   */
+  generation: number;
+  /**
    * Optional signal used by the UI's "Stop crawling" feature. When aborted,
    * the BFS loop exits at the next batch boundary, the browser is closed
    * cleanly, and a `stopped` webhook is sent in place of `complete`.
@@ -69,7 +75,8 @@ export interface CrawlJob {
  * launched lazily — fully static sites never pay the Chromium startup cost.
  */
 export async function runCrawl(job: CrawlJob): Promise<void> {
-  const { siteId, startUrl, maxPages, webhookUrl, webhookApiKey, signal } = job;
+  const { siteId, startUrl, maxPages, webhookUrl, webhookApiKey, generation, signal } =
+    job;
 
   const startedAt = Date.now();
   let totalPages = 0;
@@ -85,7 +92,12 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     await sendWebhook({
       url: webhookUrl,
       apiKey: webhookApiKey,
-      payload: { event: 'error', siteId, error: `Invalid start URL: ${startUrl}` },
+      payload: {
+        event: 'error',
+        siteId,
+        generation,
+        error: `Invalid start URL: ${startUrl}`,
+      },
     }).catch(() => undefined);
     return;
   }
@@ -107,6 +119,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
       payload: {
         event: 'error',
         siteId,
+        generation,
         error: `Refusing to crawl a non-public address — ${reason}`,
       },
     }).catch(() => undefined);
@@ -231,6 +244,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
               payload: {
                 event: 'article',
                 siteId,
+                generation,
                 article: {
                   title: article.title,
                   content: article.content,
@@ -258,8 +272,8 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
       url: webhookUrl,
       apiKey: webhookApiKey,
       payload: stopped
-        ? ({ event: 'stopped', siteId, totalPages } satisfies WebhookEvent)
-        : ({ event: 'complete', siteId, totalPages } satisfies WebhookEvent),
+        ? ({ event: 'stopped', siteId, generation, totalPages } satisfies WebhookEvent)
+        : ({ event: 'complete', siteId, generation, totalPages } satisfies WebhookEvent),
     });
 
     logger.info(
@@ -281,7 +295,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     await sendWebhook({
       url: webhookUrl,
       apiKey: webhookApiKey,
-      payload: { event: 'error', siteId, error: message },
+      payload: { event: 'error', siteId, generation, error: message },
     }).catch((wbErr) => {
       logger.error({ siteId, err: wbErr }, 'error-event webhook send failed');
     });
