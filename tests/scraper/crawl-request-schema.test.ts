@@ -1,0 +1,83 @@
+import { describe, expect, it } from 'vitest';
+import { crawlRequestSchema } from '../../vps-scraper/src/schemas.js';
+
+/**
+ * The scraper's `/crawl` payload boundary. Holding the API key gets you a
+ * crawl, not a proxy into the box's network — so `startUrl` is checked here
+ * too, not only in the dashboard form that normally produces it.
+ */
+
+const validRequest = {
+  siteId: '6b4d2b1a-0f3e-4a1c-9b7e-2f8c1d5a7e90',
+  startUrl: 'https://example.com',
+  maxPages: 500,
+  webhookUrl: 'http://127.0.0.1:3000/api/scraper/webhook',
+};
+
+describe('crawlRequestSchema', () => {
+  it('accepts a well-formed request', () => {
+    const parsed = crawlRequestSchema.parse(validRequest);
+    expect(parsed.startUrl).toBe('https://example.com');
+    expect(parsed.maxPages).toBe(500);
+  });
+
+  it('defaults maxPages when omitted', () => {
+    const { maxPages, ...withoutMaxPages } = validRequest;
+    void maxPages;
+    expect(crawlRequestSchema.parse(withoutMaxPages).maxPages).toBe(1000);
+  });
+
+  it('rejects a non-public startUrl', () => {
+    for (const startUrl of [
+      'http://169.254.169.254/latest/meta-data/',
+      'http://[::ffff:169.254.169.254]/',
+      'http://localhost:3000/',
+      'http://10.0.0.5/',
+      'http://192.168.1.1/admin',
+      'http://100.64.0.1/',
+      'http://intranet/',
+      'http://metadata.internal/',
+      'http://0177.0.0.1/',
+      'file:///etc/passwd',
+    ]) {
+      expect(
+        crawlRequestSchema.safeParse({ ...validRequest, startUrl }).success,
+        startUrl,
+      ).toBe(false);
+    }
+  });
+
+  it('still accepts ordinary public start URLs', () => {
+    for (const startUrl of [
+      'https://example.com',
+      'http://example.com/help',
+      'https://shop.example.co.uk/docs?a=1',
+    ]) {
+      expect(
+        crawlRequestSchema.safeParse({ ...validRequest, startUrl }).success,
+        startUrl,
+      ).toBe(true);
+    }
+  });
+
+  it('leaves webhookUrl unguarded — it is our own app, and dev points at loopback', () => {
+    expect(
+      crawlRequestSchema.safeParse({
+        ...validRequest,
+        webhookUrl: 'http://127.0.0.1:3000/api/scraper/webhook',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a malformed siteId or page budget', () => {
+    expect(
+      crawlRequestSchema.safeParse({ ...validRequest, siteId: 'nope' }).success,
+    ).toBe(false);
+    expect(crawlRequestSchema.safeParse({ ...validRequest, maxPages: 0 }).success).toBe(
+      false,
+    );
+    expect(
+      crawlRequestSchema.safeParse({ ...validRequest, maxPages: 2001 }).success,
+    ).toBe(false);
+  });
+});

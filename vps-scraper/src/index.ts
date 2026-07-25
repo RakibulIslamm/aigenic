@@ -1,20 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
-import { z } from 'zod';
 import { logger } from './logger.js';
 import { runCrawl } from './crawler.js';
+import { crawlRequestSchema } from './schemas.js';
 
 const PORT = Number(process.env.PORT ?? 3007);
 const API_KEY = process.env.SCRAPER_API_KEY;
 const MAX_BODY = '1mb';
-
-// Page budget — must stay in sync with the app's create-site schema
-// (aigenic_app/lib/sites/limits.ts); the workspaces don't share code. The
-// app always sends an explicit maxPages, so the default only covers direct
-// API calls.
-const MAX_PAGES_CAP = 2000;
-const DEFAULT_MAX_PAGES = 1000;
 
 if (!API_KEY) {
   // Refusing to start is deliberate — booting without a key would expose an
@@ -31,13 +24,6 @@ if (!API_KEY) {
   );
   process.exit(1);
 }
-
-const crawlRequestSchema = z.object({
-  siteId: z.string().uuid(),
-  startUrl: z.string().url(),
-  maxPages: z.number().int().positive().max(MAX_PAGES_CAP).default(DEFAULT_MAX_PAGES),
-  webhookUrl: z.string().url(),
-});
 
 /**
  * In-memory registry of running crawls, keyed by siteId. Only one crawl per

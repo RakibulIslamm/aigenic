@@ -51,6 +51,37 @@ describe('createSiteSchema', () => {
     }
   });
 
+  it('rejects a domain that points somewhere private', () => {
+    // Defense-in-depth against SSRF: the crawler blocks these at fetch time
+    // regardless, but a site row that can never crawl shouldn't be creatable.
+    // See lib/http/public-url.ts for the full matrix.
+    for (const domain of [
+      'http://localhost:3000/',
+      'http://127.0.0.1/',
+      'http://10.0.0.5/',
+      'http://192.168.1.1/',
+      'http://169.254.169.254/latest/meta-data/',
+      'http://[::1]/',
+      'http://metadata.internal/',
+      'http://[64:ff9b::a9fe:a9fe]/', // NAT64 route to the metadata address
+      // Obfuscated spellings of 127.0.0.1 — URL parsing normalizes them.
+      'http://0177.0.0.1/',
+      'http://2130706433/',
+      'javascript:alert(1)',
+    ]) {
+      expect(createSiteSchema.safeParse({ ...validCreate, domain }).success, domain).toBe(
+        false,
+      );
+    }
+  });
+
+  it('names the actual problem in the domain error', () => {
+    const messageFor = (domain: string) =>
+      createSiteSchema.safeParse({ ...validCreate, domain }).error?.issues[0]?.message;
+    expect(messageFor('acme.com')).toMatch(/full URL/);
+    expect(messageFor('http://10.0.0.5/')).toMatch(/public website/);
+  });
+
   it('rejects a malformed escalation email', () => {
     for (const escalationEmail of ['nope', 'a@b', '@acme.com', '']) {
       expect(
@@ -162,6 +193,19 @@ describe('updateSiteSchema', () => {
     expect(
       updateSiteSchema.safeParse({ ...validUpdate, botName: 'a'.repeat(51) }).success,
     ).toBe(false);
+  });
+
+  it('applies the same public-domain check as create', () => {
+    // The edit form is the other way a private target could reach the crawler.
+    for (const domain of ['http://localhost/', 'http://10.0.0.5/', 'acme.com']) {
+      expect(updateSiteSchema.safeParse({ ...validUpdate, domain }).success, domain).toBe(
+        false,
+      );
+    }
+    expect(
+      updateSiteSchema.safeParse({ ...validUpdate, domain: 'https://acme.com/help' })
+        .success,
+    ).toBe(true);
   });
 
   it('requires non-empty greeting and bot name', () => {
