@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChevronLeft, ExternalLink } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
+import { env } from '@/lib/env';
 import { getSiteForUser, getSiteStats } from '@/lib/sites/queries';
 import { generationForProgress } from '@/lib/sites/generations';
 import { KbStatusBadge } from '../../_components/kb-status-badge';
@@ -43,6 +44,7 @@ export default async function SiteLayout({
           initialCount={liveCount}
           initialError={site.kbLastError}
           initialErrorCode={site.kbLastErrorCode}
+          crawlerIp={env.SCRAPER_EGRESS_IP ?? null}
         />
       )}
 
