@@ -58,26 +58,28 @@ export function useSiteEvents(
   const initialStatus = initialSnapshot?.status ?? null;
 
   // "Adjust state when a prop changes", done during render as React docs
-  // prescribe: when the SERVER-rendered status changes (Resync flipped a
-  // failed site back to pending, a crawl reached a terminal state we
-  // missed…), rebase local state on the fresh server truth. Without this,
-  // the stream that closed after the last crawl's `done` kept its stale
-  // snapshot forever — the old failure panel stayed up and the new crawl
-  // never appeared without a manual reload.
+  // prescribe. Only the terminal → live transition restarts the stream: after
+  // a crawl's `done` the connection is closed for good, so when Resync flips
+  // the server-rendered status back to `pending` we must rebase on the fresh
+  // server truth, drop the finished attempt's event log, and bump `session`
+  // so the effect re-opens the stream. The OTHER direction (live → terminal)
+  // deliberately does nothing — the stream is still open and about to deliver
+  // the terminal event itself; restarting here raced it and ate the
+  // "Crawl failed" entry.
   const [seenStatus, setSeenStatus] = useState<string | null>(initialStatus);
+  const [session, setSession] = useState(0);
   if (seenStatus !== initialStatus) {
     setSeenStatus(initialStatus);
-    setSnapshot(initialSnapshot ?? null);
-    setError(null);
     if (
       seenStatus !== null &&
       isTerminalStatus(seenStatus) &&
       initialStatus !== null &&
       !isTerminalStatus(initialStatus)
     ) {
-      // Terminal → live is a NEW crawl attempt; the previous attempt's event
-      // log would read as if it belonged to this one.
+      setSnapshot(initialSnapshot ?? null);
+      setError(null);
       setEvents([]);
+      setSession((s) => s + 1);
     }
   }
 
@@ -185,11 +187,11 @@ export function useSiteEvents(
     };
     // We intentionally don't depend on `snapshot` — the effect would tear
     // down and re-establish the SSE connection on every update otherwise.
-    // `initialStatus` IS a dependency: a server-rendered status change means
-    // a new crawl session (or a terminal flip we missed) and must re-open
-    // the stream with fresh state.
+    // `session` IS a dependency: it increments exactly when a closed stream
+    // must be re-opened for a new crawl attempt (see the render-phase
+    // adjustment above), and never mid-crawl.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId, router, initialStatus]);
+  }, [siteId, router, session]);
 
   return { snapshot, events, connected, error };
 }
