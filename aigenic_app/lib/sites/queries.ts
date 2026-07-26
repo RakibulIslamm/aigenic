@@ -31,6 +31,7 @@ export async function listSitesForUser(userId: string): Promise<SiteListItem[]> 
         crawlGeneration: sites.crawlGeneration,
         crawlStartedAt: sites.crawlStartedAt,
         pendingCrawlRunId: sites.pendingCrawlRunId,
+        activeCrawlRunId: sites.activeCrawlRunId,
         createdAt: sites.createdAt,
         updatedAt: sites.updatedAt,
         articleCount: sql<number>`count(distinct ${articles.id})::int`,

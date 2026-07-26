@@ -82,7 +82,15 @@ export async function dispatchSiteCrawl(params: {
   try {
     await startSiteCrawl({ siteId, domain, maxPages, generation: claimed.generation });
   } catch (err) {
-    await db.update(sites).set({ kbStatus: 'failed' }).where(eq(sites.id, siteId));
+    await db
+      .update(sites)
+      .set({
+        kbStatus: 'failed',
+        kbLastError:
+          'Our crawler service could not be reached to start the crawl. Retry in a bit; if this keeps happening, contact support.',
+        kbLastErrorCode: 'unreachable',
+      })
+      .where(eq(sites.id, siteId));
     throw err instanceof Error ? err : new Error(String(err));
   }
 

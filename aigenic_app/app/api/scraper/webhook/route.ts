@@ -2,9 +2,23 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { and, count, eq, inArray, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '@/db';
-import { articles, sites } from '@/db/schema';
+import { articles, crawlRuns, sites } from '@/db/schema';
 import { env } from '@/lib/env';
 import { decideSwap } from '@/lib/sites/generations';
+
+/**
+ * Refunds the manual-crawl quota slot that paid for the crawl now ending in
+ * failure. Deleting the `crawl_runs` row is the refund (the quota is a count
+ * of those rows); the site's `activeCrawlRunId` pointer clears via its
+ * ON DELETE SET NULL. No-op when the crawl wasn't a manual re-crawl.
+ */
+async function refundCrawlClaim(
+  tx: Pick<typeof db, 'delete'>,
+  claimId: string | null,
+): Promise<void> {
+  if (!claimId) return;
+  await tx.delete(crawlRuns).where(eq(crawlRuns.id, claimId));
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -167,21 +181,30 @@ export async function POST(request: NextRequest) {
       if (decision.action === 'keep') {
         // The crawl indexed nothing. The live KB (if any) is left alone; when
         // that verdict is a failure, record why so the dashboard can say more
-        // than "failed". This message is the back-compat fallback — a current
-        // scraper diagnoses zero-page crawls itself and sends `error` instead.
-        await db
-          .update(sites)
-          .set(
-            decision.status === 'failed'
-              ? {
-                  kbStatus: decision.status,
-                  kbLastError:
-                    'The crawl finished without indexing any pages. The site may be blocking our crawler or have no readable content.',
-                  kbLastErrorCode: 'empty',
-                }
-              : { kbStatus: decision.status },
-          )
-          .where(eq(sites.id, event.siteId));
+        // than "failed", and refund the quota slot — a crawl that produced
+        // nothing must not cost a re-crawl. This message is the back-compat
+        // fallback — a current scraper diagnoses zero-page crawls itself and
+        // sends `error` instead.
+        await db.transaction(async (tx) => {
+          await tx
+            .update(sites)
+            .set(
+              decision.status === 'failed'
+                ? {
+                    kbStatus: decision.status,
+                    kbLastError:
+                      'The crawl finished without indexing any pages. The site may be blocking our crawler or have no readable content.',
+                    kbLastErrorCode: 'empty',
+                  }
+                : // Stopped with a usable KB: the user's own click ended a
+                  // crawl that did real work — the charge stands, detach only.
+                  { kbStatus: decision.status, activeCrawlRunId: null },
+            )
+            .where(eq(sites.id, event.siteId));
+          if (decision.status === 'failed') {
+            await refundCrawlClaim(tx, site.activeCrawlRunId);
+          }
+        });
         return NextResponse.json({ ok: true, kept: decision.reason });
       }
 
@@ -195,9 +218,12 @@ export async function POST(request: NextRequest) {
             activeGeneration: decision.generation,
             kbStatus: 'ready',
             kbLastSyncedAt: new Date(),
-            // A successful crawl clears any stale failure explanation.
+            // A successful crawl clears any stale failure explanation, and
+            // detaches the quota claim WITHOUT deleting it — a completed
+            // crawl is exactly what the quota counts.
             kbLastError: null,
             kbLastErrorCode: null,
+            activeCrawlRunId: null,
           })
           .where(eq(sites.id, event.siteId));
         await tx
@@ -217,7 +243,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true, ignored: 'superseded' });
       }
       // The live KB is whatever `activeGeneration` points at and stays exactly
-      // as it was — that is the whole point. Only the staging rows go.
+      // as it was — that is the whole point. Only the staging rows go — and
+      // the quota slot comes back: a failed crawl is not a spent re-crawl.
       await db.transaction(async (tx) => {
         await tx
           .update(sites)
@@ -227,6 +254,7 @@ export async function POST(request: NextRequest) {
             kbLastErrorCode: event.code ?? null,
           })
           .where(eq(sites.id, event.siteId));
+        await refundCrawlClaim(tx, site.activeCrawlRunId);
         await tx
           .delete(articles)
           .where(

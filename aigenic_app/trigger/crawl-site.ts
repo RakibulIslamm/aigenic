@@ -86,11 +86,21 @@ export const crawlSiteTask = task({
     // `pending` — flip it to `failed` so it's recoverable via Resync instead
     // of stuck behind the "crawl in progress" guard forever. A site already
     // in `crawling` had a successful dispatch; the watchdog owns that case.
-    const { siteId } = payload as CrawlSitePayload;
+    // Either way the quota slot comes back: no crawl ran.
+    const { siteId, crawlRunId } = payload as CrawlSitePayload;
     logger.error('Crawl task failed after final retry', { siteId, error });
     await db
       .update(sites)
-      .set({ kbStatus: 'failed', pendingCrawlRunId: null })
+      .set({
+        kbStatus: 'failed',
+        pendingCrawlRunId: null,
+        kbLastError:
+          'We could not hand the crawl to our crawler service. Retry in a bit; if this keeps happening, contact support.',
+        kbLastErrorCode: 'unreachable',
+      })
       .where(and(eq(sites.id, siteId), eq(sites.kbStatus, 'pending')));
+    if (crawlRunId) {
+      await deleteCrawlRun(crawlRunId);
+    }
   },
 });

@@ -351,6 +351,12 @@ export async function stopCrawlAction(siteId: string): Promise<ActionState> {
         .returning({ id: sites.id });
 
       if (flipped) {
+        // The crawl never started, so it must not cost a quota slot —
+        // deleting the claim row is the refund (the site's pointer clears
+        // via ON DELETE SET NULL).
+        if (site.activeCrawlRunId) {
+          await deleteCrawlRun(site.activeCrawlRunId);
+        }
         revalidatePath(`/dashboard/sites/${siteId}`, 'layout');
         revalidatePath('/dashboard');
         return { ok: true, siteId, message: 'Crawl cancelled' };

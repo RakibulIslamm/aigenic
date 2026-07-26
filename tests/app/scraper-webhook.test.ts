@@ -37,6 +37,8 @@ interface SiteRow {
   kbStatus: string;
   activeGeneration: number;
   crawlGeneration: number;
+  /** The manual-crawl quota claim to refund on failure, when set. */
+  activeCrawlRunId?: string | null;
 }
 let siteRow: SiteRow | undefined;
 /** Article counts per generation, as `countByGeneration` would return them. */
@@ -343,9 +345,11 @@ describe('the generation swap', () => {
         activeGeneration: 4,
         kbStatus: 'ready',
         kbLastSyncedAt: expect.any(Date),
-        // Success wipes any stale failure explanation.
+        // Success wipes any stale failure explanation and detaches the quota
+        // claim WITHOUT refunding it — a completed crawl is what quota buys.
         kbLastError: null,
         kbLastErrorCode: null,
+        activeCrawlRunId: null,
       },
     ]);
     expect(recorded.deletes).toBe(1);
@@ -374,7 +378,7 @@ describe('the generation swap', () => {
     siteRow = crawling();
     counts = { 3: 100 };
     await post({ event: 'stopped', siteId: SITE_ID, generation: 4 });
-    expect(recorded.updates).toEqual([{ kbStatus: 'ready' }]);
+    expect(recorded.updates).toEqual([{ kbStatus: 'ready', activeCrawlRunId: null }]);
     expect(recorded.deletes).toBe(0);
   });
 
@@ -476,6 +480,36 @@ describe('kbStatus transition matrix', () => {
         kbLastErrorCode: 'blocked',
       },
     ]);
+  });
+
+  it('error REFUNDS the manual-crawl quota claim that paid for it', async () => {
+    // The claim row is deleted (that IS the refund) alongside the staging
+    // purge — a failed crawl must not burn the user's daily re-crawl.
+    siteRow = {
+      id: SITE_ID,
+      kbStatus: 'crawling',
+      activeGeneration: 3,
+      crawlGeneration: 4,
+      activeCrawlRunId: 'claim-1',
+    };
+    await post({ event: 'error', siteId: SITE_ID, generation: 4, error: 'boom' });
+    // 1 staging-articles delete + 1 crawl_runs refund delete.
+    expect(recorded.deletes).toBe(2);
+  });
+
+  it('an empty complete refunds the claim too', async () => {
+    siteRow = {
+      id: SITE_ID,
+      kbStatus: 'crawling',
+      activeGeneration: 3,
+      crawlGeneration: 4,
+      activeCrawlRunId: 'claim-1',
+    };
+    counts = { 3: 100 }; // staged generation produced nothing
+    await post({ event: 'complete', siteId: SITE_ID, generation: 4 });
+    expect(recorded.updates[0]!.kbStatus).toBe('failed');
+    // No staging rows to delete on the keep path — the single delete is the refund.
+    expect(recorded.deletes).toBe(1);
   });
 
   it('error keeps the served KB and discards only the staging rows', async () => {

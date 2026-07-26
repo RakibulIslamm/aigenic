@@ -1,0 +1,2 @@
+ALTER TABLE "sites" ADD COLUMN "active_crawl_run_id" uuid;--> statement-breakpoint
+ALTER TABLE "sites" ADD CONSTRAINT "sites_active_crawl_run_id_crawl_runs_id_fk" FOREIGN KEY ("active_crawl_run_id") REFERENCES "public"."crawl_runs"("id") ON DELETE set null ON UPDATE no action;

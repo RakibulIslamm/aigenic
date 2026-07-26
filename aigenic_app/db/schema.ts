@@ -8,6 +8,7 @@ import {
   timestamp,
   jsonb,
   index,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { relations, sql, type SQL } from 'drizzle-orm';
 
@@ -92,6 +93,21 @@ export const sites = pgTable(
      * Cleared when the dispatch claims the crawl (or Stop cancels it).
      */
     pendingCrawlRunId: text('pending_crawl_run_id'),
+    /**
+     * The `crawl_runs` quota claim paying for the crawl in flight, when it
+     * was a manual re-crawl. Every failure path (error webhook, empty crawl,
+     * watchdog, task onFailure, cancel-before-start) deletes that row — a
+     * re-crawl only counts against the quota when it completes. Success
+     * clears the pointer but keeps the row (the charge stands). ON DELETE
+     * SET NULL means deleting the run row anywhere auto-clears this.
+     */
+    // The explicit `AnyPgColumn` return type breaks the sites ↔ crawl_runs
+    // type-inference cycle (crawl_runs.site_id points back here) — without
+    // it tsc infers both tables as `any` (TS7022).
+    activeCrawlRunId: uuid('active_crawl_run_id').references(
+      (): AnyPgColumn => crawlRuns.id,
+      { onDelete: 'set null' },
+    ),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
       .defaultNow()
