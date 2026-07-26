@@ -18,6 +18,7 @@ import { diagnoseEmptyCrawl } from './diagnose.js';
 import { fetchPage } from './fetcher.js';
 import { RateLimiter } from './rate-limit.js';
 import { discoverSitemapUrls } from './sitemap.js';
+import { collectStructuredDocs } from './sources/index.js';
 import { assertPublicUrl, isSsrfBlocked, safeFetch } from './ssrf-guard.js';
 import { buildSite, isSameSite, normalizeUrl, shouldSkipUrl } from './url-utils.js';
 import { sendWebhook, type WebhookEvent } from './webhook.js';
@@ -28,6 +29,17 @@ import { sendWebhook, type WebhookEvent } from './webhook.js';
 const CONCURRENCY = Number(process.env.SCRAPER_CONCURRENCY ?? 3);
 const DEFAULT_MIN_DELAY_MS = 150;
 const MAX_MIN_DELAY_MS = 5_000;
+
+/**
+ * Share of the page budget structured sources may consume.
+ *
+ * Reserving the remainder for the HTML crawl is the whole point of the split.
+ * A 1,000-product store would otherwise exhaust the budget on its catalogue
+ * and never reach the About, Delivery and Returns pages — the ones support
+ * questions are actually about. The reserve is a ceiling, not an allocation:
+ * a site with fifty products leaves the other 950 slots to the crawl.
+ */
+const STRUCTURED_BUDGET_RATIO = 0.8;
 
 // Realistic Chrome UA *plus* a product token — the crawler's public identity.
 // The Chrome prefix keeps ordinary shop platforms rendering normal markup;
@@ -97,6 +109,14 @@ export interface CrawlJob {
  * Speed comes from a two-tier fetcher: plain `fetch()` first, escalate to
  * Playwright only when the HTTP body looks like a JS shell. The browser is
  * launched lazily — fully static sites never pay the Chromium startup cost.
+ *
+ * Before any of that, `sources/` reads whatever documented data feed the site
+ * publishes (Shopify `/products.json`, the WooCommerce Store API, WordPress
+ * `wp/v2`). On a catalogue site this is the difference between eleven requests
+ * and a thousand, and it yields real prices and SKUs instead of Readability's
+ * guesses. Those documents claim their URLs up front, so the BFS below then
+ * spends its budget on what the API *didn't* cover — the About and policy
+ * pages support questions are actually about.
  */
 export async function runCrawl(job: CrawlJob): Promise<void> {
   const {
@@ -119,6 +139,8 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
   let totalPages = 0;
   let renderedPages = 0;
   let httpPages = 0;
+  /** Pages that came from a platform API rather than an HTML fetch. */
+  let structuredPages = 0;
   let failedFetches = 0;
   let duplicateContent = 0;
   let browser: Browser | undefined;
@@ -200,20 +222,6 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     const seenHashes = new Set<string>();
     const queue: string[] = [];
 
-    // Seed: start URL + everything we can pull from sitemaps. The sitemap
-    // discovery layer also runs URLs through `normalizeUrl` / `isSameSite` /
-    // `shouldSkipUrl`, so anything it hands back is safe to enqueue.
-    enqueue(normalizeUrl(startUrl));
-
-    const sitemapUrls = await discoverSitemapUrls({
-      origin,
-      site,
-      userAgent: USER_AGENT,
-      extraHeaders: verifyHeaders,
-      robotsBody,
-    });
-    for (const u of sitemapUrls) enqueue(u);
-
     function enqueue(url: string | null): boolean {
       if (!url) return false;
       if (!isSameSite(url, site)) return false; // strict: never leave the site
@@ -224,6 +232,86 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
       queue.push(url);
       return true;
     }
+
+    // Structured sources run before *anything* is queued, and the order is
+    // load-bearing. `enqueue` skips URLs already in `seenUrls`, so claiming
+    // them here keeps them out of the frontier entirely. Seeding the sitemap
+    // first instead would put all 1,000 product URLs in the queue before the
+    // API claimed them — they'd be re-fetched as HTML and only caught by the
+    // content hash *after* paying for every request, which is precisely the
+    // cost this module exists to avoid.
+    //
+    // Everything they return goes through the same dedup, budget and webhook
+    // path as a crawled page; only the origin of the text differs.
+    const structuredBudget = Math.floor(maxPages * STRUCTURED_BUDGET_RATIO);
+    const structuredBatches = await collectStructuredDocs({
+      origin,
+      userAgent: USER_AGENT,
+      extraHeaders: verifyHeaders,
+      maxDocs: structuredBudget,
+      isEndpointAllowed: (url) =>
+        isSameSite(url, site) && robots.isAllowed(url, USER_AGENT) !== false,
+      isDocumentAllowed: (url) =>
+        isSameSite(url, site) &&
+        !shouldSkipUrl(url) &&
+        robots.isAllowed(url, USER_AGENT) !== false,
+      signal,
+    });
+
+    for (const batch of structuredBatches) {
+      for (const doc of batch.docs) {
+        if (signal?.aborted) break;
+        if (totalPages >= maxPages) break;
+
+        // Claim the URL so the BFS skips it. Normalizing first matters: the
+        // frontier stores normalized URLs, and an unnormalized claim
+        // (trailing slash, tracking param) would silently fail to match.
+        const normalized = normalizeUrl(doc.url) ?? doc.url;
+        if (seenUrls.has(normalized)) continue;
+        seenUrls.add(normalized);
+
+        const contentHash = hashContent(doc.content);
+        if (seenHashes.has(contentHash)) {
+          duplicateContent++;
+          continue;
+        }
+        seenHashes.add(contentHash);
+
+        totalPages++;
+        structuredPages++;
+        await sendWebhook({
+          url: webhookUrl,
+          apiKey: webhookApiKey,
+          payload: {
+            event: 'article',
+            siteId,
+            generation,
+            article: {
+              title: doc.title,
+              content: doc.content,
+              sourceUrl: normalized,
+            },
+          },
+        }).catch((err) => {
+          logger.error({ url: normalized, err }, 'webhook send failed');
+        });
+      }
+    }
+
+    // Seed the frontier: start URL + everything the sitemaps list. The sitemap
+    // layer runs URLs through `normalizeUrl` / `isSameSite` / `shouldSkipUrl`,
+    // so anything it hands back is safe to enqueue — and `enqueue` drops
+    // whatever the structured pass above already covered.
+    enqueue(normalizeUrl(startUrl));
+
+    const sitemapUrls = await discoverSitemapUrls({
+      origin,
+      site,
+      userAgent: USER_AGENT,
+      extraHeaders: verifyHeaders,
+      robotsBody,
+    });
+    for (const u of sitemapUrls) enqueue(u);
 
     const limit = pLimit(CONCURRENCY);
 
@@ -352,6 +440,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
         siteId,
         totalPages,
         uniqueUrls: seenUrls.size,
+        structuredPages,
         renderedPages,
         httpPages,
         failedFetches,
