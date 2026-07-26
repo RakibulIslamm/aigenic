@@ -78,6 +78,13 @@
       "when": 1785029353119,
       "tag": "0010_minor_dracula",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785030911850,
+      "tag": "0011_rich_phantom_reporter",
+      "breakpoints": true
     }
   ]
 }

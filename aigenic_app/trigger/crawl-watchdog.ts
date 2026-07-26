@@ -1,6 +1,7 @@
 import { logger, schedules } from '@trigger.dev/sdk/v3';
-import { sql } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
+import { crawlRuns } from '@/db/schema';
 
 /**
  * A crawl with no sign of life for this long is declared dead. Long crawls
@@ -27,7 +28,10 @@ export const crawlWatchdogTask = schedules.task({
   run: async () => {
     const flipped = (await db.execute(sql`
       update sites
-      set kb_status = 'failed', pending_crawl_run_id = null
+      set kb_status = 'failed',
+          pending_crawl_run_id = null,
+          kb_last_error = 'The crawl stalled and was marked failed by our watchdog. Retry the crawl; if this keeps happening, contact support.',
+          kb_last_error_code = 'unreachable'
       where kb_status in ('pending', 'crawling')
         and coalesce(crawl_started_at, created_at)
               < now() - make_interval(mins => ${STUCK_AFTER_MINUTES})
@@ -37,16 +41,26 @@ export const crawlWatchdogTask = schedules.task({
             and articles.crawl_generation = sites.crawl_generation
             and articles.created_at > now() - make_interval(mins => ${STUCK_AFTER_MINUTES})
         )
-      returning id, kb_status
-    `)) as unknown as Array<{ id: string }>;
+      returning id, active_crawl_run_id
+    `)) as unknown as Array<{ id: string; active_crawl_run_id: string | null }>;
+
+    // Refund the manual-crawl quota slots the dead crawls claimed — deleting
+    // the rows IS the refund, and `active_crawl_run_id` clears itself via its
+    // ON DELETE SET NULL.
+    const claimIds = flipped
+      .map((r) => r.active_crawl_run_id)
+      .filter((id): id is string => id !== null);
+    if (claimIds.length > 0) {
+      await db.delete(crawlRuns).where(inArray(crawlRuns.id, claimIds));
+    }
 
     if (flipped.length > 0) {
       logger.warn(
-        `Watchdog flipped ${flipped.length} stuck crawl(s) to failed — check the scraper VPS and webhook delivery`,
+        `Watchdog flipped ${flipped.length} stuck crawl(s) to failed (${claimIds.length} quota slot(s) refunded) — check the scraper VPS and webhook delivery`,
         { siteIds: flipped.map((r) => r.id) },
       );
     }
 
-    return { flipped: flipped.length };
+    return { flipped: flipped.length, refunded: claimIds.length };
   },
 });

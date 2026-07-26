@@ -1,6 +1,6 @@
 import { and, count, eq, gte, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { crawlRuns } from '@/db/schema';
+import { crawlRuns, sites } from '@/db/schema';
 
 export type CrawlKind = 'manual' | 'scheduled';
 
@@ -42,6 +42,15 @@ export async function claimManualCrawlSlot(params: {
       .insert(crawlRuns)
       .values({ userId, siteId, kind: 'manual' })
       .returning({ id: crawlRuns.id });
+
+    // Remember which claim pays for this crawl, so every failure path can
+    // refund exactly that row — a slot is only spent by a crawl that
+    // completes (see the schema comment on `activeCrawlRunId`).
+    await tx
+      .update(sites)
+      .set({ activeCrawlRunId: claimed!.id })
+      .where(eq(sites.id, siteId));
+
     return claimed!.id;
   });
 }
