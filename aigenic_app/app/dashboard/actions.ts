@@ -7,7 +7,9 @@ import { and, count, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { conversations, sites, type Site } from '@/db/schema';
 import { getOrCreateUser, requireUserId } from '@/lib/auth/user';
-import { isUuid } from '@/lib/ids';
+import { isUuid, randomToken } from '@/lib/ids';
+import { consumeRateLimit } from '@/lib/ratelimit';
+import { verifyDomainOwnership } from '@/lib/sites/verification';
 import {
   createSiteSchema,
   updateSiteSchema,
@@ -390,6 +392,80 @@ export async function stopCrawlAction(siteId: string): Promise<ActionState> {
     revalidatePath(`/dashboard/sites/${siteId}`, 'layout');
     revalidatePath('/dashboard');
     return { ok: true, siteId, message: 'Crawl stopped' };
+  });
+}
+
+/**
+ * Checks the site's domain for the ownership token and records the result.
+ *
+ * Rate-limited because each call costs DNS queries plus an outbound HTTPS
+ * fetch to a user-supplied host — a button someone can hold down otherwise
+ * turns the dashboard into a small request amplifier. The limit is generous
+ * enough for the real usage pattern (publish the record, retry a few times
+ * while DNS propagates).
+ */
+export async function verifySiteAction(siteId: string): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  return withSiteOwnership(siteId, userId, async (site) => {
+    const limit = await consumeRateLimit({
+      key: `verify:site:10m:${site.id}`,
+      limit: 10,
+      windowSeconds: 600,
+    });
+    if (!limit.ok) {
+      return {
+        ok: false,
+        error: `Too many verification attempts. Try again in ${Math.ceil(limit.retryAfterSeconds / 60)} minute(s).`,
+      };
+    }
+
+    const result = await verifyDomainOwnership({
+      domain: site.domain,
+      token: site.verificationToken,
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+
+    await db
+      .update(sites)
+      .set({ verifiedAt: new Date(), verificationMethod: result.method })
+      .where(eq(sites.id, site.id));
+
+    revalidatePath(`/dashboard/sites/${site.id}`, 'layout');
+    return {
+      ok: true,
+      message:
+        result.method === 'dns'
+          ? 'Verified via DNS. Your crawl secret is ready to use.'
+          : 'Verified via the well-known file. Your crawl secret is ready to use.',
+    };
+  });
+}
+
+/**
+ * Issues a fresh `crawlSecret`, invalidating the old one.
+ *
+ * The owner pasted the previous value into a firewall rule, so this
+ * deliberately breaks that rule — which is the point when a secret has been
+ * over-shared. Ownership verification is untouched; only the secret rotates.
+ */
+export async function rotateCrawlSecretAction(siteId: string): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  return withSiteOwnership(siteId, userId, async (site) => {
+    await db
+      .update(sites)
+      .set({ crawlSecret: randomToken() })
+      .where(eq(sites.id, site.id));
+
+    revalidatePath(`/dashboard/sites/${site.id}`, 'layout');
+    return {
+      ok: true,
+      message:
+        'New crawl secret issued — update your firewall rule before the next sync.',
+    };
   });
 }
 

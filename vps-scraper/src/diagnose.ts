@@ -59,10 +59,21 @@ export function classifyProbe(
 export async function diagnoseEmptyCrawl(
   startUrl: string,
   userAgent: string,
+  /**
+   * The same headers the crawl itself used. The probe has to be a faithful
+   * replay: a verified site whose firewall rule matches `X-Aigenic-Verify`
+   * would answer 200 to the crawl and 403 to a bare probe, and we'd report
+   * "your firewall blocked us" to the one owner who had already fixed that.
+   */
+  extraHeaders: Record<string, string> = {},
 ): Promise<EmptyCrawlDiagnosis> {
   try {
     const { response } = await safeFetch(startUrl, {
-      headers: { 'User-Agent': userAgent, Accept: 'text/html,*/*;q=0.8' },
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'text/html,*/*;q=0.8',
+        ...extraHeaders,
+      },
       signal: AbortSignal.timeout(15_000),
     });
     // Body content is irrelevant — the status is the diagnosis. Cancel so the

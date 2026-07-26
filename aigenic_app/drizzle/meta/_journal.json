@@ -85,6 +85,13 @@
       "when": 1785030911850,
       "tag": "0011_rich_phantom_reporter",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785034093638,
+      "tag": "0012_slim_wildside",
+      "breakpoints": true
     }
   ]
 }

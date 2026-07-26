@@ -9,8 +9,18 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { env } from '@/lib/env';
+import { CRAWLER_UA_TOKEN } from '@/lib/sites/crawler-identity';
+import {
+  CRAWL_VERIFY_HEADER,
+  DNS_TXT_SUBDOMAIN,
+  WELL_KNOWN_PATH,
+  dnsRecordValue,
+  hostnameOf,
+} from '@/lib/sites/verification';
 import { SettingsForm } from '../_components/settings-form';
 import { DeleteSiteButton } from '../_components/delete-site-button';
+import { DomainVerification } from '../_components/domain-verification';
 
 export default async function SiteSettingsPage({
   params,
@@ -43,6 +53,21 @@ export default async function SiteSettingsPage({
           greeting: widgetConfig.greeting,
           botName: widgetConfig.botName,
         }}
+      />
+
+      <DomainVerification
+        siteId={siteId}
+        domain={site.domain}
+        verificationToken={site.verificationToken}
+        crawlSecret={site.crawlSecret}
+        verifiedAt={site.verifiedAt}
+        verificationMethod={site.verificationMethod}
+        crawlerIp={env.SCRAPER_EGRESS_IP ?? null}
+        dnsRecordName={`${DNS_TXT_SUBDOMAIN}.${hostnameOf(site.domain)}`}
+        dnsRecordValue={dnsRecordValue(site.verificationToken)}
+        wellKnownPath={WELL_KNOWN_PATH}
+        verifyHeader={CRAWL_VERIFY_HEADER}
+        userAgentToken={CRAWLER_UA_TOKEN}
       />
 
       <Card className="border-destructive/40 bg-destructive/5">

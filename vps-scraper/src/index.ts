@@ -52,7 +52,7 @@ app.post('/crawl', (req, res) => {
       .json({ error: 'Invalid payload', issues: parsed.error.issues });
   }
 
-  const { siteId, startUrl, maxPages, generation, webhookUrl } = parsed.data;
+  const { siteId, startUrl, maxPages, generation, verifyToken, webhookUrl } = parsed.data;
   const jobId = randomUUID();
 
   // If a crawl is already running for this site (e.g. user hit "recrawl"
@@ -66,7 +66,12 @@ app.post('/crawl', (req, res) => {
   const controller = new AbortController();
   activeCrawls.set(siteId, controller);
 
-  logger.info({ jobId, siteId, startUrl, maxPages, generation }, 'crawl job accepted');
+  // `verified` (never the token itself) — logs go to disk and to whatever
+  // ships them off the box; a firewall-bypass credential belongs in neither.
+  logger.info(
+    { jobId, siteId, startUrl, maxPages, generation, verified: Boolean(verifyToken) },
+    'crawl job accepted',
+  );
 
   // Detach the crawl from the request lifecycle — the webhook is the result channel.
   void runCrawl({
@@ -74,6 +79,7 @@ app.post('/crawl', (req, res) => {
     startUrl,
     maxPages,
     generation,
+    verifyToken,
     webhookUrl,
     webhookApiKey: API_KEY,
     signal: controller.signal,
