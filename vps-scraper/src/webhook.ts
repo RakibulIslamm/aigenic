@@ -34,6 +34,14 @@ export type WebhookEvent =
       siteId: string;
       generation: number;
       error: string;
+      /**
+       * Machine-readable failure class, when the crawler could determine one:
+       * 'blocked' (WAF/bot protection answered instead of the site — the
+       * dashboard shows allowlist instructions), 'unreachable' (network/5xx),
+       * 'empty' (reachable but nothing extractable). Optional so older
+       * receivers ignore it.
+       */
+      code?: 'blocked' | 'unreachable' | 'empty';
     };
 
 interface SendWebhookOptions {

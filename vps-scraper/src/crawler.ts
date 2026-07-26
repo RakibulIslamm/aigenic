@@ -14,6 +14,7 @@ type RobotsApi = {
 const robotsParser = require('robots-parser') as (url: string, body: string) => RobotsApi;
 
 import { parsePage } from './content-extractor.js';
+import { diagnoseEmptyCrawl } from './diagnose.js';
 import { fetchPage } from './fetcher.js';
 import { RateLimiter } from './rate-limit.js';
 import { discoverSitemapUrls } from './sitemap.js';
@@ -268,6 +269,30 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     if (context) await context.close().catch(() => undefined);
 
     const stopped = signal?.aborted === true;
+
+    // A finished crawl with ZERO pages is not a success — it's a symptom
+    // (WAF block, dead site, unrenderable pages). Probe once, classify, and
+    // report an error the owner can act on instead of a hollow `complete`.
+    if (!stopped && totalPages === 0) {
+      const diagnosis = await diagnoseEmptyCrawl(startUrl, USER_AGENT);
+      logger.warn(
+        { siteId, startUrl, code: diagnosis.code, failedFetches },
+        'crawl found zero pages',
+      );
+      await sendWebhook({
+        url: webhookUrl,
+        apiKey: webhookApiKey,
+        payload: {
+          event: 'error',
+          siteId,
+          generation,
+          error: diagnosis.message,
+          code: diagnosis.code,
+        } satisfies WebhookEvent,
+      });
+      return;
+    }
+
     await sendWebhook({
       url: webhookUrl,
       apiKey: webhookApiKey,

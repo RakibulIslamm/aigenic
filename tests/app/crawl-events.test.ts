@@ -12,6 +12,8 @@ const snap = (over: Partial<CrawlSnapshot> = {}): CrawlSnapshot => ({
   status: 'crawling',
   articleCount: 0,
   lastSyncedAt: null,
+  lastError: null,
+  lastErrorCode: null,
   ...over,
 });
 

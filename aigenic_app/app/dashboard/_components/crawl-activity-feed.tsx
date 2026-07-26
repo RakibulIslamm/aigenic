@@ -31,26 +31,36 @@ export function CrawlActivityFeed({
   siteId,
   initialStatus,
   initialCount,
+  initialError,
+  initialErrorCode,
 }: {
   siteId: string;
   initialStatus: string;
   initialCount?: number;
+  initialError?: string | null;
+  initialErrorCode?: string | null;
 }) {
   const initialSnapshot: CrawlSnapshot = {
     status: initialStatus,
     articleCount: initialCount ?? 0,
     lastSyncedAt: null,
+    lastError: initialError ?? null,
+    lastErrorCode: initialErrorCode ?? null,
   };
 
   const { events, snapshot, connected, error } = useSiteEvents(siteId, initialSnapshot);
 
   const status = snapshot?.status ?? initialStatus;
   const isLive = status === 'pending' || status === 'crawling';
+  const articleCount = snapshot?.articleCount ?? initialCount ?? 0;
+  const lastError = snapshot?.lastError ?? initialError ?? null;
+  const lastErrorCode = snapshot?.lastErrorCode ?? initialErrorCode ?? null;
+  const showFailure = status === 'failed' && !!lastError;
 
   const visible = useMemo(() => events.slice(-VISIBLE_EVENTS).reverse(), [events]);
 
   // Hide the feed when there's nothing to show and the crawl isn't running.
-  if (!isLive && visible.length === 0 && !error) return null;
+  if (!isLive && visible.length === 0 && !error && !showFailure) return null;
 
   return (
     <section className="rounded-xl border border-border/60 bg-card/30 p-4">
@@ -60,6 +70,11 @@ export function CrawlActivityFeed({
             className={`h-4 w-4 ${connected ? 'text-emerald-500' : 'text-muted-foreground'}`}
           />
           <h3 className="text-sm font-medium">Crawl activity</h3>
+          {isLive && (
+            <span className="rounded-full border border-border/60 bg-background/60 px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+              {articleCount} page{articleCount === 1 ? '' : 's'} crawled
+            </span>
+          )}
         </div>
         <span className="text-xs text-muted-foreground">
           {connected ? 'Live · 1.5s' : isLive ? 'Reconnecting…' : 'Idle'}
@@ -71,6 +86,8 @@ export function CrawlActivityFeed({
           {error}
         </p>
       )}
+
+      {showFailure && <CrawlFailurePanel message={lastError} code={lastErrorCode} />}
 
       {visible.length === 0 ? (
         <p className="text-xs text-muted-foreground">
@@ -104,6 +121,48 @@ export function CrawlActivityFeed({
         </ol>
       )}
     </section>
+  );
+}
+
+/**
+ * The "what now?" box for a failed crawl. For a `blocked` verdict this is an
+ * ask for permission: the owner controls the firewall that refused us, and
+ * the fix is theirs to make — allow this app, then hit "Sync knowledge base".
+ */
+function CrawlFailurePanel({ message, code }: { message: string; code: string | null }) {
+  return (
+    <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3">
+      <p className="flex items-start gap-2 text-sm text-red-500">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>{message}</span>
+      </p>
+      {code === 'blocked' && (
+        <div className="mt-3 rounded-md border border-border/50 bg-background/50 px-3 py-2.5 text-xs text-muted-foreground">
+          <p className="mb-1.5 font-medium text-foreground">
+            How to allow this app to crawl your site
+          </p>
+          <ol className="list-decimal space-y-1 pl-4">
+            <li>
+              Open your site&apos;s firewall / bot-protection settings (on Cloudflare:
+              <span className="text-foreground"> Security → WAF → Custom rules</span>).
+            </li>
+            <li>
+              Add a rule that{' '}
+              <span className="text-foreground">skips bot protection</span> for our
+              crawler, or temporarily lower bot-fight mode while we sync.
+            </li>
+            <li>
+              Come back and press <span className="text-foreground">Resync all</span> on
+              the Knowledge tab to retry.
+            </li>
+          </ol>
+          <p className="mt-2">
+            Only your own enrolled site is ever crawled — this permission lets your
+            assistant read the pages it answers from.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 

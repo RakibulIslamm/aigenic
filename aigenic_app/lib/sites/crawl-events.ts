@@ -8,6 +8,10 @@ export interface CrawlSnapshot {
   status: string;
   articleCount: number;
   lastSyncedAt: number | null;
+  /** Why the last crawl failed — only meaningful while status is 'failed'. */
+  lastError: string | null;
+  /** 'blocked' | 'unreachable' | 'empty' | null — drives tailored failure UI. */
+  lastErrorCode: string | null;
 }
 
 export type CrawlEventKind =
@@ -37,6 +41,8 @@ export async function fetchCrawlSnapshot(
       userId: true,
       kbStatus: true,
       kbLastSyncedAt: true,
+      kbLastError: true,
+      kbLastErrorCode: true,
       activeGeneration: true,
       crawlGeneration: true,
     },
@@ -57,6 +63,8 @@ export async function fetchCrawlSnapshot(
     status: site.kbStatus,
     articleCount: agg?.value ?? 0,
     lastSyncedAt: site.kbLastSyncedAt ? site.kbLastSyncedAt.getTime() : null,
+    lastError: site.kbLastError,
+    lastErrorCode: site.kbLastErrorCode,
   };
 }
 
