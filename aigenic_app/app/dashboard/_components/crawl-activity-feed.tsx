@@ -107,9 +107,11 @@ export function CrawlActivityFeed({
           {visible.map((event, i) => {
             const meta = KIND_META[event.kind];
             const Icon = meta.icon;
+            // Spin only while the crawl is actually running — a `crawling`
+            // entry used to keep spinning forever after the crawl failed.
             const isSpinning =
-              event.kind === 'crawling' ||
-              (event.kind === 'articles' && i === 0 && isLive);
+              isLive &&
+              (event.kind === 'crawling' || (event.kind === 'articles' && i === 0));
             return (
               <li
                 key={`${event.at}-${event.kind}-${i}`}
