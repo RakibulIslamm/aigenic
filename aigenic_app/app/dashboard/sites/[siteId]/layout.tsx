@@ -41,6 +41,8 @@ export default async function SiteLayout({
           siteId={site.id}
           initialStatus={site.kbStatus}
           initialCount={liveCount}
+          initialError={site.kbLastError}
+          initialErrorCode={site.kbLastErrorCode}
         />
       )}
 

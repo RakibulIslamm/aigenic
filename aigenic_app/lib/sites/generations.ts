@@ -105,20 +105,21 @@ export function decideSwap(input: {
     return { action: 'ignore', reason: 'superseded' };
   }
 
-  // The subtle wipe: a crawl can "succeed" having indexed nothing — the site
-  // started returning 403, or robots.txt changed, or every page failed to
-  // render. Promoting that is exactly the data loss generations exist to
-  // prevent, so refuse and report it. `complete` is a real failure the owner
-  // needs to see; `stopped` is a deliberate user action, so it stays `ready`.
-  if (stagedCount === 0 && liveCount > 0) {
+  // An empty crawl is NEVER promoted. Two flavors:
+  // - With a live KB: promoting would wipe it — the subtle data loss
+  //   generations exist to prevent. Keep the KB; `complete` is a real failure
+  //   the owner must see, `stopped` was their own click, so it stays `ready`.
+  // - Without one (a first crawl that found nothing): there is no data to
+  //   lose, but promoting used to mark the site `ready` with an EMPTY
+  //   knowledge base — a lie that hid firewall blocks (Cloudflare 403s)
+  //   behind a green badge. An empty first crawl is a failure, full stop.
+  if (stagedCount === 0) {
     return {
       action: 'keep',
-      status: event === 'complete' ? 'failed' : 'ready',
+      status: event === 'stopped' && liveCount > 0 ? 'ready' : 'failed',
       reason: 'empty-crawl',
     };
   }
 
-  // Nothing to protect (a first crawl that found nothing) falls through to
-  // promote, which keeps the pre-generations behavior: `ready`, empty KB.
   return { action: 'promote', generation: eventGeneration };
 }

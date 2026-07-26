@@ -339,7 +339,14 @@ describe('the generation swap', () => {
     const res = await post({ event: 'complete', siteId: SITE_ID, generation: 4 });
     expect(res.status).toBe(200);
     expect(recorded.updates).toEqual([
-      { activeGeneration: 4, kbStatus: 'ready', kbLastSyncedAt: expect.any(Date) },
+      {
+        activeGeneration: 4,
+        kbStatus: 'ready',
+        kbLastSyncedAt: expect.any(Date),
+        // Success wipes any stale failure explanation.
+        kbLastError: null,
+        kbLastErrorCode: null,
+      },
     ]);
     expect(recorded.deletes).toBe(1);
     // Both halves in one transaction: a crash between them would either serve a
@@ -352,7 +359,13 @@ describe('the generation swap', () => {
     counts = { 3: 100 }; // generation 4 produced no rows at all
     const res = await post({ event: 'complete', siteId: SITE_ID, generation: 4 });
     expect(await res.json()).toEqual({ ok: true, kept: 'empty-crawl' });
-    expect(recorded.updates).toEqual([{ kbStatus: 'failed' }]);
+    expect(recorded.updates).toEqual([
+      {
+        kbStatus: 'failed',
+        kbLastError: expect.stringContaining('without indexing any pages'),
+        kbLastErrorCode: 'empty',
+      },
+    ]);
     // The live KB is untouched — no promotion, and above all no delete.
     expect(recorded.deletes).toBe(0);
   });
@@ -384,12 +397,17 @@ describe('the generation swap', () => {
     expect(recorded.deletes).toBe(0);
   });
 
-  it('promotes an empty first crawl rather than reporting a false failure', async () => {
+  it('marks an empty FIRST crawl failed — no green badge over an empty KB', async () => {
+    // The ghorerbazar case: Cloudflare 403s every page, the crawl "completes"
+    // with zero articles, and this used to promote → "ready" with nothing in
+    // it. Now it's an honest failure the dashboard can explain.
     siteRow = crawling({ activeGeneration: 0, crawlGeneration: 1 });
     counts = {}; // nothing anywhere: a brand-new site whose crawl found nothing
-    await post({ event: 'complete', siteId: SITE_ID, generation: 1 });
-    expect(recorded.updates[0]!.kbStatus).toBe('ready');
-    expect(recorded.updates[0]!.activeGeneration).toBe(1);
+    const res = await post({ event: 'complete', siteId: SITE_ID, generation: 1 });
+    expect(await res.json()).toEqual({ ok: true, kept: 'empty-crawl' });
+    expect(recorded.updates[0]!.kbStatus).toBe('failed');
+    expect(recorded.updates[0]).not.toHaveProperty('activeGeneration');
+    expect(recorded.deletes).toBe(0);
   });
 });
 
@@ -401,6 +419,7 @@ describe('kbStatus transition matrix', () => {
       activeGeneration: 0,
       crawlGeneration: 0,
     };
+    counts = { 0: 5 }; // the crawl indexed pages — an empty complete is a failure now
     const res = await post({ event: 'complete', siteId: SITE_ID });
     expect(res.status).toBe(200);
     expect(recorded.updates).toHaveLength(1);
@@ -415,6 +434,7 @@ describe('kbStatus transition matrix', () => {
       activeGeneration: 0,
       crawlGeneration: 0,
     };
+    counts = { 0: 5 };
     const res = await post({ event: 'stopped', siteId: SITE_ID });
     expect(res.status).toBe(200);
     expect(recorded.updates).toHaveLength(1);
@@ -422,7 +442,7 @@ describe('kbStatus transition matrix', () => {
     expect(recorded.updates[0]!.kbLastSyncedAt).toBeInstanceOf(Date);
   });
 
-  it('error → failed, without stamping a sync time', async () => {
+  it('error → failed, storing the reason without stamping a sync time', async () => {
     siteRow = {
       id: SITE_ID,
       kbStatus: 'crawling',
@@ -431,7 +451,31 @@ describe('kbStatus transition matrix', () => {
     };
     const res = await post({ event: 'error', siteId: SITE_ID, error: 'boom' });
     expect(res.status).toBe(200);
-    expect(recorded.updates).toEqual([{ kbStatus: 'failed' }]);
+    expect(recorded.updates).toEqual([
+      { kbStatus: 'failed', kbLastError: 'boom', kbLastErrorCode: null },
+    ]);
+  });
+
+  it('error stores the failure classification for the dashboard', async () => {
+    siteRow = {
+      id: SITE_ID,
+      kbStatus: 'crawling',
+      activeGeneration: 0,
+      crawlGeneration: 0,
+    };
+    await post({
+      event: 'error',
+      siteId: SITE_ID,
+      error: 'A firewall is blocking our crawler.',
+      code: 'blocked',
+    });
+    expect(recorded.updates).toEqual([
+      {
+        kbStatus: 'failed',
+        kbLastError: 'A firewall is blocking our crawler.',
+        kbLastErrorCode: 'blocked',
+      },
+    ]);
   });
 
   it('error keeps the served KB and discards only the staging rows', async () => {
@@ -443,7 +487,9 @@ describe('kbStatus transition matrix', () => {
       crawlGeneration: 4,
     };
     await post({ event: 'error', siteId: SITE_ID, generation: 4, error: 'boom' });
-    expect(recorded.updates).toEqual([{ kbStatus: 'failed' }]);
+    expect(recorded.updates).toEqual([
+      { kbStatus: 'failed', kbLastError: 'boom', kbLastErrorCode: null },
+    ]);
     expect(recorded.updates[0]).not.toHaveProperty('activeGeneration');
     expect(recorded.deletes).toBe(1);
     expect(recorded.inTransaction).toBe(2);

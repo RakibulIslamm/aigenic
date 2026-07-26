@@ -52,6 +52,9 @@ const errorEventSchema = z.object({
   siteId: z.string().uuid(),
   generation: generationField,
   error: z.string().max(2000).optional(),
+  // Failure classification from the scraper's zero-page diagnosis. 'blocked'
+  // drives the dashboard's "allow our crawler through your firewall" panel.
+  code: z.enum(['blocked', 'unreachable', 'empty']).optional(),
 });
 
 const webhookSchema = z.discriminatedUnion('event', [
@@ -162,11 +165,22 @@ export async function POST(request: NextRequest) {
       }
 
       if (decision.action === 'keep') {
-        // The crawl indexed nothing while a working KB exists. Promoting would
-        // wipe it, so leave the generation alone and report the outcome.
+        // The crawl indexed nothing. The live KB (if any) is left alone; when
+        // that verdict is a failure, record why so the dashboard can say more
+        // than "failed". This message is the back-compat fallback — a current
+        // scraper diagnoses zero-page crawls itself and sends `error` instead.
         await db
           .update(sites)
-          .set({ kbStatus: decision.status })
+          .set(
+            decision.status === 'failed'
+              ? {
+                  kbStatus: decision.status,
+                  kbLastError:
+                    'The crawl finished without indexing any pages. The site may be blocking our crawler or have no readable content.',
+                  kbLastErrorCode: 'empty',
+                }
+              : { kbStatus: decision.status },
+          )
           .where(eq(sites.id, event.siteId));
         return NextResponse.json({ ok: true, kept: decision.reason });
       }
@@ -181,6 +195,9 @@ export async function POST(request: NextRequest) {
             activeGeneration: decision.generation,
             kbStatus: 'ready',
             kbLastSyncedAt: new Date(),
+            // A successful crawl clears any stale failure explanation.
+            kbLastError: null,
+            kbLastErrorCode: null,
           })
           .where(eq(sites.id, event.siteId));
         await tx
@@ -204,7 +221,11 @@ export async function POST(request: NextRequest) {
       await db.transaction(async (tx) => {
         await tx
           .update(sites)
-          .set({ kbStatus: 'failed' })
+          .set({
+            kbStatus: 'failed',
+            kbLastError: event.error ?? 'The crawl failed for an unknown reason.',
+            kbLastErrorCode: event.code ?? null,
+          })
           .where(eq(sites.id, event.siteId));
         await tx
           .delete(articles)

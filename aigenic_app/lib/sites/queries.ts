@@ -25,6 +25,8 @@ export async function listSitesForUser(userId: string): Promise<SiteListItem[]> 
         widgetConfig: sites.widgetConfig,
         kbStatus: sites.kbStatus,
         kbLastSyncedAt: sites.kbLastSyncedAt,
+        kbLastError: sites.kbLastError,
+        kbLastErrorCode: sites.kbLastErrorCode,
         activeGeneration: sites.activeGeneration,
         crawlGeneration: sites.crawlGeneration,
         crawlStartedAt: sites.crawlStartedAt,

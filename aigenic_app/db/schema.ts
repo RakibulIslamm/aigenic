@@ -54,6 +54,19 @@ export const sites = pgTable(
     kbStatus: text('kb_status').notNull().default('pending'),
     kbLastSyncedAt: timestamp('kb_last_synced_at'),
     /**
+     * Why the last crawl failed, in words the owner can act on ("Your site's
+     * security service blocked our crawler…"). Set by the scraper webhook on
+     * failure, cleared when a crawl succeeds. Only meaningful while
+     * `kbStatus = 'failed'`.
+     */
+    kbLastError: text('kb_last_error'),
+    /**
+     * Machine-readable classification of `kbLastError`: 'blocked' (WAF/bot
+     * protection — the dashboard shows allowlist instructions), 'unreachable',
+     * or 'empty' (reachable but nothing extractable).
+     */
+    kbLastErrorCode: text('kb_last_error_code'),
+    /**
      * The article generation this site's knowledge base **serves**. Every read
      * path filters to it, so a crawl in progress is invisible to visitors and
      * to the dashboard until it succeeds. See `lib/sites/generations.ts`.

@@ -79,8 +79,10 @@ describe('decideSwap', () => {
       ).toEqual({ action: 'keep', status: 'ready', reason: 'empty-crawl' });
     });
 
-    it('promotes when there is no KB to protect (a first crawl that found nothing)', () => {
-      // Pre-generations behavior: `ready` with an empty KB, not a false failure.
+    it('reports an empty FIRST crawl as failed too — never a green badge over nothing', () => {
+      // This used to promote ("ready", empty KB) — which painted a Cloudflare
+      // 403 wall as success on brand-new sites. An empty complete is a failure
+      // whether or not there is a KB to protect.
       expect(
         decideSwap({
           event: 'complete',
@@ -89,7 +91,19 @@ describe('decideSwap', () => {
           stagedCount: 0,
           liveCount: 0,
         }),
-      ).toEqual({ action: 'promote', generation: 4 });
+      ).toEqual({ action: 'keep', status: 'failed', reason: 'empty-crawl' });
+    });
+
+    it('reports a stopped first crawl as failed — there is nothing usable to serve', () => {
+      expect(
+        decideSwap({
+          event: 'stopped',
+          eventGeneration: 4,
+          site: site(),
+          stagedCount: 0,
+          liveCount: 0,
+        }),
+      ).toEqual({ action: 'keep', status: 'failed', reason: 'empty-crawl' });
     });
   });
 
