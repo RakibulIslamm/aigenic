@@ -11,6 +11,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { relations, sql, type SQL } from 'drizzle-orm';
+import { randomToken } from '@/lib/ids';
 
 /**
  * Postgres `tsvector`, which Drizzle has no built-in column type for.
@@ -52,6 +53,31 @@ export const sites = pgTable(
       greeting: string;
       botName: string;
     }>(),
+    /**
+     * Public proof-of-ownership token. The owner publishes it in a DNS TXT
+     * record (`_aigenic.<host>`, or the apex) or serves it at
+     * `/.well-known/aigenic-verification.txt`, and `verifySiteAction` reads it
+     * back. World-readable by design — which is precisely why it is NOT the
+     * value the crawler presents; see `crawlSecret`.
+     */
+    verificationToken: text('verification_token').notNull().$defaultFn(randomToken),
+    /** How ownership was proven — 'dns' or 'file'. Null until verified. */
+    verificationMethod: text('verification_method'),
+    /**
+     * When ownership was last proven. Null means unverified: the site is still
+     * crawlable (robots.txt and the owner's firewall stay the authority), but
+     * the dashboard will not hand out a firewall-bypass rule for a domain
+     * nobody has demonstrated they control.
+     */
+    verifiedAt: timestamp('verified_at'),
+    /**
+     * Shared secret sent as the `X-Aigenic-Verify` header on every request
+     * this site's crawl makes. A verified owner allowlists *this value* in
+     * their WAF, which — unlike a User-Agent match — no third party can
+     * forge, since anyone at all can claim to be AigenicBot. Shown only to
+     * the site's owner, and rotatable from Settings.
+     */
+    crawlSecret: text('crawl_secret').notNull().$defaultFn(randomToken),
     kbStatus: text('kb_status').notNull().default('pending'),
     kbLastSyncedAt: timestamp('kb_last_synced_at'),
     /**

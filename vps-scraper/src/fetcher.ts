@@ -46,14 +46,22 @@ export interface FetchResult {
 export async function fetchPage(opts: {
   url: string;
   userAgent: string;
+  /**
+   * Extra headers sent on every request — in practice the site's
+   * `X-Aigenic-Verify` credential, which a verified owner's firewall matches
+   * to let us through. Applied to both tiers: the browser context carries the
+   * same headers (see `crawler.ts`), so escalating to Playwright doesn't
+   * silently drop the credential and turn a working crawl into a 403.
+   */
+  extraHeaders?: Record<string, string>;
   getContext: () => Promise<BrowserContext>;
   signal: AbortSignal | undefined;
 }): Promise<FetchResult | null> {
-  const { url, userAgent, getContext, signal } = opts;
+  const { url, userAgent, extraHeaders, getContext, signal } = opts;
 
   if (signal?.aborted) return null;
 
-  const httpResult = await tryHttp(url, userAgent, signal);
+  const httpResult = await tryHttp(url, userAgent, signal, extraHeaders);
   if (httpResult && looksRendered(httpResult.html)) {
     return httpResult;
   }
@@ -76,6 +84,7 @@ async function tryHttp(
   url: string,
   userAgent: string,
   userSignal?: AbortSignal,
+  extraHeaders?: Record<string, string>,
 ): Promise<FetchResult | null> {
   for (let attempt = 1; attempt <= HTTP_MAX_ATTEMPTS; attempt++) {
     if (userSignal?.aborted) return null;
@@ -94,6 +103,7 @@ async function tryHttp(
           'Sec-Fetch-Mode': 'navigate',
           'Sec-Fetch-Site': 'none',
           'Sec-Fetch-User': '?1',
+          ...extraHeaders,
         },
         signal: combineSignals(AbortSignal.timeout(HTTP_TIMEOUT_MS), userSignal),
       });

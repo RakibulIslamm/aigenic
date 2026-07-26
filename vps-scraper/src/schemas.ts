@@ -40,6 +40,14 @@ export const crawlRequestSchema = z.object({
    * superseded crawl's. Defaults to 0 for direct API calls that don't care.
    */
   generation: z.number().int().nonnegative().default(0),
+  /**
+   * The site's crawl secret, sent as `X-Aigenic-Verify` on every request this
+   * job makes. A verified site owner matches the value in their firewall to
+   * let us through — unlike a User-Agent, it can't be forged by a third
+   * party. Absent for sites whose ownership hasn't been proven; the header is
+   * then simply not sent. Opaque here: the app decides who gets one.
+   */
+  verifyToken: z.string().min(8).max(256).optional(),
   webhookUrl: z.string().url(),
 });
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import Link from 'next/link';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -34,6 +35,9 @@ export function CrawlActivityFeed({
   initialError,
   initialErrorCode,
   crawlerIp,
+  isVerified = false,
+  verifyHeader,
+  userAgentToken,
 }: {
   siteId: string;
   initialStatus: string;
@@ -42,6 +46,12 @@ export function CrawlActivityFeed({
   initialErrorCode?: string | null;
   /** The crawler's stable egress IP (SCRAPER_EGRESS_IP), for allowlist copy. */
   crawlerIp?: string | null;
+  /** Whether this site's owner has proven they control the domain. */
+  isVerified?: boolean;
+  /** Header name carrying the crawl secret, e.g. `X-Aigenic-Verify`. */
+  verifyHeader?: string;
+  /** Product token in the crawler's User-Agent, e.g. `AigenicBot`. */
+  userAgentToken?: string;
 }) {
   const initialSnapshot: CrawlSnapshot = {
     status: initialStatus,
@@ -92,9 +102,13 @@ export function CrawlActivityFeed({
 
       {showFailure && (
         <CrawlFailurePanel
+          siteId={siteId}
           message={lastError}
           code={lastErrorCode}
           crawlerIp={crawlerIp ?? null}
+          isVerified={isVerified}
+          verifyHeader={verifyHeader ?? 'X-Aigenic-Verify'}
+          userAgentToken={userAgentToken ?? 'AigenicBot'}
         />
       )}
 
@@ -138,18 +152,31 @@ export function CrawlActivityFeed({
 /**
  * The "what now?" box for a failed crawl. For a `blocked` verdict this is an
  * ask for permission: the owner controls the firewall that refused us, and
- * the fix is theirs to make — allow the crawler, then Resync. The crawler
- * identifies itself as `AigenicBot` in its User-Agent (see the scraper's
- * USER_AGENT), so the rule below has something concrete to match.
+ * the fix is theirs to make — allow the crawler, then Resync.
+ *
+ * What we advise depends on whether they've proven they own the domain.
+ * A verified owner gets a header rule keyed to their private crawl secret,
+ * which nothing else on the internet can satisfy. An unverified one is sent
+ * to verify first rather than being handed a User-Agent rule — a UA string
+ * is a claim anyone can make, so telling someone to trust one is telling them
+ * to open a hole for every scraper that reads this page.
  */
 function CrawlFailurePanel({
+  siteId,
   message,
   code,
   crawlerIp,
+  isVerified,
+  verifyHeader,
+  userAgentToken,
 }: {
+  siteId: string;
   message: string;
   code: string | null;
   crawlerIp: string | null;
+  isVerified: boolean;
+  verifyHeader: string;
+  userAgentToken: string;
 }) {
   return (
     <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3">
@@ -162,54 +189,76 @@ function CrawlFailurePanel({
           <p className="mb-1.5 font-medium text-foreground">
             How to allow this app to crawl your site
           </p>
-          <p className="mb-2">
-            Our crawler identifies itself as{' '}
-            <code className="rounded bg-muted px-1 py-0.5 text-foreground">
-              AigenicBot
-            </code>{' '}
-            in its User-Agent
-            {crawlerIp ? (
-              <>
-                {' '}
-                and always crawls from the IP address{' '}
+          {isVerified ? (
+            <>
+              <p className="mb-2">
+                Every request we make to your site carries the{' '}
                 <code className="rounded bg-muted px-1 py-0.5 text-foreground">
-                  {crawlerIp}
-                </code>
-              </>
-            ) : null}
-            .
-          </p>
-          <ol className="list-decimal space-y-1 pl-4">
-            <li>
-              Open your site&apos;s firewall / bot-protection settings (on Cloudflare:
-              <span className="text-foreground"> Security → WAF → Custom rules</span>).
-            </li>
-            <li>
-              Add a rule with action{' '}
-              <span className="text-foreground">Skip (bot protection)</span> when{' '}
-              <span className="text-foreground">
-                User-Agent contains &quot;AigenicBot&quot;
-              </span>
-              {crawlerIp ? (
-                <>
-                  {' '}
-                  — or, for the strictest setup, when{' '}
-                  <span className="text-foreground">
-                    IP equals {crawlerIp} AND the User-Agent matches
-                  </span>
-                </>
-              ) : null}
-              .
-            </li>
-            <li>
-              Come back and press <span className="text-foreground">Resync all</span> on
-              the Knowledge tab to retry.
-            </li>
-          </ol>
-          <p className="mt-2">
-            Only your own enrolled site is ever crawled — this permission lets your
-            assistant read the pages it answers from.
-          </p>
+                  {verifyHeader}
+                </code>{' '}
+                header with your site&apos;s private crawl secret
+                {crawlerIp ? (
+                  <>
+                    , always from the IP address{' '}
+                    <code className="rounded bg-muted px-1 py-0.5 text-foreground">
+                      {crawlerIp}
+                    </code>
+                  </>
+                ) : null}
+                .
+              </p>
+              <ol className="list-decimal space-y-1 pl-4">
+                <li>
+                  Copy your crawl secret from{' '}
+                  <Link
+                    href={`/dashboard/sites/${siteId}/settings`}
+                    className="font-medium text-foreground underline underline-offset-2"
+                  >
+                    Settings → Domain ownership
+                  </Link>
+                  .
+                </li>
+                <li>
+                  In your firewall (on Cloudflare:{' '}
+                  <span className="text-foreground">Security → WAF → Custom rules</span>
+                  ), add a <span className="text-foreground">Skip</span> rule for requests
+                  where the <span className="text-foreground">{verifyHeader}</span> header
+                  equals that secret.
+                </li>
+                <li>
+                  Come back and press <span className="text-foreground">Resync all</span>{' '}
+                  to retry.
+                </li>
+              </ol>
+              <p className="mt-2">
+                Matching the header — rather than our{' '}
+                <code className="rounded bg-muted px-1 py-0.5 text-foreground">
+                  {userAgentToken}
+                </code>{' '}
+                User-Agent — means the rule lets in only us, since nobody else has your
+                secret.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mb-2">
+                First,{' '}
+                <Link
+                  href={`/dashboard/sites/${siteId}/settings`}
+                  className="font-medium text-foreground underline underline-offset-2"
+                >
+                  verify you own this domain
+                </Link>{' '}
+                (one DNS record, a couple of minutes). That unlocks a private crawl secret
+                your firewall can allow — a rule only our crawler can satisfy.
+              </p>
+              <p>
+                We ask for proof of ownership first because the alternative — telling you
+                to trust a User-Agent name — would open your site to anyone who types that
+                same name.
+              </p>
+            </>
+          )}
         </div>
       )}
     </div>

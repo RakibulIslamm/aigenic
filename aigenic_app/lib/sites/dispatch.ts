@@ -53,6 +53,8 @@ export async function dispatchSiteCrawl(params: {
     .returning({
       generation: sites.crawlGeneration,
       activeGeneration: sites.activeGeneration,
+      crawlSecret: sites.crawlSecret,
+      verifiedAt: sites.verifiedAt,
     });
 
   if (!claimed) {
@@ -80,7 +82,16 @@ export async function dispatchSiteCrawl(params: {
     );
 
   try {
-    await startSiteCrawl({ siteId, domain, maxPages, generation: claimed.generation });
+    await startSiteCrawl({
+      siteId,
+      domain,
+      maxPages,
+      generation: claimed.generation,
+      // Only a verified owner gets the bypass credential. Sending it for an
+      // unverified domain would mean handing a firewall-skip token to whoever
+      // typed the URL, which is the whole thing verification exists to stop.
+      verifyToken: claimed.verifiedAt ? claimed.crawlSecret : undefined,
+    });
   } catch (err) {
     await db
       .update(sites)

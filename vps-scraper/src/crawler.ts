@@ -40,12 +40,33 @@ const USER_AGENT =
   process.env.SCRAPER_USER_AGENT ??
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 AigenicBot/1.0';
 
+/**
+ * Header carrying the site's crawl secret. A site owner who has proven they
+ * control the domain gets the value in their dashboard and matches it in a
+ * WAF rule — a credential no third party can forge, unlike the `AigenicBot`
+ * User-Agent, which anyone can type. Kept byte-identical to
+ * `CRAWL_VERIFY_HEADER` in the app (`lib/sites/verification.ts`); the two
+ * workspaces don't share code, so the sync is by convention.
+ */
+const VERIFY_HEADER = 'X-Aigenic-Verify';
+
 export interface CrawlJob {
   siteId: string;
   startUrl: string;
   maxPages: number;
   webhookUrl: string;
   webhookApiKey: string;
+  /**
+   * The site's crawl secret, when its owner has verified the domain. Sent on
+   * every request this crawl makes — robots.txt, sitemaps, pages, and the
+   * post-mortem probe — because a firewall rule that matches it has to see it
+   * on the very first request to be of any use.
+   *
+   * Explicitly `| undefined`: under `exactOptionalPropertyTypes` the caller
+   * forwards the schema's optional field straight through, so the property is
+   * present-and-undefined rather than absent.
+   */
+  verifyToken?: string | undefined;
   /**
    * The app's staging generation for this crawl. Echoed back on every webhook
    * so the app can route these articles into a generation nothing reads yet,
@@ -78,8 +99,21 @@ export interface CrawlJob {
  * launched lazily — fully static sites never pay the Chromium startup cost.
  */
 export async function runCrawl(job: CrawlJob): Promise<void> {
-  const { siteId, startUrl, maxPages, webhookUrl, webhookApiKey, generation, signal } =
-    job;
+  const {
+    siteId,
+    startUrl,
+    maxPages,
+    webhookUrl,
+    webhookApiKey,
+    generation,
+    verifyToken,
+    signal,
+  } = job;
+
+  /** Spread into every request this crawl makes; empty when unverified. */
+  const verifyHeaders: Record<string, string> = verifyToken
+    ? { [VERIFY_HEADER]: verifyToken }
+    : {};
 
   const startedAt = Date.now();
   let totalPages = 0;
@@ -131,7 +165,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
 
   try {
     const origin = new URL(startUrl).origin;
-    const { robots, robotsBody } = await loadRobots(origin);
+    const { robots, robotsBody } = await loadRobots(origin, verifyHeaders);
 
     if (robots.isAllowed(startUrl, USER_AGENT) === false) {
       throw new Error(`robots.txt disallows the start URL ${startUrl}`);
@@ -151,6 +185,10 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
       });
       context = await browser.newContext({
         userAgent: USER_AGENT,
+        // Same credential the HTTP tier sends. Without this, escalating a
+        // JS-heavy page to the browser would drop the header and hit the very
+        // WAF rule the owner added to let us in.
+        extraHTTPHeaders: verifyHeaders,
         ignoreHTTPSErrors: true,
         javaScriptEnabled: true,
         viewport: { width: 1280, height: 800 },
@@ -171,6 +209,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
       origin,
       site,
       userAgent: USER_AGENT,
+      extraHeaders: verifyHeaders,
       robotsBody,
     });
     for (const u of sitemapUrls) enqueue(u);
@@ -200,7 +239,12 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
             await rateLimiter.wait(signal);
             if (signal?.aborted) return null;
             try {
-              return await crawlOne({ url, getContext, signal });
+              return await crawlOne({
+                url,
+                extraHeaders: verifyHeaders,
+                getContext,
+                signal,
+              });
             } catch (err) {
               logger.debug(
                 {
@@ -276,7 +320,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     // (WAF block, dead site, unrenderable pages). Probe once, classify, and
     // report an error the owner can act on instead of a hollow `complete`.
     if (!stopped && totalPages === 0) {
-      const diagnosis = await diagnoseEmptyCrawl(startUrl, USER_AGENT);
+      const diagnosis = await diagnoseEmptyCrawl(startUrl, USER_AGENT, verifyHeaders);
       logger.warn(
         { siteId, startUrl, code: diagnosis.code, failedFetches },
         'crawl found zero pages',
@@ -343,12 +387,14 @@ interface CrawlOneResult {
 
 async function crawlOne(opts: {
   url: string;
+  extraHeaders: Record<string, string>;
   getContext: () => Promise<BrowserContext>;
   signal: AbortSignal | undefined;
 }): Promise<CrawlOneResult | null> {
   const fetched = await fetchPage({
     url: opts.url,
     userAgent: USER_AGENT,
+    extraHeaders: opts.extraHeaders,
     getContext: opts.getContext,
     signal: opts.signal,
   });
@@ -371,6 +417,7 @@ function hashContent(content: string): string {
  */
 async function loadRobots(
   origin: string,
+  extraHeaders: Record<string, string> = {},
 ): Promise<{ robots: RobotsApi; robotsBody: string }> {
   const robotsUrl = `${origin}/robots.txt`;
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -380,6 +427,7 @@ async function loadRobots(
           'User-Agent': USER_AGENT,
           Accept: 'text/plain,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
+          ...extraHeaders,
         },
         signal: AbortSignal.timeout(5_000),
       });

@@ -94,6 +94,33 @@ describe('crawlRequestSchema', () => {
     });
   });
 
+  describe('verifyToken', () => {
+    it('is optional — unverified sites send no crawl credential at all', () => {
+      const parsed = crawlRequestSchema.safeParse(validRequest);
+      expect(parsed.success).toBe(true);
+      expect(parsed.success && parsed.data.verifyToken).toBeUndefined();
+    });
+
+    it('passes a real token through untouched', () => {
+      const token = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+      const parsed = crawlRequestSchema.safeParse({
+        ...validRequest,
+        verifyToken: token,
+      });
+      expect(parsed.success && parsed.data.verifyToken).toBe(token);
+    });
+
+    it('rejects a token too short to be one of ours, or absurdly long', () => {
+      expect(
+        crawlRequestSchema.safeParse({ ...validRequest, verifyToken: 'short' }).success,
+      ).toBe(false);
+      expect(
+        crawlRequestSchema.safeParse({ ...validRequest, verifyToken: 'x'.repeat(257) })
+          .success,
+      ).toBe(false);
+    });
+  });
+
   it('rejects a malformed siteId or page budget', () => {
     expect(
       crawlRequestSchema.safeParse({ ...validRequest, siteId: 'nope' }).success,

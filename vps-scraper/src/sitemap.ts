@@ -15,6 +15,13 @@ interface DiscoverOptions {
   origin: string;
   site: NormalizedSite;
   userAgent: string;
+  /**
+   * Extra headers for every sitemap fetch — the site's `X-Aigenic-Verify`
+   * credential. Sitemaps sit behind the same WAF as the pages, so omitting it
+   * here would lose the whole seed list on exactly the sites verification was
+   * meant to rescue.
+   */
+  extraHeaders?: Record<string, string>;
   /** Raw robots.txt body the crawler already fetched ('' when unavailable). */
   robotsBody: string;
 }
@@ -29,6 +36,7 @@ export async function discoverSitemapUrls({
   origin,
   site,
   userAgent,
+  extraHeaders,
   robotsBody,
 }: DiscoverOptions): Promise<string[]> {
   const seedCandidates = [
@@ -49,7 +57,7 @@ export async function discoverSitemapUrls({
     if (visited.has(sitemapUrl)) continue;
     visited.add(sitemapUrl);
 
-    const body = await fetchText(sitemapUrl, userAgent);
+    const body = await fetchText(sitemapUrl, userAgent, extraHeaders);
     if (!body) continue;
 
     if (looksLikeSitemapIndex(body)) {
@@ -86,13 +94,21 @@ function extractSitemapsFromRobotsBody(body: string): string[] {
   return found;
 }
 
-async function fetchText(url: string, userAgent: string): Promise<string | null> {
+async function fetchText(
+  url: string,
+  userAgent: string,
+  extraHeaders?: Record<string, string>,
+): Promise<string | null> {
   try {
     // Sitemap URLs are attacker-influenced twice over: a `Sitemap:` line in
     // robots.txt and a `<loc>` inside a sitemap index are both remote input,
     // and neither has passed `isSameSite` at this point.
     const { response: res } = await safeFetch(url, {
-      headers: { 'User-Agent': userAgent, Accept: 'application/xml, text/xml, */*' },
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'application/xml, text/xml, */*',
+        ...extraHeaders,
+      },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return null;
