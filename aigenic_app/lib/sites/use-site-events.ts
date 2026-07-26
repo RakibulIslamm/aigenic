@@ -32,6 +32,12 @@ export interface UseSiteEventsResult {
  * `done` (status reached a terminal state and lingered), we stop reconnecting
  * AND trigger a `router.refresh()` so server components reflect the final state
  * (e.g. the article list re-fetches from the DB).
+ *
+ * The stream is RE-OPENED whenever the server-rendered status changes: after
+ * a terminal `done` the connection is closed for good, so when the user hits
+ * Resync the server components flip to `pending` while this hook — without
+ * the re-open — would keep the dead crawl's snapshot forever (stale failure
+ * panel, no live updates for the new crawl, reload required to see reality).
  */
 export function useSiteEvents(
   siteId: string,
@@ -48,6 +54,32 @@ export function useSiteEvents(
   const stoppedRef = useRef(false);
   const lastRefreshAtRef = useRef<number>(0);
   const pendingRefreshTimerRef = useRef<number | null>(null);
+
+  const initialStatus = initialSnapshot?.status ?? null;
+
+  // "Adjust state when a prop changes", done during render as React docs
+  // prescribe: when the SERVER-rendered status changes (Resync flipped a
+  // failed site back to pending, a crawl reached a terminal state we
+  // missed…), rebase local state on the fresh server truth. Without this,
+  // the stream that closed after the last crawl's `done` kept its stale
+  // snapshot forever — the old failure panel stayed up and the new crawl
+  // never appeared without a manual reload.
+  const [seenStatus, setSeenStatus] = useState<string | null>(initialStatus);
+  if (seenStatus !== initialStatus) {
+    setSeenStatus(initialStatus);
+    setSnapshot(initialSnapshot ?? null);
+    setError(null);
+    if (
+      seenStatus !== null &&
+      isTerminalStatus(seenStatus) &&
+      initialStatus !== null &&
+      !isTerminalStatus(initialStatus)
+    ) {
+      // Terminal → live is a NEW crawl attempt; the previous attempt's event
+      // log would read as if it belonged to this one.
+      setEvents([]);
+    }
+  }
 
   useEffect(() => {
     stoppedRef.current = false;
@@ -153,8 +185,11 @@ export function useSiteEvents(
     };
     // We intentionally don't depend on `snapshot` — the effect would tear
     // down and re-establish the SSE connection on every update otherwise.
+    // `initialStatus` IS a dependency: a server-rendered status change means
+    // a new crawl session (or a terminal flip we missed) and must re-open
+    // the stream with fresh state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId, router]);
+  }, [siteId, router, initialStatus]);
 
   return { snapshot, events, connected, error };
 }
