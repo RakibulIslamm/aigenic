@@ -33,12 +33,15 @@ export function CrawlActivityFeed({
   initialCount,
   initialError,
   initialErrorCode,
+  crawlerIp,
 }: {
   siteId: string;
   initialStatus: string;
   initialCount?: number;
   initialError?: string | null;
   initialErrorCode?: string | null;
+  /** The crawler's stable egress IP (SCRAPER_EGRESS_IP), for allowlist copy. */
+  crawlerIp?: string | null;
 }) {
   const initialSnapshot: CrawlSnapshot = {
     status: initialStatus,
@@ -87,7 +90,13 @@ export function CrawlActivityFeed({
         </p>
       )}
 
-      {showFailure && <CrawlFailurePanel message={lastError} code={lastErrorCode} />}
+      {showFailure && (
+        <CrawlFailurePanel
+          message={lastError}
+          code={lastErrorCode}
+          crawlerIp={crawlerIp ?? null}
+        />
+      )}
 
       {visible.length === 0 ? (
         <p className="text-xs text-muted-foreground">
@@ -127,9 +136,19 @@ export function CrawlActivityFeed({
 /**
  * The "what now?" box for a failed crawl. For a `blocked` verdict this is an
  * ask for permission: the owner controls the firewall that refused us, and
- * the fix is theirs to make — allow this app, then hit "Sync knowledge base".
+ * the fix is theirs to make — allow the crawler, then Resync. The crawler
+ * identifies itself as `AigenicBot` in its User-Agent (see the scraper's
+ * USER_AGENT), so the rule below has something concrete to match.
  */
-function CrawlFailurePanel({ message, code }: { message: string; code: string | null }) {
+function CrawlFailurePanel({
+  message,
+  code,
+  crawlerIp,
+}: {
+  message: string;
+  code: string | null;
+  crawlerIp: string | null;
+}) {
   return (
     <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3">
       <p className="flex items-start gap-2 text-sm text-red-500">
@@ -141,15 +160,44 @@ function CrawlFailurePanel({ message, code }: { message: string; code: string | 
           <p className="mb-1.5 font-medium text-foreground">
             How to allow this app to crawl your site
           </p>
+          <p className="mb-2">
+            Our crawler identifies itself as{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-foreground">
+              AigenicBot
+            </code>{' '}
+            in its User-Agent
+            {crawlerIp ? (
+              <>
+                {' '}
+                and always crawls from the IP address{' '}
+                <code className="rounded bg-muted px-1 py-0.5 text-foreground">
+                  {crawlerIp}
+                </code>
+              </>
+            ) : null}
+            .
+          </p>
           <ol className="list-decimal space-y-1 pl-4">
             <li>
               Open your site&apos;s firewall / bot-protection settings (on Cloudflare:
               <span className="text-foreground"> Security → WAF → Custom rules</span>).
             </li>
             <li>
-              Add a rule that{' '}
-              <span className="text-foreground">skips bot protection</span> for our
-              crawler, or temporarily lower bot-fight mode while we sync.
+              Add a rule with action{' '}
+              <span className="text-foreground">Skip (bot protection)</span> when{' '}
+              <span className="text-foreground">
+                User-Agent contains &quot;AigenicBot&quot;
+              </span>
+              {crawlerIp ? (
+                <>
+                  {' '}
+                  — or, for the strictest setup, when{' '}
+                  <span className="text-foreground">
+                    IP equals {crawlerIp} AND the User-Agent matches
+                  </span>
+                </>
+              ) : null}
+              .
             </li>
             <li>
               Come back and press <span className="text-foreground">Resync all</span> on

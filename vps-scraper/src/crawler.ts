@@ -29,14 +29,16 @@ const CONCURRENCY = Number(process.env.SCRAPER_CONCURRENCY ?? 3);
 const DEFAULT_MIN_DELAY_MS = 150;
 const MAX_MIN_DELAY_MS = 5_000;
 
-// Realistic Chrome UA. Many shop platforms (Shopify, WooCommerce) sit behind
-// Cloudflare or similar WAFs that reset the TCP connection mid-handshake for
-// identifiable bot User-Agents. Since we only crawl sites the tenant has
-// explicitly enrolled, presenting as Chrome is the appropriate default.
-// Override via SCRAPER_USER_AGENT for stricter identification requirements.
+// Realistic Chrome UA *plus* a product token — the crawler's public identity.
+// The Chrome prefix keeps ordinary shop platforms rendering normal markup;
+// the trailing `AigenicBot/1.0` is what a site owner can actually allowlist:
+// the dashboard's "your firewall blocked us" panel tells them to add a WAF
+// rule matching exactly this token (see CrawlFailurePanel in the app). It
+// also lets robots.txt address us by name (`User-agent: AigenicBot`), which
+// the robots checks below honor. Override via SCRAPER_USER_AGENT.
 const USER_AGENT =
   process.env.SCRAPER_USER_AGENT ??
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 AigenicBot/1.0';
 
 export interface CrawlJob {
   siteId: string;

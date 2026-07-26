@@ -43,6 +43,13 @@ const serverSchema = z.object({
   // VPS scraper service
   SCRAPER_API_URL: z.string().min(1).optional(),
   SCRAPER_API_KEY: z.string().min(1).optional(),
+  /**
+   * The crawler's stable egress IP (the VPS's public address). Shown in the
+   * "your firewall blocked us" panel so site owners can allowlist by IP as
+   * well as by the AigenicBot User-Agent. Purely informational — nothing
+   * breaks when unset; the panel just omits the IP line.
+   */
+  SCRAPER_EGRESS_IP: z.string().min(1).optional(),
 
   // Trigger.dev — TRIGGER_SECRET_KEY is the SDK's name; TRIGGER_API_KEY is
   // this repo's legacy alias. TRIGGER_PROJECT_REF is read by the Trigger CLI
