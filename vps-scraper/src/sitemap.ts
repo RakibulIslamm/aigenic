@@ -1,4 +1,5 @@
 import { logger } from './logger.js';
+import type { OriginRoute } from './origin-route.js';
 import { isSsrfBlocked, safeFetch } from './ssrf-guard.js';
 import {
   isSameSite,
@@ -16,12 +17,11 @@ interface DiscoverOptions {
   site: NormalizedSite;
   userAgent: string;
   /**
-   * Extra headers for every sitemap fetch — the site's `X-Aigenic-Verify`
-   * credential. Sitemaps sit behind the same WAF as the pages, so omitting it
-   * here would lose the whole seed list on exactly the sites verification was
-   * meant to rescue.
+   * Where sitemap fetches go. Sitemaps sit behind the same CDN as the pages,
+   * so a crawl routed through `crawl.<domain>` has to fetch them there too —
+   * otherwise the seed list is lost on exactly the sites the route exists for.
    */
-  extraHeaders?: Record<string, string>;
+  route: OriginRoute;
   /** Raw robots.txt body the crawler already fetched ('' when unavailable). */
   robotsBody: string;
 }
@@ -36,7 +36,7 @@ export async function discoverSitemapUrls({
   origin,
   site,
   userAgent,
-  extraHeaders,
+  route,
   robotsBody,
 }: DiscoverOptions): Promise<string[]> {
   const seedCandidates = [
@@ -57,7 +57,7 @@ export async function discoverSitemapUrls({
     if (visited.has(sitemapUrl)) continue;
     visited.add(sitemapUrl);
 
-    const body = await fetchText(sitemapUrl, userAgent, extraHeaders);
+    const body = await fetchText(sitemapUrl, userAgent, route);
     if (!body) continue;
 
     if (looksLikeSitemapIndex(body)) {
@@ -97,7 +97,7 @@ function extractSitemapsFromRobotsBody(body: string): string[] {
 async function fetchText(
   url: string,
   userAgent: string,
-  extraHeaders?: Record<string, string>,
+  route: OriginRoute,
 ): Promise<string | null> {
   try {
     // Sitemap URLs are attacker-influenced twice over: a `Sitemap:` line in
@@ -107,8 +107,8 @@ async function fetchText(
       headers: {
         'User-Agent': userAgent,
         Accept: 'application/xml, text/xml, */*',
-        ...extraHeaders,
       },
+      route,
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return null;

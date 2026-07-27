@@ -1,5 +1,6 @@
 import type { Response as UndiciResponse } from 'undici';
 import { logger } from '../logger.js';
+import type { OriginRoute } from '../origin-route.js';
 import { isSsrfBlocked, safeFetch } from '../ssrf-guard.js';
 
 /**
@@ -30,10 +31,10 @@ export interface JsonResult<T> {
 export async function fetchJson<T>(opts: {
   url: string;
   userAgent: string;
-  extraHeaders: Record<string, string>;
+  route: OriginRoute;
   signal: AbortSignal | undefined;
 }): Promise<JsonResult<T> | null> {
-  const { url, userAgent, extraHeaders, signal } = opts;
+  const { url, userAgent, route, signal } = opts;
   if (signal?.aborted) return null;
 
   try {
@@ -42,8 +43,8 @@ export async function fetchJson<T>(opts: {
         'User-Agent': userAgent,
         Accept: 'application/json, */*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
-        ...extraHeaders,
       },
+      route,
       signal: combine(AbortSignal.timeout(TIMEOUT_MS), signal),
     });
 

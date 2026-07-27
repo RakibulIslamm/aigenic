@@ -2,11 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChevronLeft, ExternalLink } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
-import { env } from '@/lib/env';
 import { getSiteForUser, getSiteStats } from '@/lib/sites/queries';
 import { generationForProgress } from '@/lib/sites/generations';
-import { CRAWLER_UA_TOKEN } from '@/lib/sites/crawler-identity';
-import { CRAWL_VERIFY_HEADER } from '@/lib/sites/verification';
 import { KbStatusBadge } from '../../_components/kb-status-badge';
 import { CrawlActivityFeed } from '../../_components/crawl-activity-feed';
 import { TabNav } from './_components/tab-nav';
@@ -46,10 +43,7 @@ export default async function SiteLayout({
           initialCount={liveCount}
           initialError={site.kbLastError}
           initialErrorCode={site.kbLastErrorCode}
-          crawlerIp={env.SCRAPER_EGRESS_IP ?? null}
-          isVerified={site.verifiedAt !== null}
-          verifyHeader={CRAWL_VERIFY_HEADER}
-          userAgentToken={CRAWLER_UA_TOKEN}
+          crawlHost={site.crawlHost}
         />
       )}
 

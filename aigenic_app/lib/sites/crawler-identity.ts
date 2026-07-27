@@ -1,10 +1,10 @@
 /**
  * Who our crawler says it is, in one place.
  *
- * These constants are quoted verbatim in three places that must agree, or the
- * instructions we give site owners stop matching the requests they actually
- * receive: the public `/crawler` page, the Settings verification card, and the
- * "your firewall blocked us" panel.
+ * These constants are quoted verbatim on the public `/crawler` page, which is
+ * what an operator reads after seeing an unfamiliar User-Agent in their logs.
+ * If they drift from what the crawler actually sends, that page stops matching
+ * the requests it is meant to explain.
  *
  * **Kept in sync with `USER_AGENT` in `vps-scraper/src/crawler.ts`** — the
  * workspaces don't share a package, so the sync is by convention. Change one,

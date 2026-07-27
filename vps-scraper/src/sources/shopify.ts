@@ -56,7 +56,7 @@ export async function fetchShopifyProducts(ctx: SourceContext): Promise<Structur
     const result = await fetchJson<{ products?: ShopifyProduct[] }>({
       url,
       userAgent: ctx.userAgent,
-      extraHeaders: ctx.extraHeaders,
+      route: ctx.route,
       signal: ctx.signal,
     });
 

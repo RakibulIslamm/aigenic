@@ -1,5 +1,6 @@
 import { safeFetch, isSsrfBlocked } from './ssrf-guard.js';
 import { logger } from './logger.js';
+import type { OriginRoute } from './origin-route.js';
 
 /**
  * Why a crawl ended with zero pages, in terms the site owner can act on.
@@ -60,20 +61,20 @@ export async function diagnoseEmptyCrawl(
   startUrl: string,
   userAgent: string,
   /**
-   * The same headers the crawl itself used. The probe has to be a faithful
-   * replay: a verified site whose firewall rule matches `X-Aigenic-Verify`
-   * would answer 200 to the crawl and 403 to a bare probe, and we'd report
-   * "your firewall blocked us" to the one owner who had already fixed that.
+   * The same route the crawl itself used. The probe has to be a faithful
+   * replay: a site whose owner already set up `crawl.<domain>` answers 200
+   * there and 403 at the CDN, and probing the CDN would tell the one owner
+   * who had already fixed this that their firewall is blocking us.
    */
-  extraHeaders: Record<string, string> = {},
+  route: OriginRoute,
 ): Promise<EmptyCrawlDiagnosis> {
   try {
     const { response } = await safeFetch(startUrl, {
       headers: {
         'User-Agent': userAgent,
         Accept: 'text/html,*/*;q=0.8',
-        ...extraHeaders,
       },
+      route,
       signal: AbortSignal.timeout(15_000),
     });
     // Body content is irrelevant — the status is the diagnosis. Cancel so the

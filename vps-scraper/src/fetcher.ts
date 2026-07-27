@@ -1,6 +1,7 @@
 import type { BrowserContext } from 'playwright';
 import type { Response as UndiciResponse } from 'undici';
 import { logger } from './logger.js';
+import type { OriginRoute } from './origin-route.js';
 import { assertPublicUrl, isSsrfBlocked, safeFetch } from './ssrf-guard.js';
 
 const HTTP_TIMEOUT_MS = 15_000;
@@ -47,21 +48,19 @@ export async function fetchPage(opts: {
   url: string;
   userAgent: string;
   /**
-   * Extra headers sent on every request — in practice the site's
-   * `X-Aigenic-Verify` credential, which a verified owner's firewall matches
-   * to let us through. Applied to both tiers: the browser context carries the
-   * same headers (see `crawler.ts`), so escalating to Playwright doesn't
-   * silently drop the credential and turn a working crawl into a 403.
+   * Where this crawl's requests actually go. Applied to *both* tiers — a page
+   * that escalates to Playwright must reach the same host the HTTP tier did,
+   * or a crawl that works on static pages would 403 on every JS-rendered one.
    */
-  extraHeaders?: Record<string, string>;
+  route: OriginRoute;
   getContext: () => Promise<BrowserContext>;
   signal: AbortSignal | undefined;
 }): Promise<FetchResult | null> {
-  const { url, userAgent, extraHeaders, getContext, signal } = opts;
+  const { url, userAgent, route, getContext, signal } = opts;
 
   if (signal?.aborted) return null;
 
-  const httpResult = await tryHttp(url, userAgent, signal, extraHeaders);
+  const httpResult = await tryHttp(url, userAgent, route, signal);
   if (httpResult && looksRendered(httpResult.html)) {
     return httpResult;
   }
@@ -70,7 +69,7 @@ export async function fetchPage(opts: {
 
   try {
     const context = await getContext();
-    return await tryPlaywright(context, url, signal);
+    return await tryPlaywright(context, url, route, signal);
   } catch (err) {
     logger.debug(
       { url, reason: err instanceof Error ? err.message.split('\n')[0] : 'unknown' },
@@ -83,8 +82,8 @@ export async function fetchPage(opts: {
 async function tryHttp(
   url: string,
   userAgent: string,
+  route: OriginRoute,
   userSignal?: AbortSignal,
-  extraHeaders?: Record<string, string>,
 ): Promise<FetchResult | null> {
   for (let attempt = 1; attempt <= HTTP_MAX_ATTEMPTS; attempt++) {
     if (userSignal?.aborted) return null;
@@ -103,8 +102,8 @@ async function tryHttp(
           'Sec-Fetch-Mode': 'navigate',
           'Sec-Fetch-Site': 'none',
           'Sec-Fetch-User': '?1',
-          ...extraHeaders,
         },
+        route,
         signal: combineSignals(AbortSignal.timeout(HTTP_TIMEOUT_MS), userSignal),
       });
 
@@ -252,9 +251,15 @@ function looksRendered(html: string): boolean {
 async function tryPlaywright(
   context: BrowserContext,
   url: string,
+  route: OriginRoute,
   userSignal?: AbortSignal,
 ): Promise<FetchResult | null> {
   if (userSignal?.aborted) return null;
+
+  // The browser navigates to the routed URL — its context is created with
+  // `ignoreHTTPSErrors`, which is what makes the crawl host's origin
+  // certificate (issued for the real domain) usable here.
+  const target = route.resolve(url).url;
 
   // Chromium does its own DNS and its own redirect-following, so `safeFetch`
   // can't cover this path. We check the target before navigating and re-check
@@ -262,7 +267,7 @@ async function tryPlaywright(
   // somewhere private, even though it can't stop the request being *made*.
   // Blocking that last gap is the container's egress filter (docker-compose.yml).
   try {
-    assertPublicUrl(url);
+    assertPublicUrl(target);
   } catch (err) {
     logger.warn({ url, err: describe(err) }, 'ssrf-guard: blocked browser navigation');
     return null;
@@ -276,7 +281,7 @@ async function tryPlaywright(
   userSignal?.addEventListener('abort', onAbort, { once: true });
 
   try {
-    const response = await page.goto(url, {
+    const response = await page.goto(target, {
       timeout: PAGE_TIMEOUT_MS,
       waitUntil: 'domcontentloaded',
     });
@@ -292,7 +297,10 @@ async function tryPlaywright(
       .waitForLoadState('networkidle', { timeout: NETWORK_IDLE_TIMEOUT_MS })
       .catch(() => undefined);
 
-    const finalUrl = page.url();
+    // Back into canonical space before anything downstream sees it: this
+    // value becomes the article's `sourceUrl` and the base for every relative
+    // link on the page, neither of which should mention the crawl host.
+    const finalUrl = route.toCanonical(page.url());
     // Post-navigation re-check: if the redirect chain ended on a private
     // host, drop the page rather than extracting an article from it.
     try {
