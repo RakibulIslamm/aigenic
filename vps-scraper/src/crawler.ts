@@ -147,17 +147,6 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
   }
   const site = maybeSite;
 
-  // Built once and threaded through every fetch. It is the identity route
-  // unless this site has a `crawl.` record, and it refuses a crawl host that
-  // isn't a subdomain of the site being crawled — see `origin-route.ts`.
-  const route: OriginRoute = createOriginRoute({
-    siteHostname: site.hostname,
-    crawlHost,
-  });
-  if (route.crawlHost) {
-    logger.info({ siteId, crawlHost: route.crawlHost }, 'crawling via origin route');
-  }
-
   // Name/scheme check on the start URL up front. Blocked here means the whole
   // crawl fails with a clear reason rather than quietly producing zero pages —
   // the per-URL guards below can only skip, and a user who typed a private
@@ -181,6 +170,15 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     return;
   }
 
+  // Built after the start-URL check (nothing to resolve for a crawl we're
+  // refusing) and released in the `finally` below. A no-op unless this site
+  // has a `crawl.` record, and it degrades to a normal crawl if that record is
+  // gone or points somewhere non-public — see `origin-route.ts`.
+  const route: OriginRoute = await createOriginRoute({
+    siteHostname: site.hostname,
+    crawlHost,
+  });
+
   try {
     const origin = new URL(startUrl).origin;
     const { robots, robotsBody } = await loadRobots(origin, route);
@@ -198,14 +196,23 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
 
     const getContext = async (): Promise<BrowserContext> => {
       if (context) return context;
+      // Chromium resolves its own DNS, so the pinned dispatcher the HTTP tier
+      // uses means nothing here — `--host-resolver-rules` is the equivalent.
+      // Without it, escalating a JS-heavy page to the browser would go back
+      // through the CDN and hit the very block the route exists to avoid.
+      const resolverRules = route.hostResolverRules();
       browser = await chromium.launch({
-        args: ['--no-sandbox', '--disable-dev-shm-usage'],
+        args: [
+          '--no-sandbox',
+          '--disable-dev-shm-usage',
+          ...(resolverRules ? [`--host-resolver-rules=${resolverRules}`] : []),
+        ],
       });
       context = await browser.newContext({
         userAgent: USER_AGENT,
-        // Required for the crawl-host route: that hostname is served by the
-        // origin's own certificate, which is issued for the real domain and
-        // can never match `crawl.<domain>`.
+        // An origin behind Cloudflare commonly serves a Cloudflare Origin CA
+        // certificate, which is deliberately not publicly trusted — verifying
+        // it would fail exactly the setups the origin route exists for.
         ignoreHTTPSErrors: true,
         javaScriptEnabled: true,
         viewport: { width: 1280, height: 800 },
@@ -453,6 +460,9 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     if (browser) {
       await browser.close().catch(() => undefined);
     }
+    // The pinned pool holds sockets to the customer's origin; a crawl per site
+    // per day would otherwise leak one agent each.
+    await route.close();
   }
 }
 
@@ -498,10 +508,45 @@ async function loadRobots(
   origin: string,
   route: OriginRoute,
 ): Promise<{ robots: RobotsApi; robotsBody: string }> {
-  // Parsed against the canonical URL even when fetched through the crawl host:
-  // every URL tested against these rules is canonical, and robots-parser
-  // compares origins.
   const robotsUrl = `${origin}/robots.txt`;
+
+  /**
+   * On a pinned crawl, read the **public** robots.txt first.
+   *
+   * The policy a site owner publishes is the one at the edge, and a CDN often
+   * serves a robots.txt the origin has never seen — Cloudflare's managed
+   * AI-crawler file, for instance. CDNs also routinely exempt robots.txt from
+   * the bot challenges that refuse everything else, so this usually succeeds
+   * even on a site whose pages we can't fetch at all.
+   *
+   * The origin's own file is the fallback rather than the first choice because
+   * on shared hosting it is frequently the *host's* default — a parking page's
+   * `Disallow: /` — which would have us refuse a site whose owner published
+   * `Allow: /`. Stepping around a CDN to reach the origin must not quietly
+   * change whose rules we obey.
+   */
+  const sources: Array<OriginRoute | undefined> = route.crawlHost
+    ? [undefined, route]
+    : [route];
+
+  for (const source of sources) {
+    const body = await fetchRobotsBody(robotsUrl, source);
+    if (body !== null) {
+      // Always parsed against the public URL: every URL tested against these
+      // rules is a public one, and robots-parser compares origins.
+      return { robots: robotsParser(robotsUrl, body), robotsBody: body };
+    }
+  }
+
+  // No robots = allow everything (per RFC 9309).
+  return { robots: robotsParser(robotsUrl, ''), robotsBody: '' };
+}
+
+/** One robots.txt read with transient retry. Null when there is nothing usable. */
+async function fetchRobotsBody(
+  robotsUrl: string,
+  route: OriginRoute | undefined,
+): Promise<string | null> {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const { response: res } = await safeFetch(robotsUrl, {
@@ -513,25 +558,22 @@ async function loadRobots(
         route,
         signal: AbortSignal.timeout(5_000),
       });
-      if (res.ok) {
-        const body = await res.text();
-        return { robots: robotsParser(robotsUrl, body), robotsBody: body };
-      }
-      break; // non-ok response — don't keep retrying
+      if (res.ok) return await res.text();
+      // A 403 here is the CDN refusing us, not a policy — let the caller try
+      // the next source rather than reading "no robots" as "allow".
+      await res.body?.cancel().catch(() => undefined);
+      return null;
     } catch (err) {
-      // Never retry a blocked host, and never treat it as "no robots =
-      // allow": the caller checks the start URL separately, so just stop.
       if (isSsrfBlocked(err)) {
-        logger.warn({ origin }, 'ssrf-guard: blocked robots.txt fetch');
-        break;
+        logger.warn({ robotsUrl }, 'ssrf-guard: blocked robots.txt fetch');
+        return null;
       }
       if (attempt < 3) {
         await new Promise((resolve) => setTimeout(resolve, 300 * 2 ** (attempt - 1)));
         continue;
       }
-      logger.debug({ origin, err }, 'robots.txt fetch failed — assuming allow');
+      logger.debug({ robotsUrl, err }, 'robots.txt fetch failed');
     }
   }
-  // No robots = allow everything (per RFC 9309).
-  return { robots: robotsParser(robotsUrl, ''), robotsBody: '' };
+  return null;
 }
