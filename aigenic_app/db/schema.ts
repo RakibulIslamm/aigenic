@@ -11,6 +11,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { relations, sql, type SQL } from 'drizzle-orm';
+import { randomToken } from '@/lib/ids';
 
 /**
  * Postgres `tsvector`, which Drizzle has no built-in column type for.
@@ -37,46 +38,6 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
-/**
- * A user's API credentials for a DNS provider.
- *
- * Declared before `sites` because a site points at one: the connection is the
- * long-lived thing (one Cloudflare token can serve every site in that account)
- * and the site's crawl record is the per-site consequence of it.
- *
- * `credentials` holds the AES-256-GCM blob produced by `lib/crypto/secrets.ts`
- * — never the raw token. Nothing outside `lib/dns/connections.ts` decrypts it,
- * and no read path ever returns it to the browser: the UI gets `label` and
- * `provider`, which is everything it needs to say "connected as …".
- */
-export const dnsConnections = pgTable(
-  'dns_connections',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: text('user_id')
-      .references(() => users.id, { onDelete: 'cascade' })
-      .notNull(),
-    /** Provider id from `lib/dns/registry.ts` — 'cloudflare', 'route53', … */
-    provider: text('provider').notNull(),
-    /**
-     * What to call this connection in the UI: the account email, token name,
-     * or AWS access-key id — whatever the provider's verify call hands back
-     * that identifies the credential without being secret.
-     */
-    label: text('label').notNull(),
-    /** Encrypted credential blob. See `lib/crypto/secrets.ts`. */
-    credentials: text('credentials').notNull(),
-    /** Last time the provider accepted these credentials. */
-    lastVerifiedAt: timestamp('last_verified_at'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
-      .defaultNow()
-      .notNull()
-      .$onUpdate(() => new Date()),
-  },
-  (t) => [index('dns_connections_user_id_idx').on(t.userId)],
-);
-
 export const sites = pgTable(
   'sites',
   {
@@ -93,33 +54,30 @@ export const sites = pgTable(
       botName: string;
     }>(),
     /**
-     * The DNS connection whose API created this site's crawl record. Null
-     * means the site crawls normally, straight at its public hostname.
-     * `ON DELETE SET NULL` so disconnecting the provider doesn't take the
-     * site's history with it — `crawlHost` is cleared explicitly instead.
+     * Public proof-of-ownership token. The owner publishes it in a DNS TXT
+     * record (`_aigenic.<host>`, or the apex) or serves it at
+     * `/.well-known/aigenic-verification.txt`, and `verifySiteAction` reads it
+     * back. World-readable by design — which is precisely why it is NOT the
+     * value the crawler presents; see `crawlSecret`.
      */
-    dnsConnectionId: uuid('dns_connection_id').references(() => dnsConnections.id, {
-      onDelete: 'set null',
-    }),
-    /** Provider-side zone id the crawl record was written into. */
-    dnsZoneId: text('dns_zone_id'),
-    /** Human-readable zone name, e.g. `example.com`. Shown in Settings. */
-    dnsZoneName: text('dns_zone_name'),
+    verificationToken: text('verification_token').notNull().$defaultFn(randomToken),
+    /** How ownership was proven — 'dns' or 'file'. Null until verified. */
+    verificationMethod: text('verification_method'),
     /**
-     * Hostname the crawler fetches this site through — always
-     * `crawl.<domain>`, pointed straight at the origin and unproxied. Null is
-     * the normal case: the crawler goes to the site's own hostname like any
-     * other visitor. Set only after the owner connected their DNS provider and
-     * we created the record, which is what makes "only connected domains get
-     * routed" a property of the data rather than of a code path.
+     * When ownership was last proven. Null means unverified: the site is still
+     * crawlable (robots.txt and the owner's firewall stay the authority), but
+     * the dashboard will not hand out a firewall-bypass rule for a domain
+     * nobody has demonstrated they control.
      */
-    crawlHost: text('crawl_host'),
-    /** Address the crawl record points at, kept so Settings can show it. */
-    crawlOriginIp: text('crawl_origin_ip'),
-    /** Provider-side record id, so a re-run updates instead of duplicating. */
-    crawlRecordId: text('crawl_record_id'),
-    /** When the crawl record was last created or refreshed. */
-    crawlHostCreatedAt: timestamp('crawl_host_created_at'),
+    verifiedAt: timestamp('verified_at'),
+    /**
+     * Shared secret sent as the `X-Aigenic-Verify` header on every request
+     * this site's crawl makes. A verified owner allowlists *this value* in
+     * their WAF, which — unlike a User-Agent match — no third party can
+     * forge, since anyone at all can claim to be AigenicBot. Shown only to
+     * the site's owner, and rotatable from Settings.
+     */
+    crawlSecret: text('crawl_secret').notNull().$defaultFn(randomToken),
     kbStatus: text('kb_status').notNull().default('pending'),
     kbLastSyncedAt: timestamp('kb_last_synced_at'),
     /**
@@ -350,25 +308,12 @@ export const rateLimits = pgTable('rate_limits', {
 
 export const usersRelations = relations(users, ({ many }) => ({
   sites: many(sites),
-  dnsConnections: many(dnsConnections),
-}));
-
-export const dnsConnectionsRelations = relations(dnsConnections, ({ one, many }) => ({
-  user: one(users, {
-    fields: [dnsConnections.userId],
-    references: [users.id],
-  }),
-  sites: many(sites),
 }));
 
 export const sitesRelations = relations(sites, ({ one, many }) => ({
   user: one(users, {
     fields: [sites.userId],
     references: [users.id],
-  }),
-  dnsConnection: one(dnsConnections, {
-    fields: [sites.dnsConnectionId],
-    references: [dnsConnections.id],
   }),
   articles: many(articles),
   conversations: many(conversations),
@@ -429,5 +374,3 @@ export type Escalation = typeof escalations.$inferSelect;
 export type NewEscalation = typeof escalations.$inferInsert;
 export type CrawlRun = typeof crawlRuns.$inferSelect;
 export type NewCrawlRun = typeof crawlRuns.$inferInsert;
-export type DnsConnection = typeof dnsConnections.$inferSelect;
-export type NewDnsConnection = typeof dnsConnections.$inferInsert;

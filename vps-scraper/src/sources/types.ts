@@ -21,8 +21,6 @@
  * in exactly one place, the same ones the HTML path goes through.
  */
 
-import type { OriginRoute } from '../origin-route.js';
-
 /** Which platform adapter produced a batch of documents. */
 export type SourceKind = 'shopify' | 'woocommerce' | 'wordpress';
 
@@ -43,12 +41,8 @@ export interface SourceContext {
   /** Site origin, e.g. `https://example.com` (no trailing slash). */
   origin: string;
   userAgent: string;
-  /**
-   * Where these requests go. Platform endpoints sit behind the same CDN as
-   * the pages, so a crawl routed through `crawl.<domain>` reads them there
-   * too — the origin serves the same JSON either way.
-   */
-  route: OriginRoute;
+  /** Crawl-credential headers, spread onto every request. */
+  extraHeaders: Record<string, string>;
   /**
    * Hard cap on documents this adapter may return. Adapters stop paginating
    * once reached — the caller's budget is not a suggestion.

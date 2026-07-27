@@ -238,25 +238,10 @@ To make the agent actually answer:
 
 To wire the crawler:
 
-| Variable            | Notes                                                       |
-| ------------------- | ----------------------------------------------------------- |
-| `SCRAPER_API_URL`   | `https://scraper.yourdomain.com` (HTTPS, no trailing slash) |
-| `SCRAPER_API_KEY`   | The shared secret you also set on the VPS                   |
-| `SCRAPER_EGRESS_IP` | The VPS's public IP (optional — published on `/crawler`)    |
-
-To let customers connect a DNS provider (Settings → Crawler access), so a
-CDN-blocked site can be crawled through a `crawl.<domain>` record pointed at
-its own origin:
-
-| Variable                     | Notes                                                                                             |
-| ---------------------------- | ------------------------------------------------------------------------------------------------- |
-| `CREDENTIALS_ENCRYPTION_KEY` | 32 bytes, base64 or hex — `openssl rand -base64 32`. Encrypts stored DNS API tokens (AES-256-GCM) |
-
-Without it the feature refuses to start rather than storing a customer's API
-token in the clear; everything else keeps working. Supported providers:
-Cloudflare, Route 53, DigitalOcean, Google Cloud DNS, Namecheap. Namecheap
-additionally requires a **static egress IP** on the app, allowlisted in the
-customer's Namecheap API settings — it rejects calls from anywhere else.
+| Variable          | Notes                                                       |
+| ----------------- | ----------------------------------------------------------- |
+| `SCRAPER_API_URL` | `https://scraper.yourdomain.com` (HTTPS, no trailing slash) |
+| `SCRAPER_API_KEY` | The shared secret you also set on the VPS                   |
 
 To wire billing:
 

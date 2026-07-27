@@ -34,20 +34,24 @@ export function CrawlActivityFeed({
   initialCount,
   initialError,
   initialErrorCode,
-  crawlHost,
+  crawlerIp,
+  isVerified = false,
+  verifyHeader,
+  userAgentToken,
 }: {
   siteId: string;
   initialStatus: string;
   initialCount?: number;
   initialError?: string | null;
   initialErrorCode?: string | null;
-  /**
-   * The site's `crawl.<domain>` route, when one has been created. Its presence
-   * changes what the failure panel should say: without it, a block is fixable
-   * by connecting DNS; with it, the direct route is already in place and the
-   * cause is something else.
-   */
-  crawlHost?: string | null;
+  /** The crawler's stable egress IP (SCRAPER_EGRESS_IP), for allowlist copy. */
+  crawlerIp?: string | null;
+  /** Whether this site's owner has proven they control the domain. */
+  isVerified?: boolean;
+  /** Header name carrying the crawl secret, e.g. `X-Aigenic-Verify`. */
+  verifyHeader?: string;
+  /** Product token in the crawler's User-Agent, e.g. `AigenicBot`. */
+  userAgentToken?: string;
 }) {
   const initialSnapshot: CrawlSnapshot = {
     status: initialStatus,
@@ -101,7 +105,10 @@ export function CrawlActivityFeed({
           siteId={siteId}
           message={lastError}
           code={lastErrorCode}
-          crawlHost={crawlHost ?? null}
+          crawlerIp={crawlerIp ?? null}
+          isVerified={isVerified}
+          verifyHeader={verifyHeader ?? 'X-Aigenic-Verify'}
+          userAgentToken={userAgentToken ?? 'AigenicBot'}
         />
       )}
 
@@ -143,28 +150,33 @@ export function CrawlActivityFeed({
 }
 
 /**
- * The "what now?" box for a failed crawl.
+ * The "what now?" box for a failed crawl. For a `blocked` verdict this is an
+ * ask for permission: the owner controls the firewall that refused us, and
+ * the fix is theirs to make — allow the crawler, then Resync.
  *
- * A `blocked` verdict means the site's own CDN or firewall refused us, and the
- * only person who can change that is the owner. The offer here is the DNS
- * route: connect the provider they already use and we create
- * `crawl.<domain>` pointing straight at their origin, which the crawler
- * fetches through instead of going past the edge that's blocking it.
- *
- * When that route is already active a `blocked` verdict means something else —
- * origin-level protection, or an origin that has since moved — so the panel
- * points at re-detection rather than repeating an offer already taken up.
+ * What we advise depends on whether they've proven they own the domain.
+ * A verified owner gets a header rule keyed to their private crawl secret,
+ * which nothing else on the internet can satisfy. An unverified one is sent
+ * to verify first rather than being handed a User-Agent rule — a UA string
+ * is a claim anyone can make, so telling someone to trust one is telling them
+ * to open a hole for every scraper that reads this page.
  */
 function CrawlFailurePanel({
   siteId,
   message,
   code,
-  crawlHost,
+  crawlerIp,
+  isVerified,
+  verifyHeader,
+  userAgentToken,
 }: {
   siteId: string;
   message: string;
   code: string | null;
-  crawlHost: string | null;
+  crawlerIp: string | null;
+  isVerified: boolean;
+  verifyHeader: string;
+  userAgentToken: string;
 }) {
   return (
     <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3">
@@ -175,65 +187,75 @@ function CrawlFailurePanel({
       {code === 'blocked' && (
         <div className="mt-3 rounded-md border border-border/50 bg-background/50 px-3 py-2.5 text-xs text-muted-foreground">
           <p className="mb-1.5 font-medium text-foreground">
-            How to get the crawler through
+            How to allow this app to crawl your site
           </p>
-          {crawlHost ? (
+          {isVerified ? (
             <>
               <p className="mb-2">
-                We already fetch this site through{' '}
+                Every request we make to your site carries the{' '}
                 <code className="rounded bg-muted px-1 py-0.5 text-foreground">
-                  {crawlHost}
-                </code>
-                , so the block is happening at your origin rather than at the edge — or
-                your origin address has changed since we created that record.
+                  {verifyHeader}
+                </code>{' '}
+                header with your site&apos;s private crawl secret
+                {crawlerIp ? (
+                  <>
+                    , always from the IP address{' '}
+                    <code className="rounded bg-muted px-1 py-0.5 text-foreground">
+                      {crawlerIp}
+                    </code>
+                  </>
+                ) : null}
+                .
               </p>
-              <p>
-                Open{' '}
-                <Link
-                  href={`/dashboard/sites/${siteId}/settings`}
-                  className="font-medium text-foreground underline underline-offset-2"
-                >
-                  Settings → Crawler access
-                </Link>{' '}
-                and press <span className="text-foreground">Re-detect origin</span>, then
-                retry with <span className="text-foreground">Resync all</span>.
+              <ol className="list-decimal space-y-1 pl-4">
+                <li>
+                  Copy your crawl secret from{' '}
+                  <Link
+                    href={`/dashboard/sites/${siteId}/settings`}
+                    className="font-medium text-foreground underline underline-offset-2"
+                  >
+                    Settings → Domain ownership
+                  </Link>
+                  .
+                </li>
+                <li>
+                  In your firewall (on Cloudflare:{' '}
+                  <span className="text-foreground">Security → WAF → Custom rules</span>
+                  ), add a <span className="text-foreground">Skip</span> rule for requests
+                  where the <span className="text-foreground">{verifyHeader}</span> header
+                  equals that secret.
+                </li>
+                <li>
+                  Come back and press <span className="text-foreground">Resync all</span>{' '}
+                  to retry.
+                </li>
+              </ol>
+              <p className="mt-2">
+                Matching the header — rather than our{' '}
+                <code className="rounded bg-muted px-1 py-0.5 text-foreground">
+                  {userAgentToken}
+                </code>{' '}
+                User-Agent — means the rule lets in only us, since nobody else has your
+                secret.
               </p>
             </>
           ) : (
             <>
               <p className="mb-2">
-                Your firewall or CDN is answering our crawler instead of letting it reach
-                your pages. The quickest fix doesn&apos;t involve writing a firewall rule:
-                connect your DNS provider and we&apos;ll add one record —{' '}
-                <code className="rounded bg-muted px-1 py-0.5 text-foreground">
-                  crawl.yourdomain
-                </code>{' '}
-                pointing straight at your origin, unproxied — that we crawl through
-                instead.
+                First,{' '}
+                <Link
+                  href={`/dashboard/sites/${siteId}/settings`}
+                  className="font-medium text-foreground underline underline-offset-2"
+                >
+                  verify you own this domain
+                </Link>{' '}
+                (one DNS record, a couple of minutes). That unlocks a private crawl secret
+                your firewall can allow — a rule only our crawler can satisfy.
               </p>
-              <ol className="list-decimal space-y-1 pl-4">
-                <li>
-                  Open{' '}
-                  <Link
-                    href={`/dashboard/sites/${siteId}/settings`}
-                    className="font-medium text-foreground underline underline-offset-2"
-                  >
-                    Settings → Crawler access
-                  </Link>
-                  .
-                </li>
-                <li>
-                  Connect Cloudflare, Route 53, DigitalOcean, Google Cloud DNS or
-                  Namecheap.
-                </li>
-                <li>
-                  Press <span className="text-foreground">Create crawl subdomain</span>,
-                  then <span className="text-foreground">Resync all</span> to retry.
-                </li>
-              </ol>
-              <p className="mt-2">
-                Nothing about your public site changes — visitors keep hitting your CDN
-                exactly as before.
+              <p>
+                We ask for proof of ownership first because the alternative — telling you
+                to trust a User-Agent name — would open your site to anyone who types that
+                same name.
               </p>
             </>
           )}

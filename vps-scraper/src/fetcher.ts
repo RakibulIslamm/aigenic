@@ -1,7 +1,6 @@
 import type { BrowserContext } from 'playwright';
 import type { Response as UndiciResponse } from 'undici';
 import { logger } from './logger.js';
-import type { OriginRoute } from './origin-route.js';
 import { assertPublicUrl, isSsrfBlocked, safeFetch } from './ssrf-guard.js';
 
 const HTTP_TIMEOUT_MS = 15_000;
@@ -48,21 +47,21 @@ export async function fetchPage(opts: {
   url: string;
   userAgent: string;
   /**
-   * Where this crawl's requests resolve to. The HTTP tier uses its pinned
-   * dispatcher; the browser tier gets the same override from Chromium's
-   * `--host-resolver-rules` at launch (see `crawler.ts`), so a page that
-   * escalates to Playwright reaches the same origin rather than falling back
-   * to the CDN that's blocking us.
+   * Extra headers sent on every request — in practice the site's
+   * `X-Aigenic-Verify` credential, which a verified owner's firewall matches
+   * to let us through. Applied to both tiers: the browser context carries the
+   * same headers (see `crawler.ts`), so escalating to Playwright doesn't
+   * silently drop the credential and turn a working crawl into a 403.
    */
-  route: OriginRoute;
+  extraHeaders?: Record<string, string>;
   getContext: () => Promise<BrowserContext>;
   signal: AbortSignal | undefined;
 }): Promise<FetchResult | null> {
-  const { url, userAgent, route, getContext, signal } = opts;
+  const { url, userAgent, extraHeaders, getContext, signal } = opts;
 
   if (signal?.aborted) return null;
 
-  const httpResult = await tryHttp(url, userAgent, route, signal);
+  const httpResult = await tryHttp(url, userAgent, signal, extraHeaders);
   if (httpResult && looksRendered(httpResult.html)) {
     return httpResult;
   }
@@ -84,8 +83,8 @@ export async function fetchPage(opts: {
 async function tryHttp(
   url: string,
   userAgent: string,
-  route: OriginRoute,
   userSignal?: AbortSignal,
+  extraHeaders?: Record<string, string>,
 ): Promise<FetchResult | null> {
   for (let attempt = 1; attempt <= HTTP_MAX_ATTEMPTS; attempt++) {
     if (userSignal?.aborted) return null;
@@ -104,8 +103,8 @@ async function tryHttp(
           'Sec-Fetch-Mode': 'navigate',
           'Sec-Fetch-Site': 'none',
           'Sec-Fetch-User': '?1',
+          ...extraHeaders,
         },
-        route,
         signal: combineSignals(AbortSignal.timeout(HTTP_TIMEOUT_MS), userSignal),
       });
 

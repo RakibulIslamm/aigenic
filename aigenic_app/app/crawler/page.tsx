@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Bot, Clock, Mail, ShieldCheck, SlashSquare } from 'lucide-react';
 import { env } from '@/lib/env';
 import { CRAWLER_UA_TOKEN, CRAWLER_USER_AGENT } from '@/lib/sites/crawler-identity';
+import { CRAWL_VERIFY_HEADER } from '@/lib/sites/verification';
 
 /**
  * Public documentation for AigenicBot.
@@ -79,11 +80,11 @@ export default function CrawlerInfoPage() {
           </p>
         ) : null}
         <p>
-          Some site owners point us at a dedicated{' '}
-          <code className="rounded bg-muted px-1 py-0.5">crawl.</code>
-          subdomain of their own domain, created through their DNS provider, so our
-          traffic arrives on a hostname only we use. If you see requests for such a
-          hostname, they were configured by the account holder for that domain.
+          Crawls for a verified site owner also carry an{' '}
+          <code className="rounded bg-muted px-1 py-0.5">{CRAWL_VERIFY_HEADER}</code>{' '}
+          header holding a secret shared only with that owner. That is the only signal
+          that cannot be spoofed, and it is what we ask owners to match when they want to
+          allow us through a firewall.
         </p>
       </Section>
 
@@ -129,12 +130,11 @@ export default function CrawlerInfoPage() {
       <Section title="How to allow AigenicBot" icon={ShieldCheck}>
         <p>
           If this is your site and you <em>want</em> the assistant to work, the fix
-          belongs in your dashboard, not here: open{' '}
-          <span className="text-foreground">Settings → Crawler access</span> and connect
-          the DNS provider for the domain. We create a single{' '}
-          <code className="rounded bg-muted px-1 py-0.5">crawl.</code> record pointing at
-          your own origin and read the site through that, so nothing about your public
-          firewall configuration has to change.
+          belongs in your dashboard, not here: verify the domain under{' '}
+          <span className="text-foreground">Settings → Domain ownership</span>, then allow
+          the <code className="rounded bg-muted px-1 py-0.5">{CRAWL_VERIFY_HEADER}</code>{' '}
+          header value it gives you. A rule matching that secret admits only us; a rule
+          matching a User-Agent admits anyone who types it.
         </p>
       </Section>
 

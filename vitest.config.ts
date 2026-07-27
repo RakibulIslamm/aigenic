@@ -35,9 +35,6 @@ export default defineConfig({
       // lazily, so no socket is ever opened by these tests.
       DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
       SCRAPER_API_KEY: 'test-scraper-key',
-      // 32 bytes, so `lib/crypto/secrets.ts` can encrypt in tests. Fixed and
-      // public on purpose — it protects nothing here.
-      CREDENTIALS_ENCRYPTION_KEY: 'dGVzdC1vbmx5LWtleS0zMi1ieXRlcy1sb25nISEhISE=',
     },
   },
 });
