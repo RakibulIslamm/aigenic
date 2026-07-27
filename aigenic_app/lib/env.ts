@@ -44,12 +44,20 @@ const serverSchema = z.object({
   SCRAPER_API_URL: z.string().min(1).optional(),
   SCRAPER_API_KEY: z.string().min(1).optional(),
   /**
-   * The crawler's stable egress IP (the VPS's public address). Shown in the
-   * "your firewall blocked us" panel so site owners can allowlist by IP as
-   * well as by the AigenicBot User-Agent. Purely informational — nothing
-   * breaks when unset; the panel just omits the IP line.
+   * The crawler's stable egress IP (the VPS's public address). Published on
+   * the `/crawler` documentation page so an operator can confirm that traffic
+   * claiming to be AigenicBot really is. Purely informational — nothing breaks
+   * when unset; the page just omits the line.
    */
   SCRAPER_EGRESS_IP: z.string().min(1).optional(),
+
+  /**
+   * 32-byte key (base64 or hex) for the AES-256-GCM envelope in
+   * `lib/crypto/secrets.ts`. Required only by the DNS-provider feature: with
+   * it unset, "Connect DNS provider" refuses up front rather than storing a
+   * customer's API token in the clear. Generate with `openssl rand -base64 32`.
+   */
+  CREDENTIALS_ENCRYPTION_KEY: z.string().min(1).optional(),
 
   // Trigger.dev — TRIGGER_SECRET_KEY is the SDK's name; TRIGGER_API_KEY is
   // this repo's legacy alias. TRIGGER_PROJECT_REF is read by the Trigger CLI

@@ -94,30 +94,38 @@ describe('crawlRequestSchema', () => {
     });
   });
 
-  describe('verifyToken', () => {
-    it('is optional — unverified sites send no crawl credential at all', () => {
+  describe('crawlHost', () => {
+    // Only the *shape* is checked here. Whether the host actually belongs to
+    // the site is decided in origin-route.ts, which owns the registrable-host
+    // rule — see the note on the schema field.
+    it('is optional — a site with no DNS connection crawls its own hostname', () => {
       const parsed = crawlRequestSchema.safeParse(validRequest);
       expect(parsed.success).toBe(true);
-      expect(parsed.success && parsed.data.verifyToken).toBeUndefined();
+      expect(parsed.success && parsed.data.crawlHost).toBeUndefined();
     });
 
-    it('passes a real token through untouched', () => {
-      const token = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+    it('passes a hostname through untouched', () => {
       const parsed = crawlRequestSchema.safeParse({
         ...validRequest,
-        verifyToken: token,
+        crawlHost: 'crawl.example.com',
       });
-      expect(parsed.success && parsed.data.verifyToken).toBe(token);
+      expect(parsed.success && parsed.data.crawlHost).toBe('crawl.example.com');
     });
 
-    it('rejects a token too short to be one of ours, or absurdly long', () => {
-      expect(
-        crawlRequestSchema.safeParse({ ...validRequest, verifyToken: 'short' }).success,
-      ).toBe(false);
-      expect(
-        crawlRequestSchema.safeParse({ ...validRequest, verifyToken: 'x'.repeat(257) })
-          .success,
-      ).toBe(false);
+    it('rejects anything that is not a bare hostname', () => {
+      for (const crawlHost of [
+        'https://crawl.example.com',
+        'crawl.example.com/path',
+        'crawl example.com',
+        'crawl',
+        `crawl.${'x'.repeat(260)}.com`,
+        '-crawl.example.com',
+      ]) {
+        expect(
+          crawlRequestSchema.safeParse({ ...validRequest, crawlHost }).success,
+          crawlHost,
+        ).toBe(false);
+      }
     });
   });
 

@@ -41,13 +41,22 @@ export const crawlRequestSchema = z.object({
    */
   generation: z.number().int().nonnegative().default(0),
   /**
-   * The site's crawl secret, sent as `X-Aigenic-Verify` on every request this
-   * job makes. A verified site owner matches the value in their firewall to
-   * let us through — unlike a User-Agent, it can't be forged by a third
-   * party. Absent for sites whose ownership hasn't been proven; the header is
-   * then simply not sent. Opaque here: the app decides who gets one.
+   * `crawl.<domain>` — the hostname this job's requests should be sent to,
+   * for a site whose owner connected their DNS provider through the dashboard.
+   * Shape-checked here; the *meaningful* check happens in `origin-route.ts`,
+   * which refuses a crawl host that isn't a subdomain of `startUrl`'s site.
+   * That's deliberately not enforced here: a schema that only sees two strings
+   * would have to re-derive the same registrable-host logic the route module
+   * already owns, and two copies of that rule is one too many.
    */
-  verifyToken: z.string().min(8).max(256).optional(),
+  crawlHost: z
+    .string()
+    .min(3)
+    .max(253)
+    .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i, {
+      message: 'crawlHost must be a plain hostname',
+    })
+    .optional(),
   webhookUrl: z.string().url(),
 });
 
