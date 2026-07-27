@@ -53,7 +53,8 @@ export async function dispatchSiteCrawl(params: {
     .returning({
       generation: sites.crawlGeneration,
       activeGeneration: sites.activeGeneration,
-      crawlHost: sites.crawlHost,
+      crawlSecret: sites.crawlSecret,
+      verifiedAt: sites.verifiedAt,
     });
 
   if (!claimed) {
@@ -86,11 +87,10 @@ export async function dispatchSiteCrawl(params: {
       domain,
       maxPages,
       generation: claimed.generation,
-      // Only sites whose owner connected a DNS provider get routed through a
-      // `crawl.` hostname — the record has to exist for the request to resolve
-      // at all, so this is read from the row rather than accepted as a
-      // parameter. Everything else crawls its own public hostname.
-      crawlHost: claimed.crawlHost ?? undefined,
+      // Only a verified owner gets the bypass credential. Sending it for an
+      // unverified domain would mean handing a firewall-skip token to whoever
+      // typed the URL, which is the whole thing verification exists to stop.
+      verifyToken: claimed.verifiedAt ? claimed.crawlSecret : undefined,
     });
   } catch (err) {
     await db

@@ -16,7 +16,6 @@ const robotsParser = require('robots-parser') as (url: string, body: string) => 
 import { parsePage } from './content-extractor.js';
 import { diagnoseEmptyCrawl } from './diagnose.js';
 import { fetchPage } from './fetcher.js';
-import { createOriginRoute, type OriginRoute } from './origin-route.js';
 import { RateLimiter } from './rate-limit.js';
 import { discoverSitemapUrls } from './sitemap.js';
 import { collectStructuredDocs } from './sources/index.js';
@@ -44,12 +43,24 @@ const STRUCTURED_BUDGET_RATIO = 0.8;
 
 // Realistic Chrome UA *plus* a product token — the crawler's public identity.
 // The Chrome prefix keeps ordinary shop platforms rendering normal markup;
-// the trailing `AigenicBot/1.0` is what the public `/crawler` page documents,
-// and it lets robots.txt address us by name (`User-agent: AigenicBot`), which
+// the trailing `AigenicBot/1.0` is what a site owner can actually allowlist:
+// the dashboard's "your firewall blocked us" panel tells them to add a WAF
+// rule matching exactly this token (see CrawlFailurePanel in the app). It
+// also lets robots.txt address us by name (`User-agent: AigenicBot`), which
 // the robots checks below honor. Override via SCRAPER_USER_AGENT.
 const USER_AGENT =
   process.env.SCRAPER_USER_AGENT ??
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 AigenicBot/1.0';
+
+/**
+ * Header carrying the site's crawl secret. A site owner who has proven they
+ * control the domain gets the value in their dashboard and matches it in a
+ * WAF rule — a credential no third party can forge, unlike the `AigenicBot`
+ * User-Agent, which anyone can type. Kept byte-identical to
+ * `CRAWL_VERIFY_HEADER` in the app (`lib/sites/verification.ts`); the two
+ * workspaces don't share code, so the sync is by convention.
+ */
+const VERIFY_HEADER = 'X-Aigenic-Verify';
 
 export interface CrawlJob {
   siteId: string;
@@ -58,17 +69,16 @@ export interface CrawlJob {
   webhookUrl: string;
   webhookApiKey: string;
   /**
-   * `crawl.<domain>` — the hostname this crawl's requests should be sent to,
-   * for a site whose owner connected their DNS provider and had us create a
-   * record pointing at their origin. Applied to every request the crawl makes
-   * (robots.txt, sitemaps, platform APIs, pages, and the post-mortem probe),
-   * because the CDN that refuses page requests refuses those too.
+   * The site's crawl secret, when its owner has verified the domain. Sent on
+   * every request this crawl makes — robots.txt, sitemaps, pages, and the
+   * post-mortem probe — because a firewall rule that matches it has to see it
+   * on the very first request to be of any use.
    *
    * Explicitly `| undefined`: under `exactOptionalPropertyTypes` the caller
    * forwards the schema's optional field straight through, so the property is
    * present-and-undefined rather than absent.
    */
-  crawlHost?: string | undefined;
+  verifyToken?: string | undefined;
   /**
    * The app's staging generation for this crawl. Echoed back on every webhook
    * so the app can route these articles into a generation nothing reads yet,
@@ -116,9 +126,14 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     webhookUrl,
     webhookApiKey,
     generation,
-    crawlHost,
+    verifyToken,
     signal,
   } = job;
+
+  /** Spread into every request this crawl makes; empty when unverified. */
+  const verifyHeaders: Record<string, string> = verifyToken
+    ? { [VERIFY_HEADER]: verifyToken }
+    : {};
 
   const startedAt = Date.now();
   let totalPages = 0;
@@ -170,18 +185,9 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     return;
   }
 
-  // Built after the start-URL check (nothing to resolve for a crawl we're
-  // refusing) and released in the `finally` below. A no-op unless this site
-  // has a `crawl.` record, and it degrades to a normal crawl if that record is
-  // gone or points somewhere non-public — see `origin-route.ts`.
-  const route: OriginRoute = await createOriginRoute({
-    siteHostname: site.hostname,
-    crawlHost,
-  });
-
   try {
     const origin = new URL(startUrl).origin;
-    const { robots, robotsBody } = await loadRobots(origin, route);
+    const { robots, robotsBody } = await loadRobots(origin, verifyHeaders);
 
     if (robots.isAllowed(startUrl, USER_AGENT) === false) {
       throw new Error(`robots.txt disallows the start URL ${startUrl}`);
@@ -196,23 +202,15 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
 
     const getContext = async (): Promise<BrowserContext> => {
       if (context) return context;
-      // Chromium resolves its own DNS, so the pinned dispatcher the HTTP tier
-      // uses means nothing here — `--host-resolver-rules` is the equivalent.
-      // Without it, escalating a JS-heavy page to the browser would go back
-      // through the CDN and hit the very block the route exists to avoid.
-      const resolverRules = route.hostResolverRules();
       browser = await chromium.launch({
-        args: [
-          '--no-sandbox',
-          '--disable-dev-shm-usage',
-          ...(resolverRules ? [`--host-resolver-rules=${resolverRules}`] : []),
-        ],
+        args: ['--no-sandbox', '--disable-dev-shm-usage'],
       });
       context = await browser.newContext({
         userAgent: USER_AGENT,
-        // An origin behind Cloudflare commonly serves a Cloudflare Origin CA
-        // certificate, which is deliberately not publicly trusted — verifying
-        // it would fail exactly the setups the origin route exists for.
+        // Same credential the HTTP tier sends. Without this, escalating a
+        // JS-heavy page to the browser would drop the header and hit the very
+        // WAF rule the owner added to let us in.
+        extraHTTPHeaders: verifyHeaders,
         ignoreHTTPSErrors: true,
         javaScriptEnabled: true,
         viewport: { width: 1280, height: 800 },
@@ -249,7 +247,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     const structuredBatches = await collectStructuredDocs({
       origin,
       userAgent: USER_AGENT,
-      route,
+      extraHeaders: verifyHeaders,
       maxDocs: structuredBudget,
       isEndpointAllowed: (url) =>
         isSameSite(url, site) && robots.isAllowed(url, USER_AGENT) !== false,
@@ -310,7 +308,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
       origin,
       site,
       userAgent: USER_AGENT,
-      route,
+      extraHeaders: verifyHeaders,
       robotsBody,
     });
     for (const u of sitemapUrls) enqueue(u);
@@ -329,7 +327,12 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
             await rateLimiter.wait(signal);
             if (signal?.aborted) return null;
             try {
-              return await crawlOne({ url, route, getContext, signal });
+              return await crawlOne({
+                url,
+                extraHeaders: verifyHeaders,
+                getContext,
+                signal,
+              });
             } catch (err) {
               logger.debug(
                 {
@@ -405,7 +408,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     // (WAF block, dead site, unrenderable pages). Probe once, classify, and
     // report an error the owner can act on instead of a hollow `complete`.
     if (!stopped && totalPages === 0) {
-      const diagnosis = await diagnoseEmptyCrawl(startUrl, USER_AGENT, route);
+      const diagnosis = await diagnoseEmptyCrawl(startUrl, USER_AGENT, verifyHeaders);
       logger.warn(
         { siteId, startUrl, code: diagnosis.code, failedFetches },
         'crawl found zero pages',
@@ -460,9 +463,6 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     if (browser) {
       await browser.close().catch(() => undefined);
     }
-    // The pinned pool holds sockets to the customer's origin; a crawl per site
-    // per day would otherwise leak one agent each.
-    await route.close();
   }
 }
 
@@ -476,14 +476,14 @@ interface CrawlOneResult {
 
 async function crawlOne(opts: {
   url: string;
-  route: OriginRoute;
+  extraHeaders: Record<string, string>;
   getContext: () => Promise<BrowserContext>;
   signal: AbortSignal | undefined;
 }): Promise<CrawlOneResult | null> {
   const fetched = await fetchPage({
     url: opts.url,
     userAgent: USER_AGENT,
-    route: opts.route,
+    extraHeaders: opts.extraHeaders,
     getContext: opts.getContext,
     signal: opts.signal,
   });
@@ -506,47 +506,9 @@ function hashContent(content: string): string {
  */
 async function loadRobots(
   origin: string,
-  route: OriginRoute,
+  extraHeaders: Record<string, string> = {},
 ): Promise<{ robots: RobotsApi; robotsBody: string }> {
   const robotsUrl = `${origin}/robots.txt`;
-
-  /**
-   * On a pinned crawl, read the **public** robots.txt first.
-   *
-   * The policy a site owner publishes is the one at the edge, and a CDN often
-   * serves a robots.txt the origin has never seen — Cloudflare's managed
-   * AI-crawler file, for instance. CDNs also routinely exempt robots.txt from
-   * the bot challenges that refuse everything else, so this usually succeeds
-   * even on a site whose pages we can't fetch at all.
-   *
-   * The origin's own file is the fallback rather than the first choice because
-   * on shared hosting it is frequently the *host's* default — a parking page's
-   * `Disallow: /` — which would have us refuse a site whose owner published
-   * `Allow: /`. Stepping around a CDN to reach the origin must not quietly
-   * change whose rules we obey.
-   */
-  const sources: Array<OriginRoute | undefined> = route.crawlHost
-    ? [undefined, route]
-    : [route];
-
-  for (const source of sources) {
-    const body = await fetchRobotsBody(robotsUrl, source);
-    if (body !== null) {
-      // Always parsed against the public URL: every URL tested against these
-      // rules is a public one, and robots-parser compares origins.
-      return { robots: robotsParser(robotsUrl, body), robotsBody: body };
-    }
-  }
-
-  // No robots = allow everything (per RFC 9309).
-  return { robots: robotsParser(robotsUrl, ''), robotsBody: '' };
-}
-
-/** One robots.txt read with transient retry. Null when there is nothing usable. */
-async function fetchRobotsBody(
-  robotsUrl: string,
-  route: OriginRoute | undefined,
-): Promise<string | null> {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const { response: res } = await safeFetch(robotsUrl, {
@@ -554,26 +516,29 @@ async function fetchRobotsBody(
           'User-Agent': USER_AGENT,
           Accept: 'text/plain,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
+          ...extraHeaders,
         },
-        route,
         signal: AbortSignal.timeout(5_000),
       });
-      if (res.ok) return await res.text();
-      // A 403 here is the CDN refusing us, not a policy — let the caller try
-      // the next source rather than reading "no robots" as "allow".
-      await res.body?.cancel().catch(() => undefined);
-      return null;
+      if (res.ok) {
+        const body = await res.text();
+        return { robots: robotsParser(robotsUrl, body), robotsBody: body };
+      }
+      break; // non-ok response — don't keep retrying
     } catch (err) {
+      // Never retry a blocked host, and never treat it as "no robots =
+      // allow": the caller checks the start URL separately, so just stop.
       if (isSsrfBlocked(err)) {
-        logger.warn({ robotsUrl }, 'ssrf-guard: blocked robots.txt fetch');
-        return null;
+        logger.warn({ origin }, 'ssrf-guard: blocked robots.txt fetch');
+        break;
       }
       if (attempt < 3) {
         await new Promise((resolve) => setTimeout(resolve, 300 * 2 ** (attempt - 1)));
         continue;
       }
-      logger.debug({ robotsUrl, err }, 'robots.txt fetch failed');
+      logger.debug({ origin, err }, 'robots.txt fetch failed — assuming allow');
     }
   }
-  return null;
+  // No robots = allow everything (per RFC 9309).
+  return { robots: robotsParser(robotsUrl, ''), robotsBody: '' };
 }

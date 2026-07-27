@@ -3,7 +3,6 @@ import type { LookupFunction } from 'node:net';
 import ipaddr from 'ipaddr.js';
 import { Agent, fetch as undiciFetch, type Response as UndiciResponse } from 'undici';
 import { logger } from './logger.js';
-import type { OriginRoute } from './origin-route.js';
 
 /**
  * SSRF guard for every outbound request the crawler makes.
@@ -230,11 +229,6 @@ const guardedAgent = new Agent({ connect: { lookup: guardedLookup } });
 export interface SafeFetchOptions {
   headers?: Record<string, string>;
   signal?: AbortSignal | undefined;
-  /**
-   * Where this crawl's requests resolve to. Omitted means ordinary DNS, which
-   * is what every crawl did before the DNS integration existed.
-   */
-  route?: OriginRoute | undefined;
 }
 
 export interface SafeFetchResult {
@@ -247,11 +241,6 @@ export interface SafeFetchResult {
  * `fetch` that can only ever reach public hosts, following redirects by hand
  * so every hop is re-validated.
  *
- * URLs are never rewritten here. When a crawl is pinned to an origin (see
- * `origin-route.ts`), the only thing that changes is which dispatcher — and
- * therefore which resolved address — a hop uses; the request line, the `Host`
- * header and the TLS SNI stay exactly as the site publishes them.
- *
  * The final URL is returned explicitly: undici doesn't populate
  * `response.url` under `redirect: 'manual'`, and callers need it to resolve
  * relative links against the page they actually landed on.
@@ -263,15 +252,11 @@ export async function safeFetch(
   let currentUrl = assertPublicUrl(url).toString();
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    // Pinned only for the site's own hostnames; a redirect that leaves the
-    // site goes back to the default agent, at full certificate verification.
-    const dispatcher = options.route?.dispatcherFor(currentUrl) ?? guardedAgent;
-
     const response = await undiciFetch(currentUrl, {
       headers: options.headers ?? {},
       redirect: 'manual',
       ...(options.signal ? { signal: options.signal } : {}),
-      dispatcher,
+      dispatcher: guardedAgent,
     });
 
     if (!REDIRECT_STATUSES.has(response.status)) {
