@@ -48,9 +48,11 @@ export async function fetchPage(opts: {
   url: string;
   userAgent: string;
   /**
-   * Where this crawl's requests actually go. Applied to *both* tiers — a page
-   * that escalates to Playwright must reach the same host the HTTP tier did,
-   * or a crawl that works on static pages would 403 on every JS-rendered one.
+   * Where this crawl's requests resolve to. The HTTP tier uses its pinned
+   * dispatcher; the browser tier gets the same override from Chromium's
+   * `--host-resolver-rules` at launch (see `crawler.ts`), so a page that
+   * escalates to Playwright reaches the same origin rather than falling back
+   * to the CDN that's blocking us.
    */
   route: OriginRoute;
   getContext: () => Promise<BrowserContext>;
@@ -69,7 +71,7 @@ export async function fetchPage(opts: {
 
   try {
     const context = await getContext();
-    return await tryPlaywright(context, url, route, signal);
+    return await tryPlaywright(context, url, signal);
   } catch (err) {
     logger.debug(
       { url, reason: err instanceof Error ? err.message.split('\n')[0] : 'unknown' },
@@ -251,15 +253,9 @@ function looksRendered(html: string): boolean {
 async function tryPlaywright(
   context: BrowserContext,
   url: string,
-  route: OriginRoute,
   userSignal?: AbortSignal,
 ): Promise<FetchResult | null> {
   if (userSignal?.aborted) return null;
-
-  // The browser navigates to the routed URL — its context is created with
-  // `ignoreHTTPSErrors`, which is what makes the crawl host's origin
-  // certificate (issued for the real domain) usable here.
-  const target = route.resolve(url).url;
 
   // Chromium does its own DNS and its own redirect-following, so `safeFetch`
   // can't cover this path. We check the target before navigating and re-check
@@ -267,7 +263,7 @@ async function tryPlaywright(
   // somewhere private, even though it can't stop the request being *made*.
   // Blocking that last gap is the container's egress filter (docker-compose.yml).
   try {
-    assertPublicUrl(target);
+    assertPublicUrl(url);
   } catch (err) {
     logger.warn({ url, err: describe(err) }, 'ssrf-guard: blocked browser navigation');
     return null;
@@ -281,7 +277,7 @@ async function tryPlaywright(
   userSignal?.addEventListener('abort', onAbort, { once: true });
 
   try {
-    const response = await page.goto(target, {
+    const response = await page.goto(url, {
       timeout: PAGE_TIMEOUT_MS,
       waitUntil: 'domcontentloaded',
     });
@@ -297,10 +293,7 @@ async function tryPlaywright(
       .waitForLoadState('networkidle', { timeout: NETWORK_IDLE_TIMEOUT_MS })
       .catch(() => undefined);
 
-    // Back into canonical space before anything downstream sees it: this
-    // value becomes the article's `sourceUrl` and the base for every relative
-    // link on the page, neither of which should mention the crawl host.
-    const finalUrl = route.toCanonical(page.url());
+    const finalUrl = page.url();
     // Post-navigation re-check: if the redirect chain ended on a private
     // host, drop the page rather than extracting an article from it.
     try {

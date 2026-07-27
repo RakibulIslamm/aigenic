@@ -227,25 +227,11 @@ const guardedLookup: LookupFunction = (hostname, options, callback) => {
  */
 const guardedAgent = new Agent({ connect: { lookup: guardedLookup } });
 
-/**
- * Same guarded lookup, certificate verification off.
- *
- * Used *only* for requests an `OriginRoute` sent to a site's `crawl.<domain>`
- * host, whose certificate is the origin's and therefore cannot match that
- * name. The DNS-level protection is unchanged — this agent still refuses to
- * connect to a non-public address — so what's given up is proof of *which*
- * public host answered, on a hostname the site's own owner created for us.
- * Every other request keeps full verification.
- */
-const guardedInsecureAgent = new Agent({
-  connect: { lookup: guardedLookup, rejectUnauthorized: false },
-});
-
 export interface SafeFetchOptions {
   headers?: Record<string, string>;
   signal?: AbortSignal | undefined;
   /**
-   * Where this crawl's requests go. Omitted means "straight at the URL", which
+   * Where this crawl's requests resolve to. Omitted means ordinary DNS, which
    * is what every crawl did before the DNS integration existed.
    */
   route?: OriginRoute | undefined;
@@ -261,10 +247,10 @@ export interface SafeFetchResult {
  * `fetch` that can only ever reach public hosts, following redirects by hand
  * so every hop is re-validated.
  *
- * The loop runs in **canonical space**: `currentUrl` is always the URL as the
- * site publishes it, and the crawl-host rewrite is applied per hop, at the
- * moment of dialling. That is what lets `finalUrl` come back as something the
- * knowledge base can cite, and what keeps a redirect chain readable.
+ * URLs are never rewritten here. When a crawl is pinned to an origin (see
+ * `origin-route.ts`), the only thing that changes is which dispatcher — and
+ * therefore which resolved address — a hop uses; the request line, the `Host`
+ * header and the TLS SNI stay exactly as the site publishes them.
  *
  * The final URL is returned explicitly: undici doesn't populate
  * `response.url` under `redirect: 'manual'`, and callers need it to resolve
@@ -274,29 +260,18 @@ export async function safeFetch(
   url: string,
   options: SafeFetchOptions = {},
 ): Promise<SafeFetchResult> {
-  const route = options.route;
   let currentUrl = assertPublicUrl(url).toString();
-  /**
-   * Set when the origin redirects the crawl host back to the site's own name.
-   * Re-routing that would bounce between the two forever, so the next attempt
-   * goes direct — which either works or fails honestly as a block.
-   */
-  let bypassRoute = false;
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const target =
-      route && !bypassRoute
-        ? route.resolve(currentUrl)
-        : { url: currentUrl, insecureTls: false };
-    // The rewritten host is as untrusted as any other — it came from a
-    // customer's DNS zone, and the guard has to judge it on its own merits.
-    assertPublicUrl(target.url);
+    // Pinned only for the site's own hostnames; a redirect that leaves the
+    // site goes back to the default agent, at full certificate verification.
+    const dispatcher = options.route?.dispatcherFor(currentUrl) ?? guardedAgent;
 
-    const response = await undiciFetch(target.url, {
+    const response = await undiciFetch(currentUrl, {
       headers: options.headers ?? {},
       redirect: 'manual',
       ...(options.signal ? { signal: options.signal } : {}),
-      dispatcher: target.insecureTls ? guardedInsecureAgent : guardedAgent,
+      dispatcher,
     });
 
     if (!REDIRECT_STATUSES.has(response.status)) {
@@ -311,27 +286,9 @@ export async function safeFetch(
     // the caller's `res.ok` check reject it.
     if (!location) return { response, finalUrl: currentUrl };
 
-    // Resolved against the URL actually requested — a relative Location on a
-    // crawl-host response is relative to the crawl host — then mapped back so
-    // the loop keeps running on names the rest of the crawler recognises.
-    const resolved = resolveRedirectTarget(target.url, location);
-    const next = route
-      ? assertPublicUrl(route.toCanonical(resolved)).toString()
-      : resolved;
-
-    if (next === currentUrl) {
-      if (bypassRoute) return { response, finalUrl: currentUrl };
-      logger.debug(
-        { url: currentUrl },
-        'ssrf-guard: origin redirected the crawl host back to itself — retrying direct',
-      );
-      bypassRoute = true;
-      continue;
-    }
-
+    const next = resolveRedirectTarget(currentUrl, location);
     logger.debug({ from: currentUrl, to: next }, 'ssrf-guard: following redirect');
     currentUrl = next;
-    bypassRoute = false;
   }
 
   throw new Error(`too many redirects (>${MAX_REDIRECTS}) for ${url}`);

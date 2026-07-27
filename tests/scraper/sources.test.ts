@@ -12,7 +12,7 @@ vi.mock('../../vps-scraper/src/sources/http.js', () => ({
   fetchJson: vi.fn(),
 }));
 
-const { createOriginRoute } = await import('../../vps-scraper/src/origin-route.js');
+const { DIRECT_ROUTE } = await import('../../vps-scraper/src/origin-route.js');
 const { fetchJson } = await import('../../vps-scraper/src/sources/http.js');
 const { fetchShopifyProducts } = await import('../../vps-scraper/src/sources/shopify.js');
 const { fetchWordPressDocs } = await import('../../vps-scraper/src/sources/wordpress.js');
@@ -44,9 +44,9 @@ function ctx(overrides: Partial<Parameters<typeof fetchShopifyProducts>[0]> = {}
   return {
     origin: 'https://shop.example.com',
     userAgent: 'AigenicBot/1.0',
-    // The direct route — these tests mock `fetchJson`, so the route is only
-    // here to satisfy the context shape.
-    route: createOriginRoute({ siteHostname: 'shop.example.com' }),
+    // These tests mock `fetchJson`, so the route is only here to satisfy the
+    // context shape — origin pinning is covered by origin-route.test.ts.
+    route: DIRECT_ROUTE,
     maxDocs: 1000,
     isEndpointAllowed: () => true,
     isDocumentAllowed: () => true,

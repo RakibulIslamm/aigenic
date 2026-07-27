@@ -1,116 +1,155 @@
-import { describe, expect, it } from 'vitest';
-import { createOriginRoute } from '../../vps-scraper/src/origin-route.js';
+import { afterEach, describe, expect, it } from 'vitest';
+import {
+  createOriginRoute,
+  type OriginRoute,
+} from '../../vps-scraper/src/origin-route.js';
 
 /**
- * The crawl-host rewrite.
+ * Pinning a crawl to a site's origin.
  *
- * Two properties matter and pull in opposite directions. The rewrite has to
- * actually happen (or the whole feature does nothing), and it has to happen
- * *only* at the socket — everything the crawler stores, dedups or reports must
- * stay on the site's real hostname. The third property is the security one:
- * a crawl host that isn't a subdomain of the site would let a caller route one
- * tenant's crawl through a host they control.
+ * The design rule this suite exists to protect: the override is on **address
+ * resolution only**. An earlier version rewrote the URL to `crawl.<domain>`
+ * instead, and that fails on real hosting — managed hosts pick the vhost from
+ * TLS SNI and abort the handshake on a name they don't serve, before any
+ * certificate is presented, so `ignoreHTTPSErrors` cannot rescue it. Anything
+ * here that starts translating URLs is that bug coming back.
+ *
+ * The security rule is the second one: the crawl host must be a subdomain of
+ * the site, or an API-key holder could pin one tenant's crawl to an address
+ * they control.
  */
 
-describe('createOriginRoute', () => {
-  describe('without a crawl host', () => {
-    const route = createOriginRoute({ siteHostname: 'example.com' });
+const ORIGIN_V4 = ['93.184.216.34'];
 
-    it('is the identity route', () => {
-      expect(route.crawlHost).toBeNull();
-      expect(route.resolve('https://example.com/help')).toEqual({
-        url: 'https://example.com/help',
-        insecureTls: false,
-      });
-      expect(route.toCanonical('https://example.com/help')).toBe(
-        'https://example.com/help',
-      );
-    });
+const routes: OriginRoute[] = [];
+
+async function build(params: {
+  siteHostname: string;
+  crawlHost?: string;
+  resolve?: (hostname: string) => Promise<string[]>;
+}) {
+  const route = await createOriginRoute({
+    ...params,
+    resolve: params.resolve ?? (async () => ORIGIN_V4),
+  });
+  routes.push(route);
+  return route;
+}
+
+afterEach(async () => {
+  await Promise.all(routes.splice(0).map((route) => route.close()));
+});
+
+describe('createOriginRoute', () => {
+  it('is inert without a crawl host', async () => {
+    const route = await build({ siteHostname: 'example.com' });
+    expect(route.crawlHost).toBeNull();
+    expect(route.dispatcherFor('https://example.com/help')).toBeNull();
+    expect(route.hostResolverRules()).toBeNull();
   });
 
   describe('with a crawl host', () => {
-    const route = createOriginRoute({
-      siteHostname: 'example.com',
-      crawlHost: 'crawl.example.com',
-    });
-
-    it('rewrites the site host and marks the hop as TLS-lenient', () => {
-      // The origin's certificate is issued for example.com, so it can never
-      // match crawl.example.com — verifying would fail every request.
-      expect(route.resolve('https://example.com/help')).toEqual({
-        url: 'https://crawl.example.com/help',
-        insecureTls: true,
+    it('pins the apex and its www form', async () => {
+      const route = await build({
+        siteHostname: 'example.com',
+        crawlHost: 'crawl.example.com',
       });
+      expect(route.crawlHost).toBe('crawl.example.com');
+      expect(route.addresses).toEqual(ORIGIN_V4);
+      expect(route.dispatcherFor('https://example.com/help')).not.toBeNull();
+      expect(route.dispatcherFor('https://www.example.com/help')).not.toBeNull();
     });
 
-    it('rewrites the www form too', () => {
-      expect(route.resolve('https://www.example.com/help').url).toBe(
-        'https://crawl.example.com/help',
-      );
-    });
-
-    it('preserves path, query and scheme', () => {
-      expect(route.resolve('http://example.com/a/b?x=1&y=2').url).toBe(
-        'http://crawl.example.com/a/b?x=1&y=2',
-      );
-    });
-
-    it('leaves third-party hosts alone, at full TLS verification', () => {
-      expect(route.resolve('https://cdn.other.test/x')).toEqual({
-        url: 'https://cdn.other.test/x',
-        insecureTls: false,
+    it('leaves every other host on ordinary DNS and full TLS verification', async () => {
+      const route = await build({
+        siteHostname: 'example.com',
+        crawlHost: 'crawl.example.com',
       });
-    });
-
-    it('leaves other subdomains of the same site alone', () => {
-      // The crawler is strictly same-site and never enqueues these, but the
-      // route must not invent a crawl host for something it can't serve.
-      expect(route.resolve('https://blog.example.com/x').url).toBe(
+      // Including the crawl host itself — we never request it, we only resolve it.
+      for (const url of [
+        'https://cdn.other.test/x',
         'https://blog.example.com/x',
-      );
+        'https://crawl.example.com/x',
+        'not a url',
+      ]) {
+        expect(route.dispatcherFor(url), url).toBeNull();
+      }
     });
 
-    it('maps a crawl-host URL back to the canonical hostname', () => {
-      expect(route.toCanonical('https://crawl.example.com/help')).toBe(
-        'https://example.com/help',
-      );
-    });
-
-    it('leaves anything else unchanged when canonicalising', () => {
-      expect(route.toCanonical('https://other.test/x')).toBe('https://other.test/x');
-    });
-
-    it('survives an unparseable URL', () => {
-      expect(route.resolve('not a url')).toEqual({
-        url: 'not a url',
-        insecureTls: false,
+    it('expresses the same override as a Chromium resolver rule', async () => {
+      const route = await build({
+        siteHostname: 'example.com',
+        crawlHost: 'crawl.example.com',
       });
-      expect(route.toCanonical('not a url')).toBe('not a url');
-    });
-  });
-
-  it('refuses a crawl host that is not a subdomain of the site', () => {
-    // Holding the scraper API key gets you a crawl of the site you named, not
-    // the right to route it through a host you control.
-    for (const crawlHost of [
-      'crawl.evil.test',
-      'example.com.evil.test',
-      'example.com',
-      'crawlexample.com',
-    ]) {
-      const route = createOriginRoute({ siteHostname: 'example.com', crawlHost });
-      expect(route.crawlHost, crawlHost).toBeNull();
-      expect(route.resolve('https://example.com/x').url, crawlHost).toBe(
-        'https://example.com/x',
+      expect(route.hostResolverRules()).toBe(
+        'MAP example.com 93.184.216.34,MAP www.example.com 93.184.216.34',
       );
-    }
+    });
+
+    it('brackets an IPv6 origin in the resolver rule', async () => {
+      const route = await build({
+        siteHostname: 'example.com',
+        crawlHost: 'crawl.example.com',
+        resolve: async () => ['2606:2800:220:1:248:1893:25c8:1946'],
+      });
+      expect(route.hostResolverRules()).toContain(
+        'MAP example.com [2606:2800:220:1:248:1893:25c8:1946]',
+      );
+    });
+
+    it('normalises case and a trailing dot', async () => {
+      const route = await build({
+        siteHostname: 'example.com',
+        crawlHost: 'Crawl.Example.com.',
+      });
+      expect(route.crawlHost).toBe('crawl.example.com');
+    });
   });
 
-  it('normalises case and a trailing dot on the crawl host', () => {
-    const route = createOriginRoute({
-      siteHostname: 'example.com',
-      crawlHost: 'Crawl.Example.com.',
+  describe('refusing to pin', () => {
+    it('rejects a crawl host outside the site', async () => {
+      for (const crawlHost of [
+        'crawl.evil.test',
+        'example.com.evil.test',
+        'example.com',
+        'crawlexample.com',
+      ]) {
+        const route = await build({ siteHostname: 'example.com', crawlHost });
+        expect(route.crawlHost, crawlHost).toBeNull();
+        expect(route.dispatcherFor('https://example.com/x'), crawlHost).toBeNull();
+      }
     });
-    expect(route.crawlHost).toBe('crawl.example.com');
+
+    it('falls back to a normal crawl when the record does not resolve', async () => {
+      const route = await build({
+        siteHostname: 'example.com',
+        crawlHost: 'crawl.example.com',
+        resolve: async () => {
+          throw new Error('ENOTFOUND');
+        },
+      });
+      expect(route.crawlHost).toBeNull();
+    });
+
+    it('drops non-public addresses and falls back when none are left', async () => {
+      // A customer's zone is user input: a crawl record pointed at
+      // 169.254.169.254 would have the crawler read this box's cloud metadata
+      // and file it as an article.
+      const route = await build({
+        siteHostname: 'example.com',
+        crawlHost: 'crawl.example.com',
+        resolve: async () => ['169.254.169.254', '10.0.0.5'],
+      });
+      expect(route.crawlHost).toBeNull();
+    });
+
+    it('keeps the public addresses when a record mixes them', async () => {
+      const route = await build({
+        siteHostname: 'example.com',
+        crawlHost: 'crawl.example.com',
+        resolve: async () => ['10.0.0.5', '93.184.216.34'],
+      });
+      expect(route.addresses).toEqual(['93.184.216.34']);
+    });
   });
 });
