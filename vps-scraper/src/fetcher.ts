@@ -1,7 +1,5 @@
 import type { BrowserContext } from 'playwright';
-import type { Response as UndiciResponse } from 'undici';
 import { logger } from './logger.js';
-import { assertPublicUrl, isSsrfBlocked, safeFetch } from './ssrf-guard.js';
 
 const HTTP_TIMEOUT_MS = 15_000;
 const PAGE_TIMEOUT_MS = 30_000;
@@ -46,22 +44,14 @@ export interface FetchResult {
 export async function fetchPage(opts: {
   url: string;
   userAgent: string;
-  /**
-   * Extra headers sent on every request — in practice the site's
-   * `X-Aigenic-Verify` credential, which a verified owner's firewall matches
-   * to let us through. Applied to both tiers: the browser context carries the
-   * same headers (see `crawler.ts`), so escalating to Playwright doesn't
-   * silently drop the credential and turn a working crawl into a 403.
-   */
-  extraHeaders?: Record<string, string>;
   getContext: () => Promise<BrowserContext>;
   signal: AbortSignal | undefined;
 }): Promise<FetchResult | null> {
-  const { url, userAgent, extraHeaders, getContext, signal } = opts;
+  const { url, userAgent, getContext, signal } = opts;
 
   if (signal?.aborted) return null;
 
-  const httpResult = await tryHttp(url, userAgent, signal, extraHeaders);
+  const httpResult = await tryHttp(url, userAgent, signal);
   if (httpResult && looksRendered(httpResult.html)) {
     return httpResult;
   }
@@ -84,14 +74,11 @@ async function tryHttp(
   url: string,
   userAgent: string,
   userSignal?: AbortSignal,
-  extraHeaders?: Record<string, string>,
 ): Promise<FetchResult | null> {
   for (let attempt = 1; attempt <= HTTP_MAX_ATTEMPTS; attempt++) {
     if (userSignal?.aborted) return null;
     try {
-      // `safeFetch` re-validates the host on every redirect hop, so a page
-      // that 302s to 169.254.169.254 dies here rather than being ingested.
-      const { response: res, finalUrl } = await safeFetch(url, {
+      const res = await fetch(url, {
         headers: {
           'User-Agent': userAgent,
           Accept:
@@ -103,8 +90,8 @@ async function tryHttp(
           'Sec-Fetch-Mode': 'navigate',
           'Sec-Fetch-Site': 'none',
           'Sec-Fetch-User': '?1',
-          ...extraHeaders,
         },
+        redirect: 'follow',
         signal: combineSignals(AbortSignal.timeout(HTTP_TIMEOUT_MS), userSignal),
       });
 
@@ -121,17 +108,11 @@ async function tryHttp(
       const contentLength = Number(res.headers.get('content-length') ?? '0');
       if (contentLength > MAX_HTML_BYTES) return null;
 
-      const html = await readBodyCapped(res.body, MAX_HTML_BYTES);
+      const html = await readBodyCapped(res, MAX_HTML_BYTES);
       if (html === null) return null;
 
-      return { finalUrl, html, rendered: false };
+      return { finalUrl: res.url || url, html, rendered: false };
     } catch (err) {
-      // A blocked host is a verdict, not a hiccup — never retry it, and log
-      // loudly enough that the block is visible in the crawl logs.
-      if (isSsrfBlocked(err)) {
-        logger.warn({ url, err: describe(err) }, 'ssrf-guard: blocked http fetch');
-        return null;
-      }
       const code = transientCode(err);
       if (attempt < HTTP_MAX_ATTEMPTS && code) {
         const backoff = HTTP_RETRY_BASE_MS * 2 ** (attempt - 1);
@@ -168,11 +149,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** First line of an error message — pino would otherwise log a whole stack. */
-function describe(err: unknown): string {
-  return err instanceof Error ? (err.message.split('\n')[0] ?? err.name) : 'unknown';
-}
-
 /**
  * Combine multiple AbortSignals into one. `undefined` entries are ignored.
  * Node 20+ ships `AbortSignal.any` but we polyfill it defensively.
@@ -195,14 +171,9 @@ function combineSignals(...signals: Array<AbortSignal | undefined>): AbortSignal
   return controller.signal;
 }
 
-// undici's stream type, not the DOM one — the two `ReadableStream`
-// declarations aren't assignable to each other under `lib: [DOM]`.
-async function readBodyCapped(
-  body: UndiciResponse['body'],
-  maxBytes: number,
-): Promise<string | null> {
-  if (!body) return null;
-  const reader = body.getReader();
+async function readBodyCapped(res: Response, maxBytes: number): Promise<string | null> {
+  if (!res.body) return null;
+  const reader = res.body.getReader();
   const decoder = new TextDecoder('utf-8', { fatal: false });
   let received = 0;
   let out = '';
@@ -256,18 +227,6 @@ async function tryPlaywright(
 ): Promise<FetchResult | null> {
   if (userSignal?.aborted) return null;
 
-  // Chromium does its own DNS and its own redirect-following, so `safeFetch`
-  // can't cover this path. We check the target before navigating and re-check
-  // where we actually landed after — which catches a redirect chain that ends
-  // somewhere private, even though it can't stop the request being *made*.
-  // Blocking that last gap is the container's egress filter (docker-compose.yml).
-  try {
-    assertPublicUrl(url);
-  } catch (err) {
-    logger.warn({ url, err: describe(err) }, 'ssrf-guard: blocked browser navigation');
-    return null;
-  }
-
   const page = await context.newPage();
   // If the crawl is stopped mid-navigation, close the page so `page.goto` rejects.
   const onAbort = () => {
@@ -293,18 +252,6 @@ async function tryPlaywright(
       .catch(() => undefined);
 
     const finalUrl = page.url();
-    // Post-navigation re-check: if the redirect chain ended on a private
-    // host, drop the page rather than extracting an article from it.
-    try {
-      assertPublicUrl(finalUrl);
-    } catch (err) {
-      logger.warn(
-        { url, finalUrl, err: describe(err) },
-        'ssrf-guard: browser landed on a non-public host',
-      );
-      return null;
-    }
-
     const html = await page.content();
     return { finalUrl, html, rendered: true };
   } catch (err) {

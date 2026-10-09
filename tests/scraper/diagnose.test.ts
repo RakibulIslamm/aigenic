@@ -26,7 +26,7 @@ describe('classifyProbe', () => {
   });
 
   it('a reachable site with nothing extractable → empty', () => {
-    // 200 but the crawl still found nothing: JS-only pages or robots rules.
+    // 200 but the crawl still found nothing: JS-only pages.
     expect(classifyProbe({ status: 200 }).code).toBe('empty');
   });
 

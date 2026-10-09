@@ -46,17 +46,11 @@ export async function fetchShopifyProducts(ctx: SourceContext): Promise<Structur
     if (ctx.signal?.aborted) break;
 
     const url = `${ctx.origin}/products.json?limit=${PAGE_SIZE}&page=${page}`;
-    if (!ctx.isEndpointAllowed(url)) {
-      // robots.txt disallowing the feed is a real answer, not an obstacle:
-      // fall back to the HTML crawl, which robots governs page by page.
-      if (page === 1) logger.debug({ url }, 'shopify feed disallowed by robots.txt');
-      break;
-    }
+    if (!ctx.isEndpointAllowed(url)) break;
 
     const result = await fetchJson<{ products?: ShopifyProduct[] }>({
       url,
       userAgent: ctx.userAgent,
-      extraHeaders: ctx.extraHeaders,
       signal: ctx.signal,
     });
 

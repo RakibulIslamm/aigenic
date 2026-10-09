@@ -1,8 +1,8 @@
 /**
  * Per-host minimum-spacing limiter. Ensures successive `wait()` calls are
  * separated by at least `minDelayMs` (with a small random jitter), regardless
- * of how many concurrent workers are calling it. Used to honor robots.txt
- * `Crawl-delay` and to look less robotic to bot-mitigation edges.
+ * of how many concurrent workers are calling it. Used to look less robotic
+ * to bot-mitigation edges.
  */
 export class RateLimiter {
   private nextSlotMs = 0;

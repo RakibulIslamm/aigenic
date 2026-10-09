@@ -2,10 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Structured-source adapters, with the network stubbed at the `fetchJson`
- * boundary. Everything below the stub (safeFetch, size caps, JSON parsing) is
- * covered by the SSRF-guard suite; what matters here is the mapping from a
- * platform's payload to the documents we put in a knowledge base — and the
- * budget/robots rules that decide which of them survive.
+ * boundary. What matters here is the mapping from a platform's payload to the
+ * documents we put in a knowledge base — and the budget/same-site rules that
+ * decide which of them survive.
  */
 
 vi.mock('../../vps-scraper/src/sources/http.js', () => ({
@@ -42,8 +41,7 @@ function respondWith(
 function ctx(overrides: Partial<Parameters<typeof fetchShopifyProducts>[0]> = {}) {
   return {
     origin: 'https://shop.example.com',
-    userAgent: 'AigenicBot/1.0',
-    extraHeaders: {},
+    userAgent: 'test-agent',
     maxDocs: 1000,
     isEndpointAllowed: () => true,
     isDocumentAllowed: () => true,
@@ -135,7 +133,7 @@ describe('shopify', () => {
     expect(docs).toHaveLength(7);
   });
 
-  it('never requests the feed when robots.txt disallows it', async () => {
+  it('never requests the feed when the endpoint is not allowed', async () => {
     respondWith([['/products.json', { products: [product] }]]);
     const docs = await fetchShopifyProducts(ctx({ isEndpointAllowed: () => false }));
     expect(docs).toEqual([]);
@@ -377,7 +375,7 @@ describe('wordpress / woocommerce', () => {
     expect(productCalls).toHaveLength(1);
   });
 
-  it('never touches the API when robots.txt disallows /wp-json/', async () => {
+  it('never touches the API when /wp-json/ is not allowed', async () => {
     respondWith([['/wp-json/', { namespaces: ['wp/v2'] }]]);
     expect(await fetchWordPressDocs(ctx({ isEndpointAllowed: () => false }))).toEqual([]);
     expect(mockFetchJson).not.toHaveBeenCalled();

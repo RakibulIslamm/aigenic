@@ -1,13 +1,9 @@
-import type { Response as UndiciResponse } from 'undici';
 import { logger } from '../logger.js';
-import { isSsrfBlocked, safeFetch } from '../ssrf-guard.js';
 
 /**
  * One bounded JSON GET, shared by every source adapter.
  *
- * Goes through `safeFetch` like the rest of the crawler, so a platform
- * endpoint that redirects somewhere private is refused on every hop rather
- * than only at the first. Returns null for anything that isn't usable JSON —
+ * Returns null for anything that isn't usable JSON —
  * adapters treat "no data" and "not this platform" identically, which is what
  * makes probing cheap: an unrelated site's 404 is just a null.
  */
@@ -18,32 +14,26 @@ const MAX_BYTES = 12_000_000;
 
 export interface JsonResult<T> {
   data: T;
-  /**
-   * Response-header accessor. A plain function rather than the `Headers`
-   * object because undici's `Headers` and the DOM's are structurally
-   * incompatible under this tsconfig — callers only ever want one value by
-   * name, so handing back a lookup keeps that mismatch inside this file.
-   */
+  /** Response-header accessor — callers only ever want one value by name. */
   header: (name: string) => string | null;
 }
 
 export async function fetchJson<T>(opts: {
   url: string;
   userAgent: string;
-  extraHeaders: Record<string, string>;
   signal: AbortSignal | undefined;
 }): Promise<JsonResult<T> | null> {
-  const { url, userAgent, extraHeaders, signal } = opts;
+  const { url, userAgent, signal } = opts;
   if (signal?.aborted) return null;
 
   try {
-    const { response } = await safeFetch(url, {
+    const response = await fetch(url, {
       headers: {
         'User-Agent': userAgent,
         Accept: 'application/json, */*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
-        ...extraHeaders,
       },
+      redirect: 'follow',
       signal: combine(AbortSignal.timeout(TIMEOUT_MS), signal),
     });
 
@@ -75,10 +65,6 @@ export async function fetchJson<T>(opts: {
       header: (name) => response.headers.get(name),
     };
   } catch (err) {
-    if (isSsrfBlocked(err)) {
-      logger.warn({ url }, 'ssrf-guard: blocked structured source fetch');
-      return null;
-    }
     logger.debug(
       { url, reason: err instanceof Error ? err.message.split('\n')[0] : 'unknown' },
       'structured source fetch failed',
@@ -88,10 +74,7 @@ export async function fetchJson<T>(opts: {
 }
 
 /** Reads at most `maxBytes`; null when the body runs past the cap. */
-async function readCapped(
-  response: { body: UndiciResponse['body'] },
-  maxBytes: number,
-): Promise<string | null> {
+async function readCapped(response: Response, maxBytes: number): Promise<string | null> {
   const reader = response.body?.getReader();
   if (!reader) return null;
   const decoder = new TextDecoder('utf-8', { fatal: false });

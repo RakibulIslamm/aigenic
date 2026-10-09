@@ -85,7 +85,6 @@ export async function fetchWordPressDocs(ctx: SourceContext): Promise<SourceBatc
   const root = await fetchJson<{ namespaces?: string[] }>({
     url: rootUrl,
     userAgent: ctx.userAgent,
-    extraHeaders: ctx.extraHeaders,
     signal: ctx.signal,
   });
 
@@ -138,7 +137,6 @@ async function fetchWooProducts(ctx: SourceContext): Promise<StructuredDoc[]> {
     const result = await fetchJson<WooProduct[]>({
       url,
       userAgent: ctx.userAgent,
-      extraHeaders: ctx.extraHeaders,
       signal: ctx.signal,
     });
     const products = result?.data;
@@ -178,7 +176,6 @@ async function fetchWpCollection(
     const result = await fetchJson<WpPost[]>({
       url,
       userAgent: ctx.userAgent,
-      extraHeaders: ctx.extraHeaders,
       signal: ctx.signal,
     });
     const items = result?.data;

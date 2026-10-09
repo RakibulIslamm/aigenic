@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { crawlRequestSchema } from '../../vps-scraper/src/schemas.js';
 
-/**
- * The scraper's `/crawl` payload boundary. Holding the API key gets you a
- * crawl, not a proxy into the box's network — so `startUrl` is checked here
- * too, not only in the dashboard form that normally produces it.
- */
+/** The scraper's `/crawl` payload boundary. */
 
 const validRequest = {
   siteId: '6b4d2b1a-0f3e-4a1c-9b7e-2f8c1d5a7e90',
@@ -27,31 +23,13 @@ describe('crawlRequestSchema', () => {
     expect(crawlRequestSchema.parse(withoutMaxPages).maxPages).toBe(1000);
   });
 
-  it('rejects a non-public startUrl', () => {
-    for (const startUrl of [
-      'http://169.254.169.254/latest/meta-data/',
-      'http://[::ffff:169.254.169.254]/',
-      'http://localhost:3000/',
-      'http://10.0.0.5/',
-      'http://192.168.1.1/admin',
-      'http://100.64.0.1/',
-      'http://intranet/',
-      'http://metadata.internal/',
-      'http://0177.0.0.1/',
-      'file:///etc/passwd',
-    ]) {
-      expect(
-        crawlRequestSchema.safeParse({ ...validRequest, startUrl }).success,
-        startUrl,
-      ).toBe(false);
-    }
-  });
-
-  it('still accepts ordinary public start URLs', () => {
+  it('accepts any start URL, with no public-host restriction', () => {
     for (const startUrl of [
       'https://example.com',
       'http://example.com/help',
       'https://shop.example.co.uk/docs?a=1',
+      'http://localhost:3000/',
+      'http://192.168.1.1/admin',
     ]) {
       expect(
         crawlRequestSchema.safeParse({ ...validRequest, startUrl }).success,
@@ -60,13 +38,10 @@ describe('crawlRequestSchema', () => {
     }
   });
 
-  it('leaves webhookUrl unguarded — it is our own app, and dev points at loopback', () => {
+  it('rejects a startUrl that is not a URL', () => {
     expect(
-      crawlRequestSchema.safeParse({
-        ...validRequest,
-        webhookUrl: 'http://127.0.0.1:3000/api/scraper/webhook',
-      }).success,
-    ).toBe(true);
+      crawlRequestSchema.safeParse({ ...validRequest, startUrl: 'not a url' }).success,
+    ).toBe(false);
   });
 
   describe('generation', () => {
@@ -91,33 +66,6 @@ describe('crawlRequestSchema', () => {
           String(generation),
         ).toBe(false);
       }
-    });
-  });
-
-  describe('verifyToken', () => {
-    it('is optional — unverified sites send no crawl credential at all', () => {
-      const parsed = crawlRequestSchema.safeParse(validRequest);
-      expect(parsed.success).toBe(true);
-      expect(parsed.success && parsed.data.verifyToken).toBeUndefined();
-    });
-
-    it('passes a real token through untouched', () => {
-      const token = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
-      const parsed = crawlRequestSchema.safeParse({
-        ...validRequest,
-        verifyToken: token,
-      });
-      expect(parsed.success && parsed.data.verifyToken).toBe(token);
-    });
-
-    it('rejects a token too short to be one of ours, or absurdly long', () => {
-      expect(
-        crawlRequestSchema.safeParse({ ...validRequest, verifyToken: 'short' }).success,
-      ).toBe(false);
-      expect(
-        crawlRequestSchema.safeParse({ ...validRequest, verifyToken: 'x'.repeat(257) })
-          .success,
-      ).toBe(false);
     });
   });
 

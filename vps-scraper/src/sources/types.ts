@@ -17,7 +17,7 @@
  *    here.
  *
  * Adapters never emit webhooks or touch the crawl budget themselves — they
- * return documents and let `crawler.ts` apply dedup, robots and budget rules
+ * return documents and let `crawler.ts` apply dedup and budget rules
  * in exactly one place, the same ones the HTML path goes through.
  */
 
@@ -41,23 +41,21 @@ export interface SourceContext {
   /** Site origin, e.g. `https://example.com` (no trailing slash). */
   origin: string;
   userAgent: string;
-  /** Crawl-credential headers, spread onto every request. */
-  extraHeaders: Record<string, string>;
   /**
    * Hard cap on documents this adapter may return. Adapters stop paginating
    * once reached — the caller's budget is not a suggestion.
    */
   maxDocs: number;
   /**
-   * May we *request* this API endpoint? Same-site plus robots.txt, and
-   * deliberately NOT the frontier's `shouldSkipUrl` filter: that list exists
+   * May we *request* this API endpoint? Same-site only, and deliberately
+   * NOT the frontier's `shouldSkipUrl` filter: that list exists
    * to keep junk out of the knowledge base and explicitly names `/wp-json/`,
    * so reusing it here would forbid the very endpoints this module reads.
    */
   isEndpointAllowed: (url: string) => boolean;
   /**
    * May we *ingest* this document's public URL? The full frontier policy —
-   * same-site, `shouldSkipUrl`, robots.txt — so a page the HTML crawl would
+   * same-site plus `shouldSkipUrl` — so a page the HTML crawl would
    * refuse to index can't slip into the knowledge base through this door.
    */
   isDocumentAllowed: (url: string) => boolean;
