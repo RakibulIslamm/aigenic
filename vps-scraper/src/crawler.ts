@@ -1,25 +1,13 @@
 import { createHash } from 'node:crypto';
-import { createRequire } from 'node:module';
 import { chromium, type Browser, type BrowserContext } from 'playwright';
 import pLimit from 'p-limit';
 import { logger } from './logger.js';
-
-// robots-parser is CommonJS with a callable default export; NodeNext interop
-// trips on the typings, so we pull it in with createRequire and cast.
-const require = createRequire(import.meta.url);
-type RobotsApi = {
-  isAllowed(url: string, ua: string): boolean | undefined;
-  getCrawlDelay(ua: string): number | undefined;
-};
-const robotsParser = require('robots-parser') as (url: string, body: string) => RobotsApi;
-
 import { parsePage } from './content-extractor.js';
 import { diagnoseEmptyCrawl } from './diagnose.js';
 import { fetchPage } from './fetcher.js';
 import { RateLimiter } from './rate-limit.js';
 import { discoverSitemapUrls } from './sitemap.js';
 import { collectStructuredDocs } from './sources/index.js';
-import { assertPublicUrl, isSsrfBlocked, safeFetch } from './ssrf-guard.js';
 import { buildSite, isSameSite, normalizeUrl, shouldSkipUrl } from './url-utils.js';
 import { sendWebhook, type WebhookEvent } from './webhook.js';
 
@@ -27,8 +15,7 @@ import { sendWebhook, type WebhookEvent } from './webhook.js';
 // keep throughput up, low enough that the edge doesn't reset our connections
 // for "burst" behavior. Bump it for friendlier hosts via SCRAPER_CONCURRENCY.
 const CONCURRENCY = Number(process.env.SCRAPER_CONCURRENCY ?? 3);
-const DEFAULT_MIN_DELAY_MS = 150;
-const MAX_MIN_DELAY_MS = 5_000;
+const MIN_DELAY_MS = 150;
 
 /**
  * Share of the page budget structured sources may consume.
@@ -41,26 +28,12 @@ const MAX_MIN_DELAY_MS = 5_000;
  */
 const STRUCTURED_BUDGET_RATIO = 0.8;
 
-// Realistic Chrome UA *plus* a product token — the crawler's public identity.
-// The Chrome prefix keeps ordinary shop platforms rendering normal markup;
-// the trailing `AigenicBot/1.0` is what a site owner can actually allowlist:
-// the dashboard's "your firewall blocked us" panel tells them to add a WAF
-// rule matching exactly this token (see CrawlFailurePanel in the app). It
-// also lets robots.txt address us by name (`User-agent: AigenicBot`), which
-// the robots checks below honor. Override via SCRAPER_USER_AGENT.
+// Realistic Chrome UA — some shop platforms serve degraded markup or a
+// challenge page to obvious bots. Override via SCRAPER_USER_AGENT (empty —
+// as docker-compose passes when unset — falls back to this default).
 const USER_AGENT =
-  process.env.SCRAPER_USER_AGENT ??
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 AigenicBot/1.0';
-
-/**
- * Header carrying the site's crawl secret. A site owner who has proven they
- * control the domain gets the value in their dashboard and matches it in a
- * WAF rule — a credential no third party can forge, unlike the `AigenicBot`
- * User-Agent, which anyone can type. Kept byte-identical to
- * `CRAWL_VERIFY_HEADER` in the app (`lib/sites/verification.ts`); the two
- * workspaces don't share code, so the sync is by convention.
- */
-const VERIFY_HEADER = 'X-Aigenic-Verify';
+  process.env.SCRAPER_USER_AGENT ||
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 export interface CrawlJob {
   siteId: string;
@@ -68,17 +41,6 @@ export interface CrawlJob {
   maxPages: number;
   webhookUrl: string;
   webhookApiKey: string;
-  /**
-   * The site's crawl secret, when its owner has verified the domain. Sent on
-   * every request this crawl makes — robots.txt, sitemaps, pages, and the
-   * post-mortem probe — because a firewall rule that matches it has to see it
-   * on the very first request to be of any use.
-   *
-   * Explicitly `| undefined`: under `exactOptionalPropertyTypes` the caller
-   * forwards the schema's optional field straight through, so the property is
-   * present-and-undefined rather than absent.
-   */
-  verifyToken?: string | undefined;
   /**
    * The app's staging generation for this crawl. Echoed back on every webhook
    * so the app can route these articles into a generation nothing reads yet,
@@ -94,8 +56,8 @@ export interface CrawlJob {
 }
 
 /**
- * Drives a single tenant crawl: strict same-site BFS gated by robots.txt and
- * the maxPages cap. External URLs are never enqueued — the same-site guard
+ * Drives a single tenant crawl: strict same-site BFS bounded by the maxPages
+ * cap. External URLs are never enqueued — the same-site guard
  * (`isSameSite`) treats `www.example.com` and `example.com` as one site but
  * rejects subdomains and any third-party host.
  *
@@ -119,21 +81,7 @@ export interface CrawlJob {
  * pages support questions are actually about.
  */
 export async function runCrawl(job: CrawlJob): Promise<void> {
-  const {
-    siteId,
-    startUrl,
-    maxPages,
-    webhookUrl,
-    webhookApiKey,
-    generation,
-    verifyToken,
-    signal,
-  } = job;
-
-  /** Spread into every request this crawl makes; empty when unverified. */
-  const verifyHeaders: Record<string, string> = verifyToken
-    ? { [VERIFY_HEADER]: verifyToken }
-    : {};
+  const { siteId, startUrl, maxPages, webhookUrl, webhookApiKey, generation, signal } = job;
 
   const startedAt = Date.now();
   let totalPages = 0;
@@ -162,43 +110,9 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
   }
   const site = maybeSite;
 
-  // Name/scheme check on the start URL up front. Blocked here means the whole
-  // crawl fails with a clear reason rather than quietly producing zero pages —
-  // the per-URL guards below can only skip, and a user who typed a private
-  // address deserves to be told. (The DNS-level check still happens at connect
-  // time for every fetch, including this host.)
-  try {
-    assertPublicUrl(startUrl);
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : 'blocked start URL';
-    logger.warn({ siteId, startUrl }, 'ssrf-guard: blocked start URL');
-    await sendWebhook({
-      url: webhookUrl,
-      apiKey: webhookApiKey,
-      payload: {
-        event: 'error',
-        siteId,
-        generation,
-        error: `Refusing to crawl a non-public address — ${reason}`,
-      },
-    }).catch(() => undefined);
-    return;
-  }
-
   try {
     const origin = new URL(startUrl).origin;
-    const { robots, robotsBody } = await loadRobots(origin, verifyHeaders);
-
-    if (robots.isAllowed(startUrl, USER_AGENT) === false) {
-      throw new Error(`robots.txt disallows the start URL ${startUrl}`);
-    }
-
-    const robotsCrawlDelaySec = robots.getCrawlDelay(USER_AGENT);
-    const minDelayMs = Math.min(
-      MAX_MIN_DELAY_MS,
-      Math.max(DEFAULT_MIN_DELAY_MS, Math.round((robotsCrawlDelaySec ?? 0) * 1000)),
-    );
-    const rateLimiter = new RateLimiter(minDelayMs);
+    const rateLimiter = new RateLimiter(MIN_DELAY_MS);
 
     const getContext = async (): Promise<BrowserContext> => {
       if (context) return context;
@@ -207,10 +121,6 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
       });
       context = await browser.newContext({
         userAgent: USER_AGENT,
-        // Same credential the HTTP tier sends. Without this, escalating a
-        // JS-heavy page to the browser would drop the header and hit the very
-        // WAF rule the owner added to let us in.
-        extraHTTPHeaders: verifyHeaders,
         ignoreHTTPSErrors: true,
         javaScriptEnabled: true,
         viewport: { width: 1280, height: 800 },
@@ -227,7 +137,6 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
       if (!isSameSite(url, site)) return false; // strict: never leave the site
       if (shouldSkipUrl(url)) return false;
       if (seenUrls.has(url)) return false;
-      if (robots.isAllowed(url, USER_AGENT) === false) return false;
       seenUrls.add(url);
       queue.push(url);
       return true;
@@ -247,14 +156,9 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     const structuredBatches = await collectStructuredDocs({
       origin,
       userAgent: USER_AGENT,
-      extraHeaders: verifyHeaders,
       maxDocs: structuredBudget,
-      isEndpointAllowed: (url) =>
-        isSameSite(url, site) && robots.isAllowed(url, USER_AGENT) !== false,
-      isDocumentAllowed: (url) =>
-        isSameSite(url, site) &&
-        !shouldSkipUrl(url) &&
-        robots.isAllowed(url, USER_AGENT) !== false,
+      isEndpointAllowed: (url) => isSameSite(url, site),
+      isDocumentAllowed: (url) => isSameSite(url, site) && !shouldSkipUrl(url),
       signal,
     });
 
@@ -308,8 +212,6 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
       origin,
       site,
       userAgent: USER_AGENT,
-      extraHeaders: verifyHeaders,
-      robotsBody,
     });
     for (const u of sitemapUrls) enqueue(u);
 
@@ -327,12 +229,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
             await rateLimiter.wait(signal);
             if (signal?.aborted) return null;
             try {
-              return await crawlOne({
-                url,
-                extraHeaders: verifyHeaders,
-                getContext,
-                signal,
-              });
+              return await crawlOne({ url, getContext, signal });
             } catch (err) {
               logger.debug(
                 {
@@ -408,7 +305,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     // (WAF block, dead site, unrenderable pages). Probe once, classify, and
     // report an error the owner can act on instead of a hollow `complete`.
     if (!stopped && totalPages === 0) {
-      const diagnosis = await diagnoseEmptyCrawl(startUrl, USER_AGENT, verifyHeaders);
+      const diagnosis = await diagnoseEmptyCrawl(startUrl, USER_AGENT);
       logger.warn(
         { siteId, startUrl, code: diagnosis.code, failedFetches },
         'crawl found zero pages',
@@ -476,14 +373,12 @@ interface CrawlOneResult {
 
 async function crawlOne(opts: {
   url: string;
-  extraHeaders: Record<string, string>;
   getContext: () => Promise<BrowserContext>;
   signal: AbortSignal | undefined;
 }): Promise<CrawlOneResult | null> {
   const fetched = await fetchPage({
     url: opts.url,
     userAgent: USER_AGENT,
-    extraHeaders: opts.extraHeaders,
     getContext: opts.getContext,
     signal: opts.signal,
   });
@@ -497,48 +392,4 @@ async function crawlOne(opts: {
 
 function hashContent(content: string): string {
   return createHash('sha256').update(content.trim().toLowerCase()).digest('hex');
-}
-
-/**
- * Fetches robots.txt exactly once per crawl and returns both the parsed API
- * and the raw body — sitemap discovery re-reads the same body for `Sitemap:`
- * lines instead of fetching robots.txt a second time.
- */
-async function loadRobots(
-  origin: string,
-  extraHeaders: Record<string, string> = {},
-): Promise<{ robots: RobotsApi; robotsBody: string }> {
-  const robotsUrl = `${origin}/robots.txt`;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const { response: res } = await safeFetch(robotsUrl, {
-        headers: {
-          'User-Agent': USER_AGENT,
-          Accept: 'text/plain,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          ...extraHeaders,
-        },
-        signal: AbortSignal.timeout(5_000),
-      });
-      if (res.ok) {
-        const body = await res.text();
-        return { robots: robotsParser(robotsUrl, body), robotsBody: body };
-      }
-      break; // non-ok response — don't keep retrying
-    } catch (err) {
-      // Never retry a blocked host, and never treat it as "no robots =
-      // allow": the caller checks the start URL separately, so just stop.
-      if (isSsrfBlocked(err)) {
-        logger.warn({ origin }, 'ssrf-guard: blocked robots.txt fetch');
-        break;
-      }
-      if (attempt < 3) {
-        await new Promise((resolve) => setTimeout(resolve, 300 * 2 ** (attempt - 1)));
-        continue;
-      }
-      logger.debug({ origin, err }, 'robots.txt fetch failed — assuming allow');
-    }
-  }
-  // No robots = allow everything (per RFC 9309).
-  return { robots: robotsParser(robotsUrl, ''), robotsBody: '' };
 }

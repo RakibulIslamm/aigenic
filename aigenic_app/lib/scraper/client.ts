@@ -23,14 +23,6 @@ export interface StartCrawlOptions {
    * apart from a superseded one's. See `lib/sites/generations.ts`.
    */
   generation: number;
-  /**
-   * The site's `crawlSecret`, sent by the scraper as `X-Aigenic-Verify` on
-   * every request it makes for this site. A verified owner allowlists the
-   * value in their firewall; nobody else can present it. Omitted for sites
-   * that haven't proven ownership — an unverified domain gets no bypass
-   * credential, so the header is meaningless there and is better not sent.
-   */
-  verifyToken?: string;
 }
 
 export interface StartCrawlResponse {
@@ -49,7 +41,6 @@ export async function startSiteCrawl({
   domain,
   maxPages = DEFAULT_CRAWL_MAX_PAGES,
   generation,
-  verifyToken,
 }: StartCrawlOptions): Promise<StartCrawlResponse> {
   if (!SCRAPER_API_URL || !SCRAPER_API_KEY) {
     throw new Error(
@@ -68,7 +59,6 @@ export async function startSiteCrawl({
       startUrl: domain,
       maxPages,
       generation,
-      verifyToken,
       webhookUrl: `${APP_URL}/api/scraper/webhook`,
     }),
     cache: 'no-store',

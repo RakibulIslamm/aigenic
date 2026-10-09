@@ -92,6 +92,13 @@
       "when": 1785034093638,
       "tag": "0012_slim_wildside",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791507366384,
+      "tag": "0013_drop_site_verification",
+      "breakpoints": true
     }
   ]
 }

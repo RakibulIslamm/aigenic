@@ -18,7 +18,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `de
 ## What you get
 
 - **One-line embed.** A single `<script>` tag, anywhere a script can load — Next, Astro, Webflow, Shopify, WordPress. Mounts in a Shadow DOM so your host CSS can't reach in.
-- **Auto-crawl.** Point Aigenic at your URL and a separate Playwright service walks the site, respects `robots.txt`, dedupes by content hash, and streams articles back over a webhook. Static sites skip the Chromium startup tax.
+- **Auto-crawl.** Point Aigenic at your URL and a separate Playwright service walks the site, dedupes by content hash, and streams articles back over a webhook. Static sites skip the Chromium startup tax.
 - **Full-text search over your KB.** Postgres `tsvector` + GIN index, `plainto_tsquery` + `ts_rank` for ordering.
 - **Streaming chat with tool use.** Custom SSE protocol (`meta | text | tool | error | done`). Three tools bound per request: `search_knowledge_base`, `get_article`, `escalate_to_human`. Tool calls render inline in the dashboard with friendly labels and a JSON drill-down.
 - **Graceful escalation.** When the agent isn't sure it calls the escalate tool. Resend delivers the full transcript to the inbox set on the site — idempotent via DB constraint.
@@ -61,7 +61,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `de
             │ articles + tsvec,  │               │ • Express + helmet │
             │ conversations,     │   webhook ─►  │ • Playwright       │
             │ messages,          │               │ • Readability      │
-            │ escalations        │               │ • robots-parser    │
+            │ escalations        │               │ • JSDOM            │
             └────────────────────┘               │ Caddy → HTTPS      │
                                                  └────────────────────┘
 ```
@@ -84,7 +84,7 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `de
 - **DB:** Neon Postgres + Drizzle ORM (`postgres-js` driver) + a generated `tsvector` column for full-text KB search
 - **AI:** Vercel AI SDK (`ai`, `@ai-sdk/openai`) pointed at OpenRouter — model is set as `SUPPORT_MODEL_ID` in [`lib/marketing.ts`](./aigenic_app/lib/marketing.ts) (currently `deepseek/deepseek-v4-flash`; swap for any OpenRouter model) and wired in [`lib/agent/model.ts`](./aigenic_app/lib/agent/model.ts). Three tools: `search_knowledge_base`, `get_article`, `escalate_to_human`. `stepCountIs(8)`, temp 0.3.
 - **Widget:** Preact + Vite (IIFE bundle, ~12 KB gzipped, mounts in Shadow DOM, inlined CSS)
-- **Crawler:** Playwright (headless Chromium) + `@mozilla/readability` + JSDOM + robots-parser, in [`vps-scraper/`](./vps-scraper/). Same-site BFS, sitemap-seeded, per-host rate limit, two-tier fetcher (plain `fetch` → escalate to Playwright only for JS shells), `AbortController`-based stop, exponential-backoff webhook delivery.
+- **Crawler:** Playwright (headless Chromium) + `@mozilla/readability` + JSDOM, in [`vps-scraper/`](./vps-scraper/). Same-site BFS, sitemap-seeded, per-host rate limit, two-tier fetcher (plain `fetch` → escalate to Playwright only for JS shells), `AbortController`-based stop, exponential-backoff webhook delivery.
 - **Email:** Resend (escalation transcripts, idempotent via `escalations` unique constraint)
 - **Billing:** Stripe (Free / $19 Starter / $49 Pro, Checkout + Customer Portal; per-plan price IDs)
 - **Charts:** Recharts (analytics tab)

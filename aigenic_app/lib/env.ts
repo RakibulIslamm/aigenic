@@ -45,9 +45,9 @@ const serverSchema = z.object({
   SCRAPER_API_KEY: z.string().min(1).optional(),
   /**
    * The crawler's stable egress IP (the VPS's public address). Shown in the
-   * "your firewall blocked us" panel so site owners can allowlist by IP as
-   * well as by the AigenicBot User-Agent. Purely informational — nothing
-   * breaks when unset; the panel just omits the IP line.
+   * "your firewall blocked us" panel so site owners can allowlist it.
+   * Purely informational — nothing breaks when unset; the panel just shows
+   * generic advice instead.
    */
   SCRAPER_EGRESS_IP: z.string().min(1).optional(),
 

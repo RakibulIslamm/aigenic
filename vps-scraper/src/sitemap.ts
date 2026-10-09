@@ -1,5 +1,4 @@
 import { logger } from './logger.js';
-import { isSsrfBlocked, safeFetch } from './ssrf-guard.js';
 import {
   isSameSite,
   normalizeUrl,
@@ -15,15 +14,6 @@ interface DiscoverOptions {
   origin: string;
   site: NormalizedSite;
   userAgent: string;
-  /**
-   * Extra headers for every sitemap fetch — the site's `X-Aigenic-Verify`
-   * credential. Sitemaps sit behind the same WAF as the pages, so omitting it
-   * here would lose the whole seed list on exactly the sites verification was
-   * meant to rescue.
-   */
-  extraHeaders?: Record<string, string>;
-  /** Raw robots.txt body the crawler already fetched ('' when unavailable). */
-  robotsBody: string;
 }
 
 /**
@@ -31,13 +21,14 @@ interface DiscoverOptions {
  * sitemap-index entries. Returns same-site URLs only, normalized, deduped,
  * skip-pattern-filtered, capped at MAX_URLS. Failures are swallowed —
  * sitemaps are an optimization, not a requirement.
+ *
+ * robots.txt is read only for its `Sitemap:` lines, as a discovery hint —
+ * its allow/disallow rules are not applied.
  */
 export async function discoverSitemapUrls({
   origin,
   site,
   userAgent,
-  extraHeaders,
-  robotsBody,
 }: DiscoverOptions): Promise<string[]> {
   const seedCandidates = [
     `${origin}/sitemap.xml`,
@@ -45,6 +36,7 @@ export async function discoverSitemapUrls({
     `${origin}/sitemap-index.xml`,
   ];
 
+  const robotsBody = (await fetchText(`${origin}/robots.txt`, userAgent)) ?? '';
   const robotsSitemaps = extractSitemapsFromRobotsBody(robotsBody);
   const initial = [...new Set([...robotsSitemaps, ...seedCandidates])];
 
@@ -57,7 +49,7 @@ export async function discoverSitemapUrls({
     if (visited.has(sitemapUrl)) continue;
     visited.add(sitemapUrl);
 
-    const body = await fetchText(sitemapUrl, userAgent, extraHeaders);
+    const body = await fetchText(sitemapUrl, userAgent);
     if (!body) continue;
 
     if (looksLikeSitemapIndex(body)) {
@@ -94,29 +86,19 @@ function extractSitemapsFromRobotsBody(body: string): string[] {
   return found;
 }
 
-async function fetchText(
-  url: string,
-  userAgent: string,
-  extraHeaders?: Record<string, string>,
-): Promise<string | null> {
+async function fetchText(url: string, userAgent: string): Promise<string | null> {
   try {
-    // Sitemap URLs are attacker-influenced twice over: a `Sitemap:` line in
-    // robots.txt and a `<loc>` inside a sitemap index are both remote input,
-    // and neither has passed `isSameSite` at this point.
-    const { response: res } = await safeFetch(url, {
+    const res = await fetch(url, {
       headers: {
         'User-Agent': userAgent,
-        Accept: 'application/xml, text/xml, */*',
-        ...extraHeaders,
+        Accept: 'application/xml, text/xml, text/plain, */*',
       },
+      redirect: 'follow',
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     return await res.text();
-  } catch (err) {
-    if (isSsrfBlocked(err)) {
-      logger.warn({ url }, 'ssrf-guard: blocked sitemap fetch');
-    }
+  } catch {
     return null;
   }
 }
