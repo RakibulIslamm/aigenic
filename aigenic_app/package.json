@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "cross-env MallocNanoZone= next dev",
-    "build": "cross-env MallocNanoZone= next build",
+    "build": "node scripts/migrate-on-deploy.mjs && cross-env MallocNanoZone= next build",
     "start": "cross-env MallocNanoZone= next start",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
