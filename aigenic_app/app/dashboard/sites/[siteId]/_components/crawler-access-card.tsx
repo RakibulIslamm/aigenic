@@ -269,7 +269,11 @@ function RotateKeyButton({ siteId }: { siteId: string }) {
             disabled={pending}
             onClick={() => {
               startTransition(async () => {
-                const result = await rotateCrawlAccessKeyAction(siteId);
+                const result = await rotateCrawlAccessKeyAction(siteId).catch(() => ({
+                  ok: false as const,
+                  error:
+                    'Could not reach the server — check your connection and try again.',
+                }));
                 if (result.ok) {
                   toast.success(result.message ?? 'New access key issued');
                   setOpen(false);

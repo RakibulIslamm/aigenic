@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { runs } from '@trigger.dev/sdk/v3';
 import { and, count, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
@@ -26,7 +26,7 @@ import { enqueueSiteCrawl } from '@/lib/sites/enqueue-crawl';
 import { getPlan, manualCrawlWindowStart } from '@/lib/billing/plans';
 import { claimManualCrawlSlot, deleteCrawlRun } from '@/lib/sites/crawl-runs';
 import { log } from '@/lib/log';
-import { extractText, kindForFileName } from '@/lib/knowledge/extract';
+import { cleanPastedText, extractText, kindForFileName } from '@/lib/knowledge/extract';
 import { deleteManualDocument, storeManualDocument } from '@/lib/knowledge/store';
 import {
   MANUAL_DOC_MAX_CHARS,
@@ -452,6 +452,35 @@ export async function rescrapeArticleAction(
 }
 
 /**
+ * Runs a dashboard action body, turning an unexpected failure (a database
+ * blip, a crashed parser) into an error the form can show. Without it the
+ * throw escapes the server action and the page falls through to its error
+ * boundary — a full-page crash for what should be a toast.
+ *
+ * Next's own control-flow throws (`redirect()` from an expired session,
+ * `notFound()`) are rethrown untouched.
+ */
+async function failSafe<T>(
+  label: string,
+  context: Record<string, unknown>,
+  fallback: T,
+  fn: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    unstable_rethrow(err);
+    log.error(label, { ...context, err });
+    return fallback;
+  }
+}
+
+const TRY_AGAIN: ActionState = {
+  ok: false,
+  error: 'Something went wrong on our side. Please try again.',
+};
+
+/**
  * Adds pasted text to the knowledge base. Manual content is served the moment
  * it's saved and survives every re-crawl — the part of the KB no firewall can
  * block.
@@ -463,29 +492,50 @@ export async function addTextDocumentAction(
 ): Promise<ActionState> {
   const userId = await requireUserId();
 
-  return withSiteOwnership(siteId, userId, async (site) => {
-    const parsed = parseForm(textDocumentSchema, formData);
-    if (!parsed.ok) {
-      return {
-        ok: false,
-        error: 'Please fix the highlighted fields',
-        fieldErrors: parsed.fieldErrors,
-        values: formValues(formData),
-      };
-    }
+  return failSafe<ActionState>(
+    'add text document failed',
+    { siteId },
+    {
+      ok: false,
+      error: 'Something went wrong on our side. Please try again.',
+      values: formValues(formData),
+    },
+    () =>
+      withSiteOwnership(siteId, userId, async (site) => {
+        const parsed = parseForm(textDocumentSchema, formData);
+        if (!parsed.ok) {
+          return {
+            ok: false,
+            error: 'Please fix the highlighted fields',
+            fieldErrors: parsed.fieldErrors,
+            values: formValues(formData),
+          };
+        }
 
-    const stored = await storeManualDocument({
-      siteId: site.id,
-      title: parsed.data.title,
-      text: parsed.data.content,
-    });
-    if (!stored.ok) {
-      return { ok: false, error: stored.error, values: formValues(formData) };
-    }
+        // The schema bounds the raw input; cleaning can only shrink it, so
+        // re-check there is still something worth storing.
+        const title = cleanPastedText(parsed.data.title).replace(/\s+/g, ' ');
+        const text = cleanPastedText(parsed.data.content);
+        if (!title || text.length < 20) {
+          return {
+            ok: false,
+            error: 'Please fix the highlighted fields',
+            fieldErrors: !title
+              ? { title: 'Give it a title' }
+              : { content: 'Add a bit more text — at least a sentence or two' },
+            values: formValues(formData),
+          };
+        }
 
-    revalidateKnowledge(site.id);
-    return { ok: true, siteId: site.id, message: 'Added to the knowledge base' };
-  });
+        const stored = await storeManualDocument({ siteId: site.id, title, text });
+        if (!stored.ok) {
+          return { ok: false, error: stored.error, values: formValues(formData) };
+        }
+
+        revalidateKnowledge(site.id);
+        return { ok: true, siteId: site.id, message: 'Added to the knowledge base' };
+      }),
+  );
 }
 
 /**
@@ -497,48 +547,58 @@ export async function uploadDocumentAction(
   formData: FormData,
 ): Promise<ActionState> {
   const userId = await requireUserId();
+  const file = formData.get('file');
+  const name = file instanceof File ? displayFileName(file.name) : 'File';
 
-  return withSiteOwnership(siteId, userId, async (site) => {
-    const file = formData.get('file');
-    if (!(file instanceof File) || file.size === 0) {
-      return { ok: false, error: 'Choose a file to upload.' };
-    }
-    if (!kindForFileName(file.name)) {
-      return {
-        ok: false,
-        error: `${file.name}: unsupported file type. Use ${MANUAL_UPLOAD_EXTENSIONS.join(', ')}.`,
-      };
-    }
-    if (file.size > MANUAL_UPLOAD_MAX_BYTES) {
-      return {
-        ok: false,
-        error: `${file.name} is over ${MANUAL_UPLOAD_MAX_BYTES / 1024 / 1024} MB — split it into smaller files.`,
-      };
-    }
+  return failSafe<ActionState>(
+    'upload document failed',
+    { siteId, name },
+    { ok: false, error: `${name}: could not be added. Please try again.` },
+    () =>
+      withSiteOwnership(siteId, userId, async (site) => {
+        if (!(file instanceof File)) {
+          return { ok: false, error: 'Choose a file to upload.' };
+        }
+        if (file.size === 0) {
+          return { ok: false, error: `${name}: the file is empty.` };
+        }
+        if (!kindForFileName(file.name)) {
+          return {
+            ok: false,
+            error: `${name}: unsupported file type. Use ${MANUAL_UPLOAD_EXTENSIONS.join(', ')}.`,
+          };
+        }
+        if (file.size > MANUAL_UPLOAD_MAX_BYTES) {
+          return {
+            ok: false,
+            error: `${name} is over ${MANUAL_UPLOAD_MAX_BYTES / 1024 / 1024} MB — split it into smaller files.`,
+          };
+        }
 
-    const extracted = await extractText(file);
-    if (!extracted.ok) {
-      return { ok: false, error: `${file.name}: ${extracted.error}` };
-    }
-    if (extracted.text.length > MANUAL_DOC_MAX_CHARS) {
-      return {
-        ok: false,
-        error: `${file.name} has more than ${MANUAL_DOC_MAX_CHARS.toLocaleString('en-US')} characters of text — split it into smaller files.`,
-      };
-    }
+        const extracted = await extractText(file);
+        if (!extracted.ok) {
+          return { ok: false, error: `${name}: ${extracted.error}` };
+        }
+        if (extracted.text.length > MANUAL_DOC_MAX_CHARS) {
+          return {
+            ok: false,
+            error: `${name} has more than ${MANUAL_DOC_MAX_CHARS.toLocaleString('en-US')} characters of text — split it into smaller files.`,
+          };
+        }
 
-    const stored = await storeManualDocument({
-      siteId: site.id,
-      title: titleFromFileName(file.name),
-      text: extracted.text,
-    });
-    if (!stored.ok) {
-      return { ok: false, error: stored.error };
-    }
+        const stored = await storeManualDocument({
+          siteId: site.id,
+          title: titleFromFileName(file.name),
+          text: extracted.text,
+        });
+        if (!stored.ok) {
+          return { ok: false, error: `${name}: ${stored.error}` };
+        }
 
-    revalidateKnowledge(site.id);
-    return { ok: true, siteId: site.id, message: `Added ${file.name}` };
-  });
+        revalidateKnowledge(site.id);
+        return { ok: true, siteId: site.id, message: `Added ${name}` };
+      }),
+  );
 }
 
 export async function deleteManualDocumentAction(
@@ -551,14 +611,23 @@ export async function deleteManualDocumentAction(
     return { ok: false, error: 'Document not found' };
   }
 
-  return withSiteOwnership(siteId, userId, async (site) => {
-    const deleted = await deleteManualDocument(site.id, documentId);
-    if (deleted === 0) {
-      return { ok: false, error: 'Document not found' };
-    }
-    revalidateKnowledge(site.id);
-    return { ok: true, siteId: site.id, message: 'Document removed' };
-  });
+  return failSafe(
+    'delete manual document failed',
+    { siteId, documentId },
+    TRY_AGAIN,
+    () =>
+      withSiteOwnership(siteId, userId, async (site) => {
+        const deleted = await deleteManualDocument(site.id, documentId);
+        // Zero rows: already gone (another tab, a double click). Same end state
+        // the owner wanted, so refresh the list rather than report a failure.
+        revalidateKnowledge(site.id);
+        return {
+          ok: true,
+          siteId: site.id,
+          message: deleted === 0 ? 'Document was already removed' : 'Document removed',
+        };
+      }),
+  );
 }
 
 export type AccessTestState =
@@ -572,40 +641,50 @@ export type AccessTestState =
 export async function testCrawlerAccessAction(siteId: string): Promise<AccessTestState> {
   const userId = await requireUserId();
   if (!isUuid(siteId)) return { ok: false, error: 'Site not found' };
-  const site = await getSiteForUser(siteId, userId);
-  if (!site) return { ok: false, error: 'Site not found' };
 
-  if (!isScraperConfigured()) {
-    return {
-      ok: false,
-      error: 'Scraper service is not configured (SCRAPER_API_URL / SCRAPER_API_KEY).',
-    };
-  }
+  return failSafe(
+    'crawler access test failed',
+    { siteId },
+    { ok: false, error: 'The test could not run. Please try again.' },
+    async (): Promise<AccessTestState> => {
+      const site = await getSiteForUser(siteId, userId);
+      if (!site) return { ok: false, error: 'Site not found' };
 
-  // Each test is a real request to the owner's site from our crawler; a
-  // held-down button shouldn't turn that into a burst.
-  const limit = await consumeRateLimit({
-    key: `crawler-access-test:user:60s:${userId}`,
-    limit: 10,
-    windowSeconds: 60,
-  });
-  if (!limit.ok) {
-    return {
-      ok: false,
-      error: `Too many tests — try again in ${limit.retryAfterSeconds}s.`,
-    };
-  }
+      if (!isScraperConfigured()) {
+        return {
+          ok: false,
+          error: 'Scraper service is not configured (SCRAPER_API_URL / SCRAPER_API_KEY).',
+        };
+      }
 
-  try {
-    const result = await probeSiteAccess(site.domain, site.crawlAccessKey);
-    return { ok: true, result };
-  } catch (err) {
-    log.warn('crawler access probe failed', { siteId, err });
-    return {
-      ok: false,
-      error: 'Could not reach our crawler service. Try again shortly.',
-    };
-  }
+      // Each test is a real request to the owner's site from our crawler; a
+      // held-down button shouldn't turn that into a burst.
+      const limit = await consumeRateLimit({
+        key: `crawler-access-test:user:60s:${userId}`,
+        limit: 10,
+        windowSeconds: 60,
+      });
+      if (!limit.ok) {
+        return {
+          ok: false,
+          error: `Too many tests — try again in ${limit.retryAfterSeconds}s.`,
+        };
+      }
+
+      const probe = await probeSiteAccess(site.domain, site.crawlAccessKey);
+      if (!probe.ok) {
+        log.warn('crawler access probe failed', { siteId, reason: probe.reason });
+        return {
+          ok: false,
+          error:
+            probe.reason === 'outdated'
+              ? 'Our crawler service needs an update before it can run this test. Please contact support.'
+              : 'Could not reach our crawler service. Try again shortly.',
+        };
+      }
+      return { ok: true, result: probe.result };
+    },
+  );
 }
 
 /**
@@ -616,14 +695,16 @@ export async function testCrawlerAccessAction(siteId: string): Promise<AccessTes
 export async function rotateCrawlAccessKeyAction(siteId: string): Promise<ActionState> {
   const userId = await requireUserId();
 
-  return withSiteOwnership(siteId, userId, async (site) => {
-    await db
-      .update(sites)
-      .set({ crawlAccessKey: sql`replace(gen_random_uuid()::text, '-', '')` })
-      .where(and(eq(sites.id, site.id), eq(sites.userId, userId)));
-    revalidatePath(`/dashboard/sites/${site.id}`, 'layout');
-    return { ok: true, siteId: site.id, message: 'New access key issued' };
-  });
+  return failSafe('rotate crawl access key failed', { siteId }, TRY_AGAIN, () =>
+    withSiteOwnership(siteId, userId, async (site) => {
+      await db
+        .update(sites)
+        .set({ crawlAccessKey: sql`replace(gen_random_uuid()::text, '-', '')` })
+        .where(and(eq(sites.id, site.id), eq(sites.userId, userId)));
+      revalidatePath(`/dashboard/sites/${site.id}`, 'layout');
+      return { ok: true, siteId: site.id, message: 'New access key issued' };
+    }),
+  );
 }
 
 function revalidateKnowledge(siteId: string) {
@@ -631,11 +712,18 @@ function revalidateKnowledge(siteId: string) {
   revalidatePath('/dashboard');
 }
 
+/** A file name safe to echo back in a message: no control chars, bounded. */
+function displayFileName(name: string): string {
+  const clean = cleanPastedText(name).replace(/\s+/g, ' ');
+  if (!clean) return 'File';
+  return clean.length > 80 ? `${clean.slice(0, 77)}…` : clean;
+}
+
 /** "returns-policy_v2.pdf" → "returns policy v2". */
 function titleFromFileName(name: string): string {
-  const base = name
+  const base = cleanPastedText(name)
     .replace(/\.[^.]+$/, '')
-    .replace(/[_-]+/g, ' ')
+    .replace(/[_\s-]+/g, ' ')
     .trim();
-  return (base || name).slice(0, MANUAL_TITLE_MAX_CHARS);
+  return (base || 'Untitled document').slice(0, MANUAL_TITLE_MAX_CHARS);
 }

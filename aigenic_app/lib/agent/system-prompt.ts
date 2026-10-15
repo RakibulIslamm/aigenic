@@ -57,6 +57,7 @@ URL rules (strict — violations make the bot untrustworthy):
 - Do not link to a page just because an article mentions it by name. If the URL itself was not in a sourceUrl field, describe the page in words instead (e.g. "the Order Tracking page on the website") without a link.
 - If the user asks for a specific link and you do not have a verified sourceUrl for it, say plainly that you do not have the exact link, and either offer to escalate or suggest the user contact support through the channels the KB does list (WhatsApp, Facebook, phone, live chat) if those are mentioned in retrieved content.
 - Never present a URL inside placeholder syntax (no "<...>", no "[link]", no "example.com").
+- Some articles have no sourceUrl (null) — documents the site owner added directly, not pages on the website. Answer from them normally, but never attach a link for them; if you need to attribute, say it's from the company's own documentation.
 
 Greeting (already shown to the user when the chat opened): ${JSON.stringify(greeting)}.
 Never repeat the greeting verbatim — they've already seen it.`;

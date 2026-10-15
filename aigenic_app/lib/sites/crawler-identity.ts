@@ -33,3 +33,12 @@ export const CRAWLER_DOCS_PATH = '/crawler';
 export function cloudflareRuleExpression(accessKey: string): string {
   return `any(http.request.headers["${CRAWLER_ACCESS_HEADER.toLowerCase()}"][*] eq "${accessKey}")`;
 }
+
+/**
+ * The format the scraper accepts (`accessKeySchema` in
+ * `vps-scraper/src/schemas.ts`): lowercase hex. The key travels as an HTTP
+ * header value, so anything else is refused there — check before sending.
+ */
+export function isValidAccessKey(key: string | null | undefined): key is string {
+  return typeof key === 'string' && /^[a-f0-9]{32,128}$/.test(key);
+}

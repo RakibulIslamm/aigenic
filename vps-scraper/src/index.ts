@@ -136,6 +136,12 @@ app.post('/crawl/:siteId/stop', (req, res) => {
 });
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  // A malformed or oversized JSON body is the caller's mistake, not ours —
+  // body-parser marks those with a 4xx status.
+  const status = (err as { status?: unknown } | null)?.status;
+  if (typeof status === 'number' && status >= 400 && status < 500) {
+    return res.status(status).json({ error: 'Invalid request body' });
+  }
   logger.error({ err }, 'unhandled error');
   res.status(500).json({ error: 'Internal server error' });
 });

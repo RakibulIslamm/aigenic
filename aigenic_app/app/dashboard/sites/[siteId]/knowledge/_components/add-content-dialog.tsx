@@ -22,6 +22,7 @@ import {
   MANUAL_TEXT_MAX_CHARS,
   MANUAL_UPLOAD_EXTENSIONS,
   MANUAL_UPLOAD_MAX_BYTES,
+  MANUAL_UPLOAD_MAX_FILES,
 } from '@/lib/sites/limits';
 import {
   addTextDocumentAction,
@@ -32,8 +33,26 @@ import {
 type FileStatus = {
   name: string;
   state: 'queued' | 'uploading' | 'done' | 'failed';
+  /** Full sentence, file name included (the server's errors name the file). */
   error?: string;
 };
+
+const MAX_MB = MANUAL_UPLOAD_MAX_BYTES / 1024 / 1024;
+const ACCEPTED = new Set<string>(MANUAL_UPLOAD_EXTENSIONS);
+
+/** Why the server would refuse this file — checked first to skip the round trip. */
+function precheck(file: File): string | null {
+  const dot = file.name.lastIndexOf('.');
+  const ext = dot > 0 ? file.name.slice(dot).toLowerCase() : '';
+  if (!ACCEPTED.has(ext)) {
+    return `${file.name}: unsupported file type. Use ${MANUAL_UPLOAD_EXTENSIONS.join(', ')}.`;
+  }
+  if (file.size === 0) return `${file.name}: the file is empty.`;
+  if (file.size > MANUAL_UPLOAD_MAX_BYTES) {
+    return `${file.name} is over ${MAX_MB} MB — split it into smaller files.`;
+  }
+  return null;
+}
 
 /**
  * Adds content to the knowledge base without the crawler: upload files (PDF,
@@ -48,9 +67,21 @@ export function AddContentDialog({
   variant?: 'outline' | 'default';
 }) {
   const [open, setOpen] = useState(false);
+  // While files are uploading the dialog stays open: closing it would hide
+  // the progress (and the per-file errors) while requests keep running.
+  const [busy, setBusy] = useState(false);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && busy) {
+          toast.info('Uploading — the window closes when it finishes.');
+          return;
+        }
+        setOpen(next);
+      }}
+    >
       <DialogTrigger asChild>
         <Button size="sm" variant={variant}>
           <FilePlus2 className="mr-1 h-4 w-4" />
@@ -68,11 +99,19 @@ export function AddContentDialog({
         </DialogHeader>
         <Tabs defaultValue="upload" className="mt-1">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="upload">Upload files</TabsTrigger>
-            <TabsTrigger value="paste">Paste text</TabsTrigger>
+            <TabsTrigger value="upload" disabled={busy}>
+              Upload files
+            </TabsTrigger>
+            <TabsTrigger value="paste" disabled={busy}>
+              Paste text
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="upload" className="pt-3">
-            <UploadForm siteId={siteId} onDone={() => setOpen(false)} />
+            <UploadForm
+              siteId={siteId}
+              onBusyChange={setBusy}
+              onDone={() => setOpen(false)}
+            />
           </TabsContent>
           <TabsContent value="paste" className="pt-3">
             <PasteForm siteId={siteId} onDone={() => setOpen(false)} />
@@ -83,59 +122,97 @@ export function AddContentDialog({
   );
 }
 
-function UploadForm({ siteId, onDone }: { siteId: string; onDone: () => void }) {
+function UploadForm({
+  siteId,
+  onBusyChange,
+  onDone,
+}: {
+  siteId: string;
+  onBusyChange: (busy: boolean) => void;
+  onDone: () => void;
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [statuses, setStatuses] = useState<FileStatus[]>([]);
   const [pending, startTransition] = useTransition();
-  const maxMb = MANUAL_UPLOAD_MAX_BYTES / 1024 / 1024;
 
   const setStatus = (index: number, patch: Partial<FileStatus>) =>
     setStatuses((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
 
+  function choose(list: FileList | null) {
+    const chosen = Array.from(list ?? []);
+    setStatuses([]);
+    if (chosen.length > MANUAL_UPLOAD_MAX_FILES) {
+      toast.error(
+        `Choose up to ${MANUAL_UPLOAD_MAX_FILES} files at a time — you picked ${chosen.length}.`,
+      );
+      setFiles([]);
+      if (inputRef.current) inputRef.current.value = '';
+      return;
+    }
+    setFiles(chosen);
+  }
+
   function upload() {
     if (files.length === 0) return;
-    setStatuses(files.map((f) => ({ name: f.name, state: 'queued' })));
+    const batch = files;
+    setStatuses(batch.map((f) => ({ name: f.name, state: 'queued' })));
+    onBusyChange(true);
     startTransition(async () => {
-      let added = 0;
-      // One request per file: each stays under the body limit, and one bad
-      // file reports its own error instead of failing the batch.
-      for (const [i, file] of files.entries()) {
-        if (file.size > MANUAL_UPLOAD_MAX_BYTES) {
-          setStatus(i, { state: 'failed', error: `Over ${maxMb} MB` });
-          continue;
+      const failed: File[] = [];
+      try {
+        // One request per file: each stays under the body limit, and one bad
+        // file reports its own error instead of failing the batch.
+        for (const [i, file] of batch.entries()) {
+          const refused = precheck(file);
+          if (refused) {
+            setStatus(i, { state: 'failed', error: refused });
+            failed.push(file);
+            continue;
+          }
+          setStatus(i, { state: 'uploading' });
+          const fd = new FormData();
+          fd.set('file', file);
+          let result: ActionState;
+          try {
+            result = await uploadDocumentAction(siteId, fd);
+          } catch {
+            result = {
+              ok: false,
+              error: `${file.name}: upload failed — check your connection and try again.`,
+            };
+          }
+          if (result.ok) {
+            setStatus(i, { state: 'done' });
+          } else {
+            setStatus(i, { state: 'failed', error: result.error });
+            failed.push(file);
+          }
         }
-        setStatus(i, { state: 'uploading' });
-        const fd = new FormData();
-        fd.set('file', file);
-        let result: ActionState;
-        try {
-          result = await uploadDocumentAction(siteId, fd);
-        } catch {
-          result = { ok: false, error: 'Upload failed — check your connection.' };
-        }
-        if (result.ok) {
-          added++;
-          setStatus(i, { state: 'done' });
-        } else {
-          setStatus(i, { state: 'failed', error: result.error });
-        }
+      } finally {
+        onBusyChange(false);
       }
-      router.refresh();
-      if (added === files.length) {
+
+      const added = batch.length - failed.length;
+      if (added > 0) router.refresh();
+      // Only what failed stays selected, so "Upload" again retries those —
+      // never re-sends a file that already went in.
+      setFiles(failed);
+      if (failed.length === 0) {
         toast.success(added === 1 ? 'Document added' : `${added} documents added`);
-        setFiles([]);
         setStatuses([]);
         if (inputRef.current) inputRef.current.value = '';
         onDone();
       } else if (added > 0) {
-        toast.warning(`${added} of ${files.length} added — see the errors below.`);
+        toast.warning(`${added} of ${batch.length} added — see the errors below.`);
       } else {
         toast.error('Nothing was added — see the errors below.');
       }
     });
   }
+
+  const retrying = statuses.some((s) => s.state === 'failed') && !pending;
 
   return (
     <div className="grid gap-4">
@@ -148,22 +225,21 @@ function UploadForm({ siteId, onDone }: { siteId: string; onDone: () => void }) 
           multiple
           accept={MANUAL_UPLOAD_EXTENSIONS.join(',')}
           disabled={pending}
-          onChange={(e) => {
-            setFiles(Array.from(e.target.files ?? []));
-            setStatuses([]);
-          }}
+          onChange={(e) => choose(e.target.files)}
           className="block w-full cursor-pointer rounded-md border border-input bg-transparent text-sm text-muted-foreground file:mr-3 file:cursor-pointer file:border-0 file:border-r file:border-input file:bg-muted file:px-3 file:py-2 file:text-sm file:font-medium file:text-foreground"
         />
         <p className="text-xs text-muted-foreground">
-          PDF, Word (.docx), Markdown, HTML, text or CSV — up to {maxMb} MB each. Scanned
-          PDFs need selectable text.
+          PDF, Word (.docx), Markdown, HTML, text or CSV — up to {MAX_MB} MB each,{' '}
+          {MANUAL_UPLOAD_MAX_FILES} files at a time. Scanned PDFs need selectable text.
         </p>
       </div>
 
       {statuses.length > 0 && (
-        <ul className="grid gap-1.5 text-xs">
-          {statuses.map((s) => (
-            <li key={s.name} className="flex items-start gap-2">
+        <ul className="grid gap-1.5 text-xs" aria-live="polite">
+          {statuses.map((s, i) => (
+            // Index keys: two files can share a name (picked from different
+            // folders), and the list is replaced wholesale, never reordered.
+            <li key={i} className="flex items-start gap-2">
               {s.state === 'done' ? (
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
               ) : s.state === 'failed' ? (
@@ -174,8 +250,11 @@ function UploadForm({ siteId, onDone }: { siteId: string; onDone: () => void }) 
                 />
               )}
               <span className="min-w-0 break-words">
-                <span className="text-foreground">{s.name}</span>
-                {s.error ? <span className="text-destructive"> — {s.error}</span> : null}
+                {s.error ? (
+                  <span className="text-destructive">{s.error}</span>
+                ) : (
+                  <span className="text-foreground">{s.name}</span>
+                )}
               </span>
             </li>
           ))}
@@ -192,7 +271,8 @@ function UploadForm({ siteId, onDone }: { siteId: string; onDone: () => void }) 
           ) : (
             <>
               <Upload className="mr-1 h-4 w-4" />
-              Upload {files.length > 1 ? `${files.length} files` : ''}
+              {retrying ? 'Retry failed' : 'Upload'}
+              {files.length > 1 ? ` ${files.length} files` : ''}
             </>
           )}
         </Button>
@@ -204,7 +284,23 @@ function UploadForm({ siteId, onDone }: { siteId: string; onDone: () => void }) 
 function PasteForm({ siteId, onDone }: { siteId: string; onDone: () => void }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<ActionState | undefined, FormData>(
-    addTextDocumentAction.bind(null, siteId),
+    async (prev, formData) => {
+      try {
+        return await addTextDocumentAction(siteId, prev, formData);
+      } catch {
+        // The request itself failed (offline, deploy in progress). Keep what
+        // they typed — losing a long paste to a network blip is the worst
+        // outcome here.
+        return {
+          ok: false,
+          error: 'Could not reach the server — check your connection and try again.',
+          values: {
+            title: String(formData.get('title') ?? ''),
+            content: String(formData.get('content') ?? ''),
+          },
+        };
+      }
+    },
     undefined,
   );
 

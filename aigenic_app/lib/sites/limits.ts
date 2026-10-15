@@ -44,6 +44,13 @@ export const MANUAL_TEXT_MAX_CHARS = 100_000;
 export const MANUAL_TITLE_MAX_CHARS = 200;
 /** Documents (not chunks) per site — keeps the KB something an owner can curate. */
 export const MANUAL_DOCS_PER_SITE = 200;
+/**
+ * Total characters of added content per site (~10 long manuals). Without it
+ * the per-document cap alone would allow 200 × 500k = 100M characters.
+ */
+export const MANUAL_CHARS_PER_SITE = 5_000_000;
+/** Files one upload batch may hold — the dialog uploads them one by one. */
+export const MANUAL_UPLOAD_MAX_FILES = 20;
 /** File types the upload accepts, as the `accept` attribute and error copy use them. */
 export const MANUAL_UPLOAD_EXTENSIONS = [
   '.pdf',
