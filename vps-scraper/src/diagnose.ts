@@ -136,19 +136,32 @@ export async function diagnoseEmptyCrawl(
   });
 }
 
+/**
+ * `provider` is the edge/security service that answered (see
+ * `detectProtection`), on a pass as well as a block: the dashboard uses it to
+ * open the matching setup guide, and to say "Cloudflare is in front of your
+ * site" even when access already works.
+ */
 export type AccessCheck =
-  | { ok: true; status: number }
+  | { ok: true; status: number; provider: string | null }
   | {
       ok: false;
       code: 'blocked' | 'unreachable' | 'other';
       status: number | null;
       detail: string;
+      provider: string | null;
     };
 
 /** Pure classification for `checkAccess` — unit-testable without network. */
 export function classifyAccess(outcome: ProbeOutcome): AccessCheck {
   if ('failed' in outcome) {
-    return { ok: false, code: 'unreachable', status: null, detail: outcome.failed };
+    return {
+      ok: false,
+      code: 'unreachable',
+      status: null,
+      detail: outcome.failed,
+      provider: null,
+    };
   }
   const { status, challenged, provider } = outcome;
   if (challenged || status === 401 || status === 403 || status === 429) {
@@ -158,12 +171,12 @@ export function classifyAccess(outcome: ProbeOutcome): AccessCheck {
       code: 'blocked',
       status,
       detail: provider ? `${provider} ${what}` : what,
+      provider,
     };
   }
-  if (status >= 200 && status < 400) return { ok: true, status };
-  if (status >= 500)
-    return { ok: false, code: 'unreachable', status, detail: `HTTP ${status}` };
-  return { ok: false, code: 'other', status, detail: `HTTP ${status}` };
+  if (status >= 200 && status < 400) return { ok: true, status, provider };
+  const code = status >= 500 ? 'unreachable' : 'other';
+  return { ok: false, code, status, detail: `HTTP ${status}`, provider };
 }
 
 /**
