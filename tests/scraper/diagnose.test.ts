@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { classifyAccess, classifyProbe } from '../../vps-scraper/src/diagnose.js';
+import {
+  classifyAccess,
+  classifyProbe,
+  detectProtection,
+  isChallenge,
+} from '../../vps-scraper/src/diagnose.js';
 
 /**
  * The zero-page-crawl diagnosis. The mapping matters because the dashboard
@@ -43,11 +48,14 @@ describe('classifyProbe', () => {
  */
 describe('classifyAccess', () => {
   it.each([200, 204, 301])('HTTP %i → ok', (status) => {
-    expect(classifyAccess({ status, challenged: false })).toEqual({ ok: true, status });
+    expect(classifyAccess({ status, challenged: false, provider: null })).toEqual({
+      ok: true,
+      status,
+    });
   });
 
   it.each([401, 403, 429])('HTTP %i → blocked', (status) => {
-    expect(classifyAccess({ status, challenged: false })).toMatchObject({
+    expect(classifyAccess({ status, challenged: false, provider: null })).toMatchObject({
       ok: false,
       code: 'blocked',
       status,
@@ -57,16 +65,20 @@ describe('classifyAccess', () => {
   it.each([200, 403, 503])(
     'a Cloudflare challenge (cf-mitigated) is blocked even as HTTP %i',
     (status) => {
-      expect(classifyAccess({ status, challenged: true })).toMatchObject({
+      expect(
+        classifyAccess({ status, challenged: true, provider: 'Cloudflare' }),
+      ).toMatchObject({
         ok: false,
         code: 'blocked',
-        detail: 'Cloudflare challenge',
+        detail: 'Cloudflare bot challenge',
       });
     },
   );
 
   it('a server error → unreachable', () => {
-    expect(classifyAccess({ status: 502, challenged: false })).toMatchObject({
+    expect(
+      classifyAccess({ status: 502, challenged: false, provider: null }),
+    ).toMatchObject({
       ok: false,
       code: 'unreachable',
     });
@@ -82,9 +94,69 @@ describe('classifyAccess', () => {
   });
 
   it('a 404 is neither a pass nor a block', () => {
-    expect(classifyAccess({ status: 404, challenged: false })).toMatchObject({
+    expect(
+      classifyAccess({ status: 404, challenged: false, provider: null }),
+    ).toMatchObject({
       ok: false,
       code: 'other',
+    });
+  });
+});
+
+/**
+ * The blocked-crawl message names the service that blocked us, so an owner
+ * whose site isn't on Cloudflare isn't sent looking for a Cloudflare menu.
+ */
+describe('detectProtection', () => {
+  it.each([
+    [{ 'cf-ray': '8a1b2c3d4e5f-AMS', server: 'cloudflare' }, 'Cloudflare'],
+    [{ server: 'cloudflare' }, 'Cloudflare'],
+    [{ 'x-vercel-id': 'fra1::abc', server: 'Vercel' }, 'Vercel Firewall'],
+    [{ 'x-vercel-mitigated': 'challenge' }, 'Vercel Firewall'],
+    [{ 'x-sucuri-id': '18011' }, 'Sucuri'],
+    [{ 'x-iinfo': '1-2-3' }, 'Imperva'],
+    [{ server: 'AkamaiGHost' }, 'Akamai'],
+    [{ 'x-amz-cf-id': 'abc==' }, 'AWS CloudFront / AWS WAF'],
+    [{ server: 'nginx' }, null],
+    [{}, null],
+  ])('%j → %s', (headers, expected) => {
+    expect(detectProtection(new Headers(headers))).toBe(expected);
+  });
+});
+
+describe('isChallenge', () => {
+  it.each([
+    [{ 'cf-mitigated': 'challenge' }, true],
+    [{ 'x-vercel-mitigated': 'challenge' }, true],
+    [{ 'x-vercel-mitigated': 'deny' }, true],
+    [{ 'cf-ray': 'x' }, false],
+  ])('%j → %s', (headers, expected) => {
+    expect(isChallenge(new Headers(headers))).toBe(expected);
+  });
+});
+
+describe('classifyProbe — naming the blocker', () => {
+  it('names the detected service', () => {
+    const d = classifyProbe({ status: 403, provider: 'Vercel Firewall' });
+    expect(d.code).toBe('blocked');
+    expect(d.message).toMatch(/^Vercel Firewall answered with HTTP 403/);
+    expect(d.message).not.toMatch(/Cloudflare/);
+  });
+
+  it("doesn't guess Cloudflare when it can't tell", () => {
+    expect(classifyProbe({ status: 403, provider: null }).message).not.toMatch(
+      /Cloudflare/,
+    );
+  });
+
+  it('a bot challenge names the service in the access check', () => {
+    expect(
+      classifyAccess({ status: 429, challenged: true, provider: 'Vercel Firewall' }),
+    ).toMatchObject({ code: 'blocked', detail: 'Vercel Firewall bot challenge' });
+    expect(
+      classifyAccess({ status: 403, challenged: false, provider: null }),
+    ).toMatchObject({
+      detail: 'HTTP 403',
     });
   });
 });
