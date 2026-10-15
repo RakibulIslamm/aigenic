@@ -54,7 +54,13 @@ export function DeleteDocumentButton({
             disabled={pending}
             onClick={() => {
               startTransition(async () => {
-                const result = await deleteManualDocumentAction(siteId, documentId);
+                const result = await deleteManualDocumentAction(siteId, documentId).catch(
+                  () => ({
+                    ok: false as const,
+                    error:
+                      'Could not reach the server — check your connection and try again.',
+                  }),
+                );
                 if (result.ok) {
                   toast.success(result.message ?? 'Document removed');
                   setOpen(false);

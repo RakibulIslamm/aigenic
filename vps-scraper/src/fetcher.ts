@@ -34,7 +34,7 @@ export interface FetchResult {
 /**
  * Two-tier page fetcher.
  *
- * 1. Try a plain HTTP `fetch()` with redirect-follow. If we get HTML and the
+ * 1. Try a plain HTTP `fetch()`, following redirects via `crawlFetch`. If we get HTML and the
  *    visible-text length looks meaningful (or there are no SPA shell markers),
  *    we return it. Most static / SSR pages stop here — ~10–30× faster than
  *    spawning a Chromium page.

@@ -138,12 +138,11 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     const origin = new URL(startUrl).origin;
     const rateLimiter = new RateLimiter(MIN_DELAY_MS);
 
-    const getContext = async (): Promise<BrowserContext> => {
-      if (context) return context;
-      browser = await chromium.launch({
+    const openContext = async (): Promise<BrowserContext> => {
+      browser ??= await chromium.launch({
         args: ['--no-sandbox', '--disable-dev-shm-usage'],
       });
-      context = await browser.newContext({
+      const ctx = await browser.newContext({
         userAgent: identity.userAgent,
         ignoreHTTPSErrors: true,
         javaScriptEnabled: true,
@@ -156,15 +155,41 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
       // tier, which sees every URL first, re-checks each hop in `crawlFetch`.)
       if (identity.accessKey) {
         const key = identity.accessKey;
-        await context.route('**/*', (route) => {
-          const request = route.request();
-          if (!identity.carriesKey(request.url())) return route.continue();
-          return route.continue({
-            headers: { ...request.headers(), [ACCESS_KEY_HEADER.toLowerCase()]: key },
+        try {
+          await ctx.route('**/*', async (route) => {
+            const request = route.request();
+            const headers = identity.carriesKey(request.url())
+              ? { ...request.headers(), [ACCESS_KEY_HEADER.toLowerCase()]: key }
+              : undefined;
+            // Stop closes the page mid-navigation, and a request still in
+            // this handler then rejects ("Target closed" / "Route is already
+            // handled"). Nothing is waiting on it, so it must not surface as
+            // an unhandled rejection that takes the whole process down.
+            await route
+              .continue(headers ? { headers } : undefined)
+              .catch(() => undefined);
           });
-        });
+        } catch (err) {
+          // Never hand out a context that would crawl without the key.
+          await ctx.close().catch(() => undefined);
+          throw err;
+        }
       }
-      return context;
+      context = ctx;
+      return ctx;
+    };
+
+    // One context per crawl, however many pages escalate at once. Checking
+    // `context` alone let three concurrent escalations each launch a browser,
+    // and only the last one assigned was ever closed. A failed open clears
+    // the memo so a later page can try again.
+    let contextPromise: Promise<BrowserContext> | undefined;
+    const getContext = (): Promise<BrowserContext> => {
+      contextPromise ??= openContext().catch((err: unknown) => {
+        contextPromise = undefined;
+        throw err;
+      });
+      return contextPromise;
     };
 
     const seenUrls = new Set<string>();
