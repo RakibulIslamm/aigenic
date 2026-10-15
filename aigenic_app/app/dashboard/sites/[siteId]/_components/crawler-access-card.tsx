@@ -457,33 +457,62 @@ function CloudflareGuide({
 
       <Step n={4} id="action" steps={steps} title="Choose Skip, and tick exactly these">
         <p>
-          Under <Em>Then take action…</Em>, choose <Em>Skip</Em>:
+          Under <Em>Then take action…</Em>, choose <Em>Skip</Em>, then match these boxes
+          exactly — same order as Cloudflare shows them:
         </p>
         <TickList
-          items={[
-            { tick: true, label: 'All managed rules' },
-            { tick: true, label: 'All rate limiting rules' },
-            { tick: true, label: 'All Super Bot Fight Mode rules', note: 'if shown' },
+          groups={[
             {
-              tick: true,
-              label: 'Browser Integrity Check',
-              note: 'More components to skip',
+              heading: 'WAF components to skip',
+              items: [
+                { state: 'tick', label: 'All remaining custom rules' },
+                {
+                  state: 'never',
+                  label: 'All remaining custom rules in this phase',
+                  note: 'Leave unticked — combined with the others, Cloudflare refuses to save ("phase and ruleset cannot be used together")',
+                },
+                { state: 'tick', label: 'All rate limiting rules' },
+                { state: 'tick', label: 'All managed rules' },
+                { state: 'tick', label: 'All Super Bot Fight Mode Rules' },
+              ],
             },
-            { tick: true, label: 'Security Level', note: 'More components to skip' },
             {
-              tick: false,
-              label: 'All remaining custom rules',
-              note: 'Cloudflare rejects it combined with the others',
+              heading: 'More components to skip',
+              hint: 'Click it to expand',
+              items: [
+                { state: 'leave', label: 'Zone Lockdown' },
+                { state: 'tick', label: 'User Agent Blocking' },
+                { state: 'tick', label: 'Browser Integrity Check' },
+                { state: 'leave', label: 'Hotlink Protection' },
+                { state: 'tick', label: 'Security Level' },
+                { state: 'tick', label: 'Rate limiting rules (Previous version)' },
+                { state: 'tick', label: 'Managed rules (Previous version)' },
+              ],
             },
           ]}
         />
+        <Hint>
+          Some boxes only appear on certain plans — tick the ones you see. Leave{' '}
+          <Em>Log matching requests</Em> on.
+        </Hint>
       </Step>
 
-      <Step n={5} id="deploy" steps={steps} title="Put it first and deploy">
+      <Step n={5} id="deploy" steps={steps} title="Set the order to First, then deploy">
+        <MustDo>
+          <strong className="font-medium text-foreground">
+            Execution order must be First.
+          </strong>{' '}
+          Cloudflare runs rules top to bottom. If another rule comes first, it can block
+          our crawler before this one ever runs.
+        </MustDo>
         <p>
-          Set <Em>Execution order</Em> to <Em>First</Em>, leave <Em>Status</Em> on{' '}
+          Under <Em>Execution order</Em>, choose <Em>First</Em>. Leave <Em>Status</Em> on{' '}
           <Em>Active</Em>, then click <Em>Deploy</Em>.
         </p>
+        <Hint>
+          Already deployed it as <Em>Last</Em>? Open the rule, change the order to{' '}
+          <Em>First</Em> and save.
+        </Hint>
         <Callout>
           <strong className="font-medium text-foreground">On the Free plan?</strong> The{' '}
           <Em>Bot Fight Mode</Em> switch ignores custom rules. Turn it off under{' '}
@@ -836,38 +865,84 @@ function CopyField({
   );
 }
 
+type TickState = 'tick' | 'leave' | 'never';
+
+/**
+ * Cloudflare's Skip options, mirrored box for box in the order its dashboard
+ * lists them, so the owner can match the screen line by line:
+ * ticked, left empty, or ✗ — must stay empty (the one that breaks saving).
+ */
 function TickList({
-  items,
+  groups,
 }: {
-  items: Array<{ tick: boolean; label: string; note?: string }>;
+  groups: Array<{
+    heading: string;
+    hint?: string;
+    items: Array<{ state: TickState; label: string; note?: string }>;
+  }>;
 }) {
   return (
-    <ul className="flex flex-col divide-y divide-border/60 rounded-lg border border-border/60">
-      {items.map((item) => (
-        <li key={item.label} className="flex items-start gap-3 px-3 py-2">
-          <span
-            role="img"
-            aria-label={item.tick ? 'Tick' : "Don't tick"}
-            className={cn(
-              'mt-0.5 grid h-4.5 w-4.5 shrink-0 place-items-center rounded',
-              item.tick
-                ? 'bg-emerald-500 text-white'
-                : 'border border-red-500/60 text-red-500',
-            )}
-          >
-            {item.tick ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-          </span>
-          <span className="min-w-0">
-            <span className={cn('text-foreground', !item.tick && 'line-through')}>
-              {item.label}
-            </span>
-            {item.note ? (
-              <span className="block text-xs text-muted-foreground">{item.note}</span>
+    <div className="overflow-hidden rounded-lg border border-border/60">
+      {groups.map((group) => (
+        <section
+          key={group.heading}
+          className="border-t border-border/60 first:border-t-0"
+        >
+          <p className="bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground">
+            {group.heading}
+            {group.hint ? (
+              <span className="font-normal text-muted-foreground"> · {group.hint}</span>
             ) : null}
-          </span>
-        </li>
+          </p>
+          <ul className="flex flex-col divide-y divide-border/60">
+            {group.items.map((item) => (
+              <li key={item.label} className="flex items-start gap-3 px-3 py-2">
+                <TickBox state={item.state} />
+                <span className="min-w-0">
+                  <span
+                    className={cn(
+                      item.state === 'tick' ? 'text-foreground' : 'text-muted-foreground',
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                  {item.note ? (
+                    <span
+                      className={cn(
+                        'block text-xs',
+                        item.state === 'never' ? 'text-red-500' : 'text-muted-foreground',
+                      )}
+                    >
+                      {item.note}
+                    </span>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+    </div>
+  );
+}
+
+function TickBox({ state }: { state: TickState }) {
+  const label = { tick: 'Tick', leave: 'Leave unticked', never: "Don't tick" }[state];
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className={cn(
+        'mt-0.5 grid h-4.5 w-4.5 shrink-0 place-items-center rounded',
+        state === 'tick' && 'bg-emerald-500 text-white',
+        state === 'leave' && 'border border-border',
+        state === 'never' && 'border border-red-500/70 text-red-500',
+      )}
+    >
+      {state === 'tick' && <Check className="h-3 w-3" />}
+      {state === 'never' && <X className="h-3 w-3" />}
+    </span>
   );
 }
 
@@ -895,6 +970,16 @@ function ExternalButton({ href, children }: { href: string; children: React.Reac
           <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
         </a>
       </Button>
+    </div>
+  );
+}
+
+/** A requirement, not a tip — louder than `Callout`. */
+function MustDo({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex gap-2.5 rounded-lg border border-red-500/40 bg-red-500/5 px-3 py-2.5 text-sm">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+      <p>{children}</p>
     </div>
   );
 }
