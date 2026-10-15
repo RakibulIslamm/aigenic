@@ -32,7 +32,10 @@ const appDir = path.join(import.meta.dirname, '..');
 config({ path: path.join(appDir, '.env.local') });
 config({ path: path.join(appDir, '.env'), override: false });
 
-const url = process.env.DATABASE_URL;
+// A direct connection when one is configured (Neon's Vercel integration sets
+// DATABASE_URL_UNPOOLED): DDL and the session lock below want a real session,
+// not a PgBouncer transaction-mode slot.
+const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 if (!url) {
   console.error('DATABASE_URL is not set — nothing to migrate against.');
   process.exit(1);
@@ -40,6 +43,15 @@ if (!url) {
 
 const target = new URL(url);
 console.log(`Applying migrations to ${target.host}${target.pathname}`);
+
+/**
+ * Serializes concurrent runs — two Vercel deploys building at once would
+ * otherwise race to apply the same migration. Session-level, so only taken on
+ * a direct connection: through Neon's pooler (`-pooler` host) the lock could
+ * stay pinned to a server connection after we leave, blocking the next run.
+ */
+const MIGRATION_LOCK_ID = 7_340_181;
+const canLock = !target.hostname.includes('-pooler');
 
 /** The two notices every post-first run provokes; anything else is real. */
 const BOOTSTRAP_NOTICE_CODES = new Set([
@@ -56,6 +68,13 @@ const sql = postgres(url, {
 });
 
 try {
+  if (canLock) {
+    await sql`select pg_advisory_lock(${MIGRATION_LOCK_ID})`;
+  } else {
+    console.warn(
+      'Pooled connection — running without the migration lock. Set DATABASE_URL_UNPOOLED to enable it.',
+    );
+  }
   await migrate(drizzle(sql), {
     migrationsFolder: path.join(appDir, 'drizzle'),
   });
