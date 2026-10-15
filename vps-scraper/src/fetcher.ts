@@ -1,4 +1,5 @@
 import type { BrowserContext } from 'playwright';
+import { crawlFetch, type CrawlIdentity } from './identity.js';
 import { logger } from './logger.js';
 
 const HTTP_TIMEOUT_MS = 15_000;
@@ -43,15 +44,15 @@ export interface FetchResult {
  */
 export async function fetchPage(opts: {
   url: string;
-  userAgent: string;
+  identity: CrawlIdentity;
   getContext: () => Promise<BrowserContext>;
   signal: AbortSignal | undefined;
 }): Promise<FetchResult | null> {
-  const { url, userAgent, getContext, signal } = opts;
+  const { url, identity, getContext, signal } = opts;
 
   if (signal?.aborted) return null;
 
-  const httpResult = await tryHttp(url, userAgent, signal);
+  const httpResult = await tryHttp(url, identity, signal);
   if (httpResult && looksRendered(httpResult.html)) {
     return httpResult;
   }
@@ -72,15 +73,14 @@ export async function fetchPage(opts: {
 
 async function tryHttp(
   url: string,
-  userAgent: string,
+  identity: CrawlIdentity,
   userSignal?: AbortSignal,
 ): Promise<FetchResult | null> {
   for (let attempt = 1; attempt <= HTTP_MAX_ATTEMPTS; attempt++) {
     if (userSignal?.aborted) return null;
     try {
-      const res = await fetch(url, {
+      const res = await crawlFetch(url, identity, {
         headers: {
-          'User-Agent': userAgent,
           Accept:
             'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
@@ -91,7 +91,6 @@ async function tryHttp(
           'Sec-Fetch-Site': 'none',
           'Sec-Fetch-User': '?1',
         },
-        redirect: 'follow',
         signal: combineSignals(AbortSignal.timeout(HTTP_TIMEOUT_MS), userSignal),
       });
 

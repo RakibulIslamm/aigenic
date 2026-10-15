@@ -11,7 +11,7 @@ services:
       PORT: 3007
       LOG_LEVEL: info
       SCRAPER_API_KEY: ${SCRAPER_API_KEY:?SCRAPER_API_KEY is required}
-      # Empty = the built-in browser User-Agent (see src/crawler.ts).
+      # Empty = the built-in User-Agent, Chrome + AigenicBot/1.0 (src/identity.ts).
       SCRAPER_USER_AGENT: ${SCRAPER_USER_AGENT:-}
     # Bind to localhost only — Caddy/Nginx terminates TLS and proxies to us.
     # If you don't run a reverse proxy, change this to "3007:3007".

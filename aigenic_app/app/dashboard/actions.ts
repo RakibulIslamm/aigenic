@@ -10,10 +10,15 @@ import { getOrCreateUser, requireUserId } from '@/lib/auth/user';
 import { isUuid } from '@/lib/ids';
 import {
   createSiteSchema,
+  textDocumentSchema,
   updateSiteSchema,
   DEFAULT_WIDGET_CONFIG,
 } from '@/lib/sites/schemas';
-import { stopSiteCrawl } from '@/lib/scraper/client';
+import {
+  probeSiteAccess,
+  stopSiteCrawl,
+  type AccessProbeResult,
+} from '@/lib/scraper/client';
 import { isScraperConfigured, isTriggerConfigured } from '@/lib/env';
 import { ensureTriggerConfigured } from '@/lib/trigger/config';
 import { getSiteForUser } from '@/lib/sites/queries';
@@ -21,6 +26,15 @@ import { enqueueSiteCrawl } from '@/lib/sites/enqueue-crawl';
 import { getPlan, manualCrawlWindowStart } from '@/lib/billing/plans';
 import { claimManualCrawlSlot, deleteCrawlRun } from '@/lib/sites/crawl-runs';
 import { log } from '@/lib/log';
+import { extractText, kindForFileName } from '@/lib/knowledge/extract';
+import { deleteManualDocument, storeManualDocument } from '@/lib/knowledge/store';
+import {
+  MANUAL_DOC_MAX_CHARS,
+  MANUAL_TITLE_MAX_CHARS,
+  MANUAL_UPLOAD_EXTENSIONS,
+  MANUAL_UPLOAD_MAX_BYTES,
+} from '@/lib/sites/limits';
+import { consumeRateLimit } from '@/lib/ratelimit';
 
 export type ActionState =
   | { ok: true; siteId?: string; message?: string }
@@ -435,4 +449,193 @@ export async function rescrapeArticleAction(
   // getSiteForUser and enforces the manual-crawl quota); deleting this one
   // article first would just leave it gone if the quota check failed.
   return withSiteOwnership(siteId, userId, () => rescrapeSiteAction(siteId));
+}
+
+/**
+ * Adds pasted text to the knowledge base. Manual content is served the moment
+ * it's saved and survives every re-crawl — the part of the KB no firewall can
+ * block.
+ */
+export async function addTextDocumentAction(
+  siteId: string,
+  _prevState: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  return withSiteOwnership(siteId, userId, async (site) => {
+    const parsed = parseForm(textDocumentSchema, formData);
+    if (!parsed.ok) {
+      return {
+        ok: false,
+        error: 'Please fix the highlighted fields',
+        fieldErrors: parsed.fieldErrors,
+        values: formValues(formData),
+      };
+    }
+
+    const stored = await storeManualDocument({
+      siteId: site.id,
+      title: parsed.data.title,
+      text: parsed.data.content,
+    });
+    if (!stored.ok) {
+      return { ok: false, error: stored.error, values: formValues(formData) };
+    }
+
+    revalidateKnowledge(site.id);
+    return { ok: true, siteId: site.id, message: 'Added to the knowledge base' };
+  });
+}
+
+/**
+ * Uploads ONE file (the dialog loops over a multi-file selection, so one bad
+ * file doesn't sink the rest and each request stays under the body limit).
+ */
+export async function uploadDocumentAction(
+  siteId: string,
+  formData: FormData,
+): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  return withSiteOwnership(siteId, userId, async (site) => {
+    const file = formData.get('file');
+    if (!(file instanceof File) || file.size === 0) {
+      return { ok: false, error: 'Choose a file to upload.' };
+    }
+    if (!kindForFileName(file.name)) {
+      return {
+        ok: false,
+        error: `${file.name}: unsupported file type. Use ${MANUAL_UPLOAD_EXTENSIONS.join(', ')}.`,
+      };
+    }
+    if (file.size > MANUAL_UPLOAD_MAX_BYTES) {
+      return {
+        ok: false,
+        error: `${file.name} is over ${MANUAL_UPLOAD_MAX_BYTES / 1024 / 1024} MB — split it into smaller files.`,
+      };
+    }
+
+    const extracted = await extractText(file);
+    if (!extracted.ok) {
+      return { ok: false, error: `${file.name}: ${extracted.error}` };
+    }
+    if (extracted.text.length > MANUAL_DOC_MAX_CHARS) {
+      return {
+        ok: false,
+        error: `${file.name} has more than ${MANUAL_DOC_MAX_CHARS.toLocaleString('en-US')} characters of text — split it into smaller files.`,
+      };
+    }
+
+    const stored = await storeManualDocument({
+      siteId: site.id,
+      title: titleFromFileName(file.name),
+      text: extracted.text,
+    });
+    if (!stored.ok) {
+      return { ok: false, error: stored.error };
+    }
+
+    revalidateKnowledge(site.id);
+    return { ok: true, siteId: site.id, message: `Added ${file.name}` };
+  });
+}
+
+export async function deleteManualDocumentAction(
+  siteId: string,
+  documentId: string,
+): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  if (!isUuid(documentId)) {
+    return { ok: false, error: 'Document not found' };
+  }
+
+  return withSiteOwnership(siteId, userId, async (site) => {
+    const deleted = await deleteManualDocument(site.id, documentId);
+    if (deleted === 0) {
+      return { ok: false, error: 'Document not found' };
+    }
+    revalidateKnowledge(site.id);
+    return { ok: true, siteId: site.id, message: 'Document removed' };
+  });
+}
+
+export type AccessTestState =
+  { ok: true; result: AccessProbeResult } | { ok: false; error: string };
+
+/**
+ * The Settings card's "Test access": one request from the crawler itself (its
+ * IP, User-Agent and this site's access key) to the site's start URL, so the
+ * owner learns whether their firewall rule works without spending a re-crawl.
+ */
+export async function testCrawlerAccessAction(siteId: string): Promise<AccessTestState> {
+  const userId = await requireUserId();
+  if (!isUuid(siteId)) return { ok: false, error: 'Site not found' };
+  const site = await getSiteForUser(siteId, userId);
+  if (!site) return { ok: false, error: 'Site not found' };
+
+  if (!isScraperConfigured()) {
+    return {
+      ok: false,
+      error: 'Scraper service is not configured (SCRAPER_API_URL / SCRAPER_API_KEY).',
+    };
+  }
+
+  // Each test is a real request to the owner's site from our crawler; a
+  // held-down button shouldn't turn that into a burst.
+  const limit = await consumeRateLimit({
+    key: `crawler-access-test:user:60s:${userId}`,
+    limit: 10,
+    windowSeconds: 60,
+  });
+  if (!limit.ok) {
+    return {
+      ok: false,
+      error: `Too many tests — try again in ${limit.retryAfterSeconds}s.`,
+    };
+  }
+
+  try {
+    const result = await probeSiteAccess(site.domain, site.crawlAccessKey);
+    return { ok: true, result };
+  } catch (err) {
+    log.warn('crawler access probe failed', { siteId, err });
+    return {
+      ok: false,
+      error: 'Could not reach our crawler service. Try again shortly.',
+    };
+  }
+}
+
+/**
+ * Issues a new access key. The old one stops working at once (the next crawl
+ * sends the new value), so the owner has to update their firewall rule — the
+ * Settings card says so before they confirm.
+ */
+export async function rotateCrawlAccessKeyAction(siteId: string): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  return withSiteOwnership(siteId, userId, async (site) => {
+    await db
+      .update(sites)
+      .set({ crawlAccessKey: sql`replace(gen_random_uuid()::text, '-', '')` })
+      .where(and(eq(sites.id, site.id), eq(sites.userId, userId)));
+    revalidatePath(`/dashboard/sites/${site.id}`, 'layout');
+    return { ok: true, siteId: site.id, message: 'New access key issued' };
+  });
+}
+
+function revalidateKnowledge(siteId: string) {
+  revalidatePath(`/dashboard/sites/${siteId}`, 'layout');
+  revalidatePath('/dashboard');
+}
+
+/** "returns-policy_v2.pdf" → "returns policy v2". */
+function titleFromFileName(name: string): string {
+  const base = name
+    .replace(/\.[^.]+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .trim();
+  return (base || name).slice(0, MANUAL_TITLE_MAX_CHARS);
 }

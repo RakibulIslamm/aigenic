@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { ChevronLeft, ExternalLink } from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
 import { env } from '@/lib/env';
-import { getSiteForUser, getSiteStats } from '@/lib/sites/queries';
+import { countCrawledArticles, getSiteForUser } from '@/lib/sites/queries';
 import { generationForProgress } from '@/lib/sites/generations';
 import { KbStatusBadge } from '../../_components/kb-status-badge';
 import { CrawlActivityFeed } from '../../_components/crawl-activity-feed';
@@ -29,7 +29,7 @@ export default async function SiteLayout({
   // generation, matching what the SSE feed then streams, so the banner doesn't
   // start at the old KB's size and jump.
   const liveCount = isCrawling
-    ? (await getSiteStats(siteId, generationForProgress(site))).articleCount
+    ? await countCrawledArticles(siteId, generationForProgress(site))
     : undefined;
 
   const isCrawlPhase =

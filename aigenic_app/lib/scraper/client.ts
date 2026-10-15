@@ -23,6 +23,11 @@ export interface StartCrawlOptions {
    * apart from a superseded one's. See `lib/sites/generations.ts`.
    */
   generation: number;
+  /**
+   * The site's `crawlAccessKey`, sent by the scraper as `X-Aigenic-Access-Key`
+   * on every same-site request so the owner's firewall rule can let it in.
+   */
+  accessKey: string;
 }
 
 export interface StartCrawlResponse {
@@ -41,6 +46,7 @@ export async function startSiteCrawl({
   domain,
   maxPages = DEFAULT_CRAWL_MAX_PAGES,
   generation,
+  accessKey,
 }: StartCrawlOptions): Promise<StartCrawlResponse> {
   if (!SCRAPER_API_URL || !SCRAPER_API_KEY) {
     throw new Error(
@@ -59,6 +65,7 @@ export async function startSiteCrawl({
       startUrl: domain,
       maxPages,
       generation,
+      accessKey,
       webhookUrl: `${APP_URL}/api/scraper/webhook`,
     }),
     cache: 'no-store',
@@ -107,4 +114,53 @@ export async function stopSiteCrawl(siteId: string): Promise<StopCrawlResponse> 
   }
 
   return response.json() as Promise<StopCrawlResponse>;
+}
+
+/**
+ * Mirrors `AccessCheck` in `vps-scraper/src/diagnose.ts`: what one request
+ * with the crawl's identity (egress IP, User-Agent, access key) got back.
+ */
+export type AccessProbeResult =
+  | { ok: true; status: number }
+  | {
+      ok: false;
+      code: 'blocked' | 'unreachable' | 'other';
+      status: number | null;
+      detail: string;
+    };
+
+/**
+ * "Can the crawler get in right now?" — one request from the scraper itself,
+ * so it tests the owner's firewall rule against our real IP and headers. The
+ * probe can take up to the scraper's own 15 s timeout, hence the longer wait.
+ */
+export async function probeSiteAccess(
+  url: string,
+  accessKey: string,
+): Promise<AccessProbeResult> {
+  if (!SCRAPER_API_URL || !SCRAPER_API_KEY) {
+    throw new Error(
+      'Scraper service not configured. Set SCRAPER_API_URL and SCRAPER_API_KEY in .env.local.',
+    );
+  }
+
+  const response = await fetch(`${SCRAPER_API_URL}/probe`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': SCRAPER_API_KEY,
+    },
+    body: JSON.stringify({ url, accessKey }),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(SCRAPER_REQUEST_TIMEOUT_MS + 10_000),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(
+      `Scraper service unreachable (${response.status}): ${body || response.statusText}`,
+    );
+  }
+
+  return response.json() as Promise<AccessProbeResult>;
 }

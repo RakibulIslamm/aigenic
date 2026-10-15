@@ -4,7 +4,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { articles, conversations, escalations, sites } from '@/db/schema';
 import { deliverEscalationEmail } from '@/lib/email/escalation';
-import { articlesInGeneration } from '@/lib/sites/generations';
+import { servedArticles } from '@/lib/sites/generations';
 
 /** How many articles a full-text search returns to the model. */
 const FTS_RESULT_LIMIT = 5;
@@ -72,7 +72,7 @@ export function buildSupportTools(ctx: SupportToolContext) {
               // The generation the site serves — never a crawl in progress.
               // Without this the bot would answer from a half-built KB the
               // owner can't even see yet.
-              articlesInGeneration(ctx.siteId, ctx.activeGeneration),
+              servedArticles(ctx.siteId, ctx.activeGeneration),
               sql`${articles.contentTsv} @@ plainto_tsquery('english', ${trimmed})`,
             ),
           )
@@ -109,7 +109,7 @@ export function buildSupportTools(ctx: SupportToolContext) {
         const article = await db.query.articles.findFirst({
           where: and(
             eq(articles.id, articleId),
-            articlesInGeneration(ctx.siteId, ctx.activeGeneration),
+            servedArticles(ctx.siteId, ctx.activeGeneration),
           ),
         });
         if (!article) {

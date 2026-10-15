@@ -28,6 +28,8 @@ const tsvector = customType<{ data: string; driverData: string }>({
   },
 });
 
+export type ArticleSource = 'crawl' | 'manual';
+
 export const users = pgTable('users', {
   id: text('id').primaryKey(), // Clerk user ID
   email: text('email').notNull(),
@@ -108,6 +110,19 @@ export const sites = pgTable(
       (): AnyPgColumn => crawlRuns.id,
       { onDelete: 'set null' },
     ),
+    /**
+     * The crawler's per-site access key. The scraper sends it as
+     * `X-Aigenic-Access-Key` on every request to this site, and the owner
+     * allows that header through their firewall (one Cloudflare rule) — the
+     * dependable answer to bot protection blocking the crawl. See
+     * `lib/sites/crawler-identity.ts`.
+     *
+     * 32 hex chars from `gen_random_uuid()`. A volatile default, so adding the
+     * column gives every existing site its own key, not one shared value.
+     */
+    crawlAccessKey: text('crawl_access_key')
+      .notNull()
+      .default(sql`replace(gen_random_uuid()::text, '-', '')`),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
       .defaultNow()
@@ -127,6 +142,22 @@ export const articles = pgTable(
     sourceUrl: text('source_url'),
     title: text('title').notNull(),
     content: text('content').notNull(),
+    /**
+     * Where the row came from: `'crawl'` (the scraper) or `'manual'` (pasted
+     * or uploaded by the owner in the dashboard).
+     *
+     * Manual rows sit outside the generation machinery — a re-crawl never
+     * replaces or deletes them, and every read path serves them alongside the
+     * active generation. That is what makes them the fallback no firewall
+     * can block. See `lib/sites/generations.ts`.
+     */
+    source: text('source').$type<ArticleSource>().notNull().default('crawl'),
+    /**
+     * Groups the chunks of one manually added document (a long PDF becomes
+     * several rows so search can rank its sections separately). Null for
+     * crawled rows.
+     */
+    manualDocumentId: uuid('manual_document_id'),
     /**
      * Which crawl produced this row. Only rows matching the site's
      * `activeGeneration` are ever read; the rest are staging for an in-flight
@@ -156,6 +187,10 @@ export const articles = pgTable(
   (t) => [
     index('articles_site_id_idx').on(t.siteId),
     index('articles_site_id_created_at_idx').on(t.siteId, t.createdAt),
+    // The knowledge tab's "your documents" list and per-document delete.
+    index('articles_manual_document_idx')
+      .on(t.siteId, t.manualDocumentId)
+      .where(sql`${t.manualDocumentId} IS NOT NULL`),
     // Matches the index name created by 0001_fts_index.sql.
     index('idx_articles_tsv').using('gin', t.contentTsv),
     /**

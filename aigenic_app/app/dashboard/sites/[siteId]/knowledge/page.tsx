@@ -1,9 +1,20 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
-import { BookOpen, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import {
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  FileText,
+} from 'lucide-react';
 import { requireUserId } from '@/lib/auth/user';
-import { getSiteForUser, listArticlesForSitePaged } from '@/lib/sites/queries';
+import {
+  getSiteForUser,
+  listArticlesForSitePaged,
+  listManualDocuments,
+  type ManualDocumentSummary,
+} from '@/lib/sites/queries';
 import { KB_PAGE_SIZE, KB_SEARCH_MAX_CHARS } from '@/lib/sites/limits';
 import {
   Card,
@@ -15,6 +26,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { ResyncAllButton, RescrapeArticleButton } from '../_components/rescrape-buttons';
 import { ArticleSearch } from './_components/article-search';
+import { AddContentDialog } from './_components/add-content-dialog';
+import { DeleteDocumentButton } from './_components/delete-document-button';
 
 /** Characters of article content shown in a row's collapsed preview. */
 const ARTICLE_PREVIEW_CHARS = 240;
@@ -36,14 +49,17 @@ export default async function KnowledgeBasePage({
   // Clamped so the term we search, echo back in the heading, and thread
   // through pagination links are all the same bounded string.
   const trimmedQ = (queryParam?.trim() ?? '').slice(0, KB_SEARCH_MAX_CHARS);
-  const { rows, total, page, totalPages } = await listArticlesForSitePaged(siteId, {
-    page: Number.isFinite(requestedPage) ? requestedPage : 1,
-    pageSize: KB_PAGE_SIZE,
-    q: trimmedQ || undefined,
-    // The KB the site serves. During a re-crawl this stays the previous,
-    // working one until the new crawl succeeds.
-    generation: site.activeGeneration,
-  });
+  const [{ rows, total, page, totalPages }, manualDocs] = await Promise.all([
+    listArticlesForSitePaged(siteId, {
+      page: Number.isFinite(requestedPage) ? requestedPage : 1,
+      pageSize: KB_PAGE_SIZE,
+      q: trimmedQ || undefined,
+      // The KB the site serves. During a re-crawl this stays the previous,
+      // working one until the new crawl succeeds.
+      generation: site.activeGeneration,
+    }),
+    listManualDocuments(siteId),
+  ]);
 
   const rangeStart = total === 0 ? 0 : (page - 1) * KB_PAGE_SIZE + 1;
   const rangeEnd = Math.min(total, page * KB_PAGE_SIZE);
@@ -74,8 +90,15 @@ export default async function KnowledgeBasePage({
             )}
           </p>
         </div>
-        <ResyncAllButton siteId={siteId} kbStatus={site.kbStatus} />
+        <div className="flex flex-wrap gap-2">
+          <AddContentDialog siteId={siteId} />
+          <ResyncAllButton siteId={siteId} kbStatus={site.kbStatus} />
+        </div>
       </section>
+
+      {!trimmedQ && manualDocs.length > 0 && (
+        <ManualDocuments siteId={siteId} docs={manualDocs} />
+      )}
 
       <ArticleSearch urlQuery={trimmedQ} />
 
@@ -83,7 +106,11 @@ export default async function KnowledgeBasePage({
         trimmedQ ? (
           <NoMatchesState siteId={siteId} query={trimmedQ} />
         ) : (
-          <EmptyState siteId={siteId} status={site.kbStatus} />
+          <EmptyState
+            siteId={siteId}
+            status={site.kbStatus}
+            hasManualDocs={manualDocs.length > 0}
+          />
         )
       ) : (
         <>
@@ -232,7 +259,63 @@ function Pagination({
   );
 }
 
-function EmptyState({ siteId, status }: { siteId: string; status: string }) {
+/**
+ * Documents the owner added by hand — one row per document, however many
+ * chunks it became. Listed apart from crawled pages because they behave
+ * differently: never re-crawled, never replaced, removed only from here.
+ */
+function ManualDocuments({
+  siteId,
+  docs,
+}: {
+  siteId: string;
+  docs: ManualDocumentSummary[];
+}) {
+  return (
+    <section className="flex flex-col gap-3">
+      <div>
+        <h3 className="text-sm font-medium">Added content</h3>
+        <p className="text-xs text-muted-foreground">
+          Uploaded or pasted by you. Always served, and kept when the site is re-crawled.
+        </p>
+      </div>
+      <ul className="grid gap-2">
+        {docs.map((doc) => (
+          <li key={doc.id}>
+            <Card className="border-border/60 bg-card/40">
+              <CardContent className="flex items-center gap-3 px-4! py-3 sm:px-6!">
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{doc.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {doc.characters.toLocaleString('en-US')} characters
+                    {doc.parts > 1 ? ` · ${doc.parts} sections` : ''} · added{' '}
+                    {formatDistanceToNow(doc.createdAt, { addSuffix: true })}
+                  </p>
+                </div>
+                <DeleteDocumentButton
+                  siteId={siteId}
+                  documentId={doc.id}
+                  title={doc.title}
+                />
+              </CardContent>
+            </Card>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function EmptyState({
+  siteId,
+  status,
+  hasManualDocs,
+}: {
+  siteId: string;
+  status: string;
+  hasManualDocs: boolean;
+}) {
   return (
     <Card className="border-dashed border-border/60 bg-card/20">
       <CardHeader className="items-center text-center">
@@ -250,11 +333,16 @@ function EmptyState({ siteId, status }: { siteId: string; status: string }) {
           {status === 'crawling' || status === 'pending'
             ? 'Pages will appear here as the crawler finds them. A small marketing site finishes in a few minutes; a larger e-commerce or docs site can take longer.'
             : status === 'failed'
-              ? 'The scraper couldn\'t finish. Hit "Resync all" to try again, or check the URL and try once more.'
+              ? hasManualDocs
+                ? 'The crawler couldn\'t read your site, but the assistant is answering from the content you added above. Allow our crawler in Settings → Crawler access, then hit "Resync all".'
+                : 'The crawler couldn\'t read your site. Add your content directly — upload documents or paste text — and the assistant can answer right away. To fix the crawl, allow our crawler in Settings → Crawler access, then hit "Resync all".'
               : 'Once your site is crawled, every public page will land here.'}
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex justify-center pb-8">
+      <CardContent className="flex flex-wrap justify-center gap-2 pb-8">
+        {status === 'failed' && !hasManualDocs && (
+          <AddContentDialog siteId={siteId} variant="default" />
+        )}
         <ResyncAllButton siteId={siteId} kbStatus={status} />
       </CardContent>
     </Card>
