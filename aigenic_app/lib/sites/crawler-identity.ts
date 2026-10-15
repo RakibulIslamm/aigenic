@@ -42,3 +42,31 @@ export function cloudflareRuleExpression(accessKey: string): string {
 export function isValidAccessKey(key: string | null | undefined): key is string {
   return typeof key === 'string' && /^[a-f0-9]{32,128}$/.test(key);
 }
+
+/** The setup guides the Crawler access card offers. */
+export type Guide = 'cloudflare' | 'vercel' | 'other';
+
+/**
+ * The guide for a service name as the scraper reports it ("Cloudflare",
+ * "Vercel Firewall", …). Anything we have no dedicated guide for gets the
+ * generic one.
+ */
+export function guideForProvider(provider: string | null | undefined): Guide {
+  const p = (provider ?? '').toLowerCase();
+  if (p.includes('cloudflare')) return 'cloudflare';
+  if (p.includes('vercel')) return 'vercel';
+  return 'other';
+}
+
+/**
+ * The guide to open before the owner has run a check: the service the last
+ * blocked crawl named in its error ("Cloudflare answered with HTTP 403…"),
+ * else Cloudflare — what most blocked sites turn out to be behind.
+ */
+export function initialGuideFor(lastError: string | null | undefined): Guide {
+  if (!lastError) return 'cloudflare';
+  const named = guideForProvider(lastError);
+  if (named !== 'other') return named;
+  // A known non-Cloudflare service was named → the generic guide fits.
+  return /sucuri|imperva|akamai|aws/i.test(lastError) ? 'other' : 'cloudflare';
+}
