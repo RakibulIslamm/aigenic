@@ -1,4 +1,6 @@
+import { z } from 'zod';
 import { env } from '@/lib/env';
+import { isValidAccessKey } from '@/lib/sites/crawler-identity';
 import { DEFAULT_CRAWL_MAX_PAGES } from '@/lib/sites/limits';
 
 const SCRAPER_API_URL = env.SCRAPER_API_URL;
@@ -65,7 +67,10 @@ export async function startSiteCrawl({
       startUrl: domain,
       maxPages,
       generation,
-      accessKey,
+      // The scraper rejects the whole job over a malformed key. A crawl
+      // without one still works for every site that isn't firewalled, so a
+      // corrupted value (hand-edited row) degrades instead of failing.
+      ...(isValidAccessKey(accessKey) ? { accessKey } : {}),
       webhookUrl: `${APP_URL}/api/scraper/webhook`,
     }),
     cache: 'no-store',
@@ -119,48 +124,79 @@ export async function stopSiteCrawl(siteId: string): Promise<StopCrawlResponse> 
 /**
  * Mirrors `AccessCheck` in `vps-scraper/src/diagnose.ts`: what one request
  * with the crawl's identity (egress IP, User-Agent, access key) got back.
+ * Parsed, not trusted — the scraper deploys separately, and a shape drift
+ * must become a clean error rather than a broken Settings card.
  */
-export type AccessProbeResult =
-  | { ok: true; status: number }
-  | {
-      ok: false;
-      code: 'blocked' | 'unreachable' | 'other';
-      status: number | null;
-      detail: string;
-    };
+const accessProbeResultSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), status: z.number().int() }),
+  z.object({
+    ok: z.literal(false),
+    code: z.enum(['blocked', 'unreachable', 'other']),
+    status: z.number().int().nullable(),
+    detail: z.string().max(500),
+  }),
+]);
+
+export type AccessProbeResult = z.infer<typeof accessProbeResultSchema>;
+
+export type ProbeOutcome =
+  | { ok: true; result: AccessProbeResult }
+  /**
+   * `outdated`: the scraper predates `/probe` (404) — deployed out of order.
+   * `unreachable`: network failure, timeout, or a non-2xx answer.
+   * `invalid-response`: it answered, but not with a probe result.
+   */
+  | { ok: false; reason: 'outdated' | 'unreachable' | 'invalid-response' };
 
 /**
  * "Can the crawler get in right now?" — one request from the scraper itself,
  * so it tests the owner's firewall rule against our real IP and headers. The
  * probe can take up to the scraper's own 15 s timeout, hence the longer wait.
+ *
+ * Never throws: every failure is a `reason` the caller can phrase.
  */
 export async function probeSiteAccess(
   url: string,
   accessKey: string,
-): Promise<AccessProbeResult> {
+): Promise<ProbeOutcome> {
   if (!SCRAPER_API_URL || !SCRAPER_API_KEY) {
-    throw new Error(
-      'Scraper service not configured. Set SCRAPER_API_URL and SCRAPER_API_KEY in .env.local.',
-    );
+    return { ok: false, reason: 'unreachable' };
   }
 
-  const response = await fetch(`${SCRAPER_API_URL}/probe`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': SCRAPER_API_KEY,
-    },
-    body: JSON.stringify({ url, accessKey }),
-    cache: 'no-store',
-    signal: AbortSignal.timeout(SCRAPER_REQUEST_TIMEOUT_MS + 10_000),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${SCRAPER_API_URL}/probe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': SCRAPER_API_KEY,
+      },
+      body: JSON.stringify({
+        url,
+        // A key the scraper's schema would reject fails the whole request;
+        // probing without it still tells the owner something useful.
+        ...(isValidAccessKey(accessKey) ? { accessKey } : {}),
+      }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(SCRAPER_REQUEST_TIMEOUT_MS + 10_000),
+    });
+  } catch {
+    return { ok: false, reason: 'unreachable' };
+  }
 
+  if (response.status === 404) {
+    await response.body?.cancel().catch(() => undefined);
+    return { ok: false, reason: 'outdated' };
+  }
   if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(
-      `Scraper service unreachable (${response.status}): ${body || response.statusText}`,
-    );
+    await response.body?.cancel().catch(() => undefined);
+    return { ok: false, reason: 'unreachable' };
   }
 
-  return response.json() as Promise<AccessProbeResult>;
+  const parsed = accessProbeResultSchema.safeParse(
+    await response.json().catch(() => null),
+  );
+  return parsed.success
+    ? { ok: true, result: parsed.data }
+    : { ok: false, reason: 'invalid-response' };
 }

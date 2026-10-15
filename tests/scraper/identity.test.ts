@@ -118,6 +118,23 @@ describe('crawlFetch', () => {
     for (const hop of seen) expect(hop.headers[ACCESS_KEY_HEADER]).toBe(KEY);
   });
 
+  it.each(['mailto:help@example.com', 'javascript:alert(1)', 'http://[bad'])(
+    'returns the 3xx unfollowed for an unusable Location: %s',
+    async (location) => {
+      const seen = stubChain({
+        'https://example.com/contact': { status: 302, location },
+      });
+      const response = await crawlFetch('https://example.com/contact', identity);
+      expect(response.status).toBe(302);
+      expect(seen).toHaveLength(1);
+    },
+  );
+
+  it('returns a redirect with no Location as-is', async () => {
+    stubChain({ 'https://example.com/x': { status: 301 } });
+    expect((await crawlFetch('https://example.com/x', identity)).status).toBe(301);
+  });
+
   it('gives up on a redirect loop instead of spinning', async () => {
     stubChain({
       'https://example.com/a': { status: 302, location: '/b' },

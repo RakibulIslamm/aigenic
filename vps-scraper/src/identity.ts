@@ -104,11 +104,29 @@ export async function crawlFetch(
     });
     const location = response.headers.get('location');
     if (!REDIRECT_STATUSES.has(response.status) || !location) return response;
+
+    // A malformed or non-web target (`mailto:`, `javascript:`, a bare
+    // garbage string) isn't a page we can follow — hand the 3xx back as-is,
+    // which every caller already treats as "no usable response".
+    const next = resolveRedirect(location, current);
+    if (!next) return response;
+
+    await response.body?.cancel().catch(() => undefined);
     if (hop >= MAX_REDIRECTS) {
-      await response.body?.cancel().catch(() => undefined);
       throw new Error(`Too many redirects starting from ${url}`);
     }
-    await response.body?.cancel().catch(() => undefined);
-    current = new URL(location, current).toString();
+    current = next;
+  }
+}
+
+/** Absolute http(s) URL for a `Location` header, or null when there isn't one. */
+function resolveRedirect(location: string, base: string): string | null {
+  try {
+    const target = new URL(location, base);
+    return target.protocol === 'http:' || target.protocol === 'https:'
+      ? target.toString()
+      : null;
+  } catch {
+    return null;
   }
 }
