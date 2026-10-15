@@ -2,7 +2,7 @@ import 'server-only';
 import { count, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { articles, sites } from '@/db/schema';
-import { articlesInGeneration, generationForProgress } from '@/lib/sites/generations';
+import { crawledArticles, generationForProgress } from '@/lib/sites/generations';
 
 export interface CrawlSnapshot {
   status: string;
@@ -57,7 +57,7 @@ export async function fetchCrawlSnapshot(
   const [agg] = await db
     .select({ value: count() })
     .from(articles)
-    .where(articlesInGeneration(siteId, generationForProgress(site)));
+    .where(crawledArticles(siteId, generationForProgress(site)));
 
   return {
     status: site.kbStatus,

@@ -12,6 +12,7 @@ vi.mock('../../vps-scraper/src/sources/http.js', () => ({
 }));
 
 const { fetchJson } = await import('../../vps-scraper/src/sources/http.js');
+const { createCrawlIdentity } = await import('../../vps-scraper/src/identity.js');
 const { fetchShopifyProducts } = await import('../../vps-scraper/src/sources/shopify.js');
 const { fetchWordPressDocs } = await import('../../vps-scraper/src/sources/wordpress.js');
 
@@ -41,7 +42,7 @@ function respondWith(
 function ctx(overrides: Partial<Parameters<typeof fetchShopifyProducts>[0]> = {}) {
   return {
     origin: 'https://shop.example.com',
-    userAgent: 'test-agent',
+    identity: createCrawlIdentity({ site: { hostname: 'shop.example.com' } }),
     maxDocs: 1000,
     isEndpointAllowed: () => true,
     isDocumentAllowed: () => true,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { crawlRequestSchema } from '../../vps-scraper/src/schemas.js';
+import { crawlRequestSchema, probeRequestSchema } from '../../vps-scraper/src/schemas.js';
 
 /** The scraper's `/crawl` payload boundary. */
 
@@ -80,4 +80,37 @@ describe('crawlRequestSchema', () => {
       crawlRequestSchema.safeParse({ ...validRequest, maxPages: 2001 }).success,
     ).toBe(false);
   });
+});
+
+/**
+ * The access key is forwarded verbatim as an HTTP header value, so the schema
+ * is the line that keeps CR/LF (header injection) and other junk out.
+ */
+describe('accessKey', () => {
+  const key = '0123456789abcdef0123456789abcdef';
+
+  it('is optional', () => {
+    expect(crawlRequestSchema.parse(validRequest).accessKey).toBeUndefined();
+  });
+
+  it('accepts a hex key on /crawl and /probe', () => {
+    expect(crawlRequestSchema.parse({ ...validRequest, accessKey: key }).accessKey).toBe(
+      key,
+    );
+    expect(
+      probeRequestSchema.parse({ url: 'https://example.com', accessKey: key }).accessKey,
+    ).toBe(key);
+  });
+
+  it.each([`${key}\r\nX-Evil: 1`, 'short', key.toUpperCase(), `${key} `, ''])(
+    'rejects %j',
+    (accessKey) => {
+      expect(crawlRequestSchema.safeParse({ ...validRequest, accessKey }).success).toBe(
+        false,
+      );
+      expect(
+        probeRequestSchema.safeParse({ url: 'https://example.com', accessKey }).success,
+      ).toBe(false);
+    },
+  );
 });

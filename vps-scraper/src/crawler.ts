@@ -5,6 +5,11 @@ import { logger } from './logger.js';
 import { parsePage } from './content-extractor.js';
 import { diagnoseEmptyCrawl } from './diagnose.js';
 import { fetchPage } from './fetcher.js';
+import {
+  ACCESS_KEY_HEADER,
+  createCrawlIdentity,
+  type CrawlIdentity,
+} from './identity.js';
 import { RateLimiter } from './rate-limit.js';
 import { discoverSitemapUrls } from './sitemap.js';
 import { collectStructuredDocs } from './sources/index.js';
@@ -28,12 +33,8 @@ const MIN_DELAY_MS = 150;
  */
 const STRUCTURED_BUDGET_RATIO = 0.8;
 
-// Realistic Chrome UA — some shop platforms serve degraded markup or a
-// challenge page to obvious bots. Override via SCRAPER_USER_AGENT (empty —
-// as docker-compose passes when unset — falls back to this default).
-const USER_AGENT =
-  process.env.SCRAPER_USER_AGENT ||
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+// Chrome + `AigenicBot/1.0` unless overridden — see `identity.ts`.
+const USER_AGENT_OVERRIDE = process.env.SCRAPER_USER_AGENT;
 
 export interface CrawlJob {
   siteId: string;
@@ -41,6 +42,15 @@ export interface CrawlJob {
   maxPages: number;
   webhookUrl: string;
   webhookApiKey: string;
+  /**
+   * The site's crawler access key, sent as `X-Aigenic-Access-Key` on every
+   * same-site request so the owner can allow us through their firewall with
+   * one rule. See `identity.ts`.
+   *
+   * Explicitly `| undefined`: under `exactOptionalPropertyTypes` the caller
+   * forwards the schema's optional field straight through.
+   */
+  accessKey?: string | undefined;
   /**
    * The app's staging generation for this crawl. Echoed back on every webhook
    * so the app can route these articles into a generation nothing reads yet,
@@ -81,7 +91,16 @@ export interface CrawlJob {
  * pages support questions are actually about.
  */
 export async function runCrawl(job: CrawlJob): Promise<void> {
-  const { siteId, startUrl, maxPages, webhookUrl, webhookApiKey, generation, signal } = job;
+  const {
+    siteId,
+    startUrl,
+    maxPages,
+    webhookUrl,
+    webhookApiKey,
+    generation,
+    accessKey,
+    signal,
+  } = job;
 
   const startedAt = Date.now();
   let totalPages = 0;
@@ -109,6 +128,11 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     return;
   }
   const site = maybeSite;
+  const identity = createCrawlIdentity({
+    site,
+    accessKey,
+    userAgent: USER_AGENT_OVERRIDE,
+  });
 
   try {
     const origin = new URL(startUrl).origin;
@@ -120,11 +144,26 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
         args: ['--no-sandbox', '--disable-dev-shm-usage'],
       });
       context = await browser.newContext({
-        userAgent: USER_AGENT,
+        userAgent: identity.userAgent,
         ignoreHTTPSErrors: true,
         javaScriptEnabled: true,
         viewport: { width: 1280, height: 800 },
       });
+      // The access key goes on same-site requests only. Context-wide
+      // `extraHTTPHeaders` would also send it to every third-party script,
+      // font and analytics beacon the page loads. (Playwright does carry
+      // these headers across a redirect the browser follows itself; the HTTP
+      // tier, which sees every URL first, re-checks each hop in `crawlFetch`.)
+      if (identity.accessKey) {
+        const key = identity.accessKey;
+        await context.route('**/*', (route) => {
+          const request = route.request();
+          if (!identity.carriesKey(request.url())) return route.continue();
+          return route.continue({
+            headers: { ...request.headers(), [ACCESS_KEY_HEADER.toLowerCase()]: key },
+          });
+        });
+      }
       return context;
     };
 
@@ -155,7 +194,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     const structuredBudget = Math.floor(maxPages * STRUCTURED_BUDGET_RATIO);
     const structuredBatches = await collectStructuredDocs({
       origin,
-      userAgent: USER_AGENT,
+      identity,
       maxDocs: structuredBudget,
       isEndpointAllowed: (url) => isSameSite(url, site),
       isDocumentAllowed: (url) => isSameSite(url, site) && !shouldSkipUrl(url),
@@ -211,7 +250,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     const sitemapUrls = await discoverSitemapUrls({
       origin,
       site,
-      userAgent: USER_AGENT,
+      identity,
     });
     for (const u of sitemapUrls) enqueue(u);
 
@@ -229,7 +268,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
             await rateLimiter.wait(signal);
             if (signal?.aborted) return null;
             try {
-              return await crawlOne({ url, getContext, signal });
+              return await crawlOne({ url, identity, getContext, signal });
             } catch (err) {
               logger.debug(
                 {
@@ -305,7 +344,7 @@ export async function runCrawl(job: CrawlJob): Promise<void> {
     // (WAF block, dead site, unrenderable pages). Probe once, classify, and
     // report an error the owner can act on instead of a hollow `complete`.
     if (!stopped && totalPages === 0) {
-      const diagnosis = await diagnoseEmptyCrawl(startUrl, USER_AGENT);
+      const diagnosis = await diagnoseEmptyCrawl(startUrl, identity);
       logger.warn(
         { siteId, startUrl, code: diagnosis.code, failedFetches },
         'crawl found zero pages',
@@ -373,12 +412,13 @@ interface CrawlOneResult {
 
 async function crawlOne(opts: {
   url: string;
+  identity: CrawlIdentity;
   getContext: () => Promise<BrowserContext>;
   signal: AbortSignal | undefined;
 }): Promise<CrawlOneResult | null> {
   const fetched = await fetchPage({
     url: opts.url,
-    userAgent: USER_AGENT,
+    identity: opts.identity,
     getContext: opts.getContext,
     signal: opts.signal,
   });

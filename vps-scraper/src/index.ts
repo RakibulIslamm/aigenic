@@ -3,7 +3,10 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import helmet from 'helmet';
 import { logger } from './logger.js';
 import { runCrawl } from './crawler.js';
-import { crawlRequestSchema } from './schemas.js';
+import { checkAccess } from './diagnose.js';
+import { buildSite } from './url-utils.js';
+import { createCrawlIdentity } from './identity.js';
+import { crawlRequestSchema, probeRequestSchema } from './schemas.js';
 
 const PORT = Number(process.env.PORT ?? 3007);
 const API_KEY = process.env.SCRAPER_API_KEY;
@@ -52,7 +55,7 @@ app.post('/crawl', (req, res) => {
       .json({ error: 'Invalid payload', issues: parsed.error.issues });
   }
 
-  const { siteId, startUrl, maxPages, generation, webhookUrl } = parsed.data;
+  const { siteId, startUrl, maxPages, generation, webhookUrl, accessKey } = parsed.data;
   const jobId = randomUUID();
 
   // If a crawl is already running for this site (e.g. user hit "recrawl"
@@ -76,6 +79,7 @@ app.post('/crawl', (req, res) => {
     generation,
     webhookUrl,
     webhookApiKey: API_KEY,
+    accessKey,
     signal: controller.signal,
   })
     .catch((err) => {
@@ -90,6 +94,33 @@ app.post('/crawl', (req, res) => {
     });
 
   return res.status(202).json({ jobId, siteId, status: 'queued' });
+});
+
+app.use('/probe', requireApiKey);
+app.post('/probe', async (req, res, next) => {
+  const parsed = probeRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: 'Invalid payload', issues: parsed.error.issues });
+  }
+  const { url, accessKey } = parsed.data;
+  const site = buildSite(url);
+  if (!site) {
+    return res.status(400).json({ error: 'Invalid url' });
+  }
+  try {
+    const identity = createCrawlIdentity({
+      site,
+      accessKey,
+      userAgent: process.env.SCRAPER_USER_AGENT,
+    });
+    const result = await checkAccess(url, identity);
+    logger.info({ url, ok: result.ok }, 'access probe');
+    return res.status(200).json(result);
+  } catch (err) {
+    return next(err);
+  }
 });
 
 app.post('/crawl/:siteId/stop', (req, res) => {

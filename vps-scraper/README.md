@@ -34,12 +34,17 @@ This is **not** part of the Next.js app — it's a small Express service designe
 
 The crawler stays within the start URL's hostname and runs at most three pages concurrently. `robots.txt` is read only for `Sitemap:` hints.
 
+### Crawler identity and firewall access
+
+Every request identifies as `AigenicBot/1.0` (a token appended to a desktop Chrome User-Agent). When the `/crawl` payload carries an `accessKey`, every **same-site** request also sends it as `X-Aigenic-Access-Key`. Site owners allow that header through Cloudflare or any other firewall with one rule (the dashboard's Settings → Crawler access generates it). The key is never sent to another host: redirects are followed hop by hop (`crawlFetch` in `src/identity.ts`) and each hop is checked, and the headless browser adds the key only to same-site requests, never to third-party scripts or beacons. The crawler never tries to get around a firewall, CAPTCHA or bot check.
+
 ## Endpoints
 
-| Method | Path      | Auth        | Description                                                         |
-| ------ | --------- | ----------- | ------------------------------------------------------------------- |
-| `GET`  | `/health` | none        | Liveness check. Returns `{ status: "ok" }`.                         |
-| `POST` | `/crawl`  | `X-API-Key` | Enqueue a crawl. Returns `202 { jobId, siteId, status: "queued" }`. |
+| Method | Path      | Auth        | Description                                                                                                                                                                                                                   |
+| ------ | --------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/health` | none        | Liveness check. Returns `{ status: "ok" }`.                                                                                                                                                                                   |
+| `POST` | `/crawl`  | `X-API-Key` | Enqueue a crawl. Returns `202 { jobId, siteId, status: "queued" }`.                                                                                                                                                           |
+| `POST` | `/probe`  | `X-API-Key` | One request to `{ url, accessKey? }` with the crawl's identity. Returns `{ ok: true, status }` or `{ ok: false, code: "blocked" \| "unreachable" \| "other", status, detail }`. Backs the dashboard's **Test access** button. |
 
 ### Request shape
 
@@ -52,6 +57,7 @@ X-API-Key: <SCRAPER_API_KEY>
   "siteId":     "11111111-2222-3333-4444-555555555555",
   "startUrl":   "https://docs.example.com",
   "maxPages":   100,
+  "accessKey":  "0123456789abcdef0123456789abcdef",
   "webhookUrl": "https://aigenic.app/api/scraper/webhook"
 }
 ```
@@ -124,13 +130,13 @@ DEPLOY.md             VPS deployment guide (Contabo + Caddy)
 
 ## Environment variables
 
-| Variable             | Required | Default                                                | Notes                                                           |
-| -------------------- | -------- | ------------------------------------------------------ | --------------------------------------------------------------- |
-| `SCRAPER_API_KEY`    | yes      | —                                                      | Shared secret with the Next.js app. Refuse to start without it. |
-| `PORT`               | no       | `3007`                                                 | Express bind port.                                              |
-| `LOG_LEVEL`          | no       | `info`                                                 | Pino log level.                                                 |
-| `SCRAPER_USER_AGENT` | no       | desktop Chrome UA (see `src/crawler.ts`)               | What the crawler advertises on every request.                   |
-| `NODE_ENV`           | no       | `production` in container, `development` in `pnpm dev` | Switches pino between JSON and pretty.                          |
+| Variable             | Required | Default                                                      | Notes                                                                                                                                                       |
+| -------------------- | -------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SCRAPER_API_KEY`    | yes      | —                                                            | Shared secret with the Next.js app. Refuse to start without it.                                                                                             |
+| `PORT`               | no       | `3007`                                                       | Express bind port.                                                                                                                                          |
+| `LOG_LEVEL`          | no       | `info`                                                       | Pino log level.                                                                                                                                             |
+| `SCRAPER_USER_AGENT` | no       | desktop Chrome UA + `AigenicBot/1.0` (see `src/identity.ts`) | What the crawler advertises on every request. Keep the `AigenicBot` token if you override it: site owners' logs and the public `/crawler` page refer to it. |
+| `NODE_ENV`           | no       | `production` in container, `development` in `pnpm dev`       | Switches pino between JSON and pretty.                                                                                                                      |
 
 ## License
 

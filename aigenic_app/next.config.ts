@@ -52,6 +52,15 @@ const nextConfig: NextConfig = {
     // dependency unresolvable.
     root: path.resolve(__dirname, '..'),
   },
+  experimental: {
+    serverActions: {
+      // Knowledge-base uploads (one file per action call, capped at
+      // MANUAL_UPLOAD_MAX_BYTES = 4 MB in lib/sites/limits.ts) plus multipart
+      // overhead. The 1 MB default would reject most PDFs before our own
+      // size check could explain why.
+      bodySizeLimit: '4.5mb',
+    },
+  },
   async headers() {
     return [
       {

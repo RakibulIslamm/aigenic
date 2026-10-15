@@ -2,6 +2,7 @@ import { and, eq, ne, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { articles, sites } from '@/db/schema';
 import { startSiteCrawl } from '@/lib/scraper/client';
+import { staleCrawledArticles } from '@/lib/sites/generations';
 
 export type DispatchSkipReason = 'site-deleted' | 'already-crawling';
 
@@ -53,6 +54,7 @@ export async function dispatchSiteCrawl(params: {
     .returning({
       generation: sites.crawlGeneration,
       activeGeneration: sites.activeGeneration,
+      accessKey: sites.crawlAccessKey,
     });
 
   if (!claimed) {
@@ -70,14 +72,8 @@ export async function dispatchSiteCrawl(params: {
   // Anything that isn't the active generation is unreadable by definition, so
   // this only reclaims space; the live KB is matched by `activeGeneration` and
   // survives untouched.
-  await db
-    .delete(articles)
-    .where(
-      and(
-        eq(articles.siteId, siteId),
-        ne(articles.crawlGeneration, claimed.activeGeneration),
-      ),
-    );
+  // Manual documents never match — they aren't any crawl's to clear.
+  await db.delete(articles).where(staleCrawledArticles(siteId, claimed.activeGeneration));
 
   try {
     await startSiteCrawl({
@@ -85,6 +81,7 @@ export async function dispatchSiteCrawl(params: {
       domain,
       maxPages,
       generation: claimed.generation,
+      accessKey: claimed.accessKey,
     });
   } catch (err) {
     await db

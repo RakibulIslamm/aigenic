@@ -21,6 +21,8 @@
  * in exactly one place, the same ones the HTML path goes through.
  */
 
+import type { CrawlIdentity } from '../identity.js';
+
 /** Which platform adapter produced a batch of documents. */
 export type SourceKind = 'shopify' | 'woocommerce' | 'wordpress';
 
@@ -40,7 +42,8 @@ export interface StructuredDoc {
 export interface SourceContext {
   /** Site origin, e.g. `https://example.com` (no trailing slash). */
   origin: string;
-  userAgent: string;
+  /** User-Agent + same-site access key; see `identity.ts`. */
+  identity: CrawlIdentity;
   /**
    * Hard cap on documents this adapter may return. Adapters stop paginating
    * once reached — the caller's budget is not a suggestion.

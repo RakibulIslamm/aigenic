@@ -14,6 +14,13 @@ import { z } from 'zod';
 const MAX_PAGES_CAP = 2000;
 const DEFAULT_MAX_PAGES = 1000;
 
+/**
+ * The site's crawler access key (see `identity.ts`). Hex only: it travels as
+ * an HTTP header value, and a strict alphabet rules out header injection
+ * before it can reach `fetch`.
+ */
+const accessKeySchema = z.string().regex(/^[a-f0-9]{32,128}$/);
+
 /** `POST /crawl`. */
 export const crawlRequestSchema = z.object({
   siteId: z.string().uuid(),
@@ -26,4 +33,14 @@ export const crawlRequestSchema = z.object({
    */
   generation: z.number().int().nonnegative().default(0),
   webhookUrl: z.string().url(),
+  accessKey: accessKeySchema.optional(),
+});
+
+/**
+ * `POST /probe` — the dashboard's "Test access" button: one request to `url`
+ * with exactly the identity a crawl would use, reporting whether it got in.
+ */
+export const probeRequestSchema = z.object({
+  url: z.string().url(),
+  accessKey: accessKeySchema.optional(),
 });

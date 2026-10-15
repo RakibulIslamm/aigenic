@@ -1,5 +1,11 @@
 import { notFound } from 'next/navigation';
 import { requireUserId } from '@/lib/auth/user';
+import { env } from '@/lib/env';
+import {
+  CRAWLER_ACCESS_HEADER,
+  CRAWLER_DOCS_PATH,
+  cloudflareRuleExpression,
+} from '@/lib/sites/crawler-identity';
 import { getSiteForUser } from '@/lib/sites/queries';
 import { DEFAULT_WIDGET_CONFIG } from '@/lib/sites/schemas';
 import {
@@ -11,6 +17,7 @@ import {
 } from '@/components/ui/card';
 import { SettingsForm } from '../_components/settings-form';
 import { DeleteSiteButton } from '../_components/delete-site-button';
+import { CrawlerAccessCard } from '../_components/crawler-access-card';
 
 export default async function SiteSettingsPage({
   params,
@@ -29,7 +36,8 @@ export default async function SiteSettingsPage({
       <header>
         <h2 className="font-heading text-2xl tracking-tight">Settings</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Edit how this site is named, where escalations go, and how the widget looks.
+          Edit how this site is named, where escalations go, how the widget looks, and how
+          our crawler gets past your firewall.
         </p>
       </header>
 
@@ -43,6 +51,15 @@ export default async function SiteSettingsPage({
           greeting: widgetConfig.greeting,
           botName: widgetConfig.botName,
         }}
+      />
+
+      <CrawlerAccessCard
+        siteId={siteId}
+        accessKey={site.crawlAccessKey}
+        header={CRAWLER_ACCESS_HEADER}
+        ruleExpression={cloudflareRuleExpression(site.crawlAccessKey)}
+        crawlerIp={env.SCRAPER_EGRESS_IP ?? null}
+        docsPath={CRAWLER_DOCS_PATH}
       />
 
       <Card className="border-destructive/40 bg-destructive/5">

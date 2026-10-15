@@ -1,13 +1,27 @@
 import { cache } from 'react';
-import { and, count, desc, eq, gte, ilike, sql } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  isNotNull,
+  max,
+  min,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { db, withDbRetry } from '@/db';
 import { articles, conversations, escalations, sites, type Site } from '@/db/schema';
 import { startOfCurrentMonthUTC } from '@/lib/dates';
 import { isUuid } from '@/lib/ids';
-import { articlesInGeneration } from '@/lib/sites/generations';
+import { crawledArticles, servedArticles } from '@/lib/sites/generations';
 import { KB_PAGE_SIZE, KB_SEARCH_MAX_CHARS } from '@/lib/sites/limits';
 
-export interface SiteListItem extends Site {
+// The access key is a credential — the sites grid has no use for it, so it
+// isn't selected (or shipped into any props) there.
+export interface SiteListItem extends Omit<Site, 'crawlAccessKey'> {
   articleCount: number;
   conversationCount: number;
 }
@@ -38,13 +52,16 @@ export async function listSitesForUser(userId: string): Promise<SiteListItem[]> 
         conversationCount: sql<number>`count(distinct ${conversations.id})::int`,
       })
       .from(sites)
-      // Only the generation each site serves — mid-crawl staging rows must not
-      // inflate the count the owner sees on the dashboard.
+      // Only what each site serves (its active generation + manual documents)
+      // — mid-crawl staging rows must not inflate the count the owner sees.
       .leftJoin(
         articles,
         and(
           eq(articles.siteId, sites.id),
-          eq(articles.crawlGeneration, sites.activeGeneration),
+          or(
+            eq(articles.crawlGeneration, sites.activeGeneration),
+            eq(articles.source, 'manual'),
+          ),
         ),
       )
       .leftJoin(conversations, eq(conversations.siteId, sites.id))
@@ -74,18 +91,17 @@ export const getSiteForUser = cache(
 );
 
 /**
- * `generation` decides which articles are counted — pass the site's
- * `activeGeneration` for the KB it serves, or `crawlGeneration` to report the
- * progress of a crawl in flight. Callers always have the site row already.
+ * Overview numbers for the KB the site serves — pass its `activeGeneration`.
+ * For the progress of a crawl in flight use `countCrawledArticles` instead.
  */
-export async function getSiteStats(siteId: string, generation: number) {
+export async function getSiteStats(siteId: string, activeGeneration: number) {
   const monthStart = startOfCurrentMonthUTC();
 
   const [[articleAgg], [conversationAgg], [escalationAgg]] = await Promise.all([
     db
       .select({ value: count() })
       .from(articles)
-      .where(articlesInGeneration(siteId, generation)),
+      .where(servedArticles(siteId, activeGeneration)),
     db
       .select({ value: count() })
       .from(conversations)
@@ -112,6 +128,18 @@ export async function getSiteStats(siteId: string, generation: number) {
     escalationCount,
     escalationRate,
   };
+}
+
+/**
+ * Pages one crawl generation holds — crawled rows only. Pass
+ * `generationForProgress(site)` to report a crawl in flight.
+ */
+export async function countCrawledArticles(siteId: string, generation: number) {
+  const [row] = await db
+    .select({ value: count() })
+    .from(articles)
+    .where(crawledArticles(siteId, generation));
+  return row?.value ?? 0;
 }
 
 export interface ArticlePage {
@@ -143,9 +171,10 @@ export async function listArticlesForSitePaged(
   // `ILIKE` scan, and it's a public-ish surface (any caller, any `q`).
   const trimmedQ = q?.trim().slice(0, KB_SEARCH_MAX_CHARS);
   // `%foo%` matches any title containing the term; PG ILIKE is case-insensitive.
-  // Scoped to one generation, so the knowledge tab shows the working KB
-  // throughout a re-crawl instead of a half-built one.
-  const inGeneration = articlesInGeneration(siteId, generation);
+  // Crawled pages of one generation, so the knowledge tab shows the working KB
+  // throughout a re-crawl instead of a half-built one. Manual documents are
+  // listed separately (`listManualDocuments`), grouped per document.
+  const inGeneration = crawledArticles(siteId, generation);
   const whereExpr = trimmedQ
     ? and(inGeneration, ilike(articles.title, `%${trimmedQ}%`))
     : inGeneration;
@@ -168,4 +197,59 @@ export async function listArticlesForSitePaged(
     pageSize: safePageSize,
     totalPages: total === 0 ? 1 : Math.ceil(total / safePageSize),
   };
+}
+
+export interface ManualDocumentSummary {
+  id: string;
+  /** The title the owner gave it — chunk titles carry a "(part n/m)" suffix. */
+  title: string;
+  parts: number;
+  characters: number;
+  createdAt: Date;
+}
+
+/**
+ * The documents an owner pasted or uploaded, one row per document (however
+ * many chunks it was split into), newest first.
+ */
+export async function listManualDocuments(
+  siteId: string,
+): Promise<ManualDocumentSummary[]> {
+  const rows = await db
+    .select({
+      id: articles.manualDocumentId,
+      title: min(articles.title),
+      parts: count(),
+      characters: sql<number>`sum(length(${articles.content}))::int`,
+      createdAt: max(articles.createdAt),
+    })
+    .from(articles)
+    .where(
+      and(
+        eq(articles.siteId, siteId),
+        eq(articles.source, 'manual'),
+        isNotNull(articles.manualDocumentId),
+      ),
+    )
+    .groupBy(articles.manualDocumentId)
+    .orderBy(desc(max(articles.createdAt)));
+
+  return rows.flatMap((row) =>
+    row.id && row.title && row.createdAt
+      ? [
+          {
+            id: row.id,
+            title: stripPartSuffix(row.title),
+            parts: row.parts,
+            characters: row.characters ?? 0,
+            createdAt: row.createdAt,
+          },
+        ]
+      : [],
+  );
+}
+
+/** "Handbook (part 1/4)" → "Handbook". `min(title)` always lands on part 1. */
+function stripPartSuffix(title: string): string {
+  return title.replace(/\s+\(part \d+\/\d+\)$/, '');
 }

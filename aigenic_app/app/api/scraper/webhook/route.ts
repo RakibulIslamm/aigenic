@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { and, count, eq, inArray, ne } from 'drizzle-orm';
+import { and, count, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '@/db';
 import { articles, crawlRuns, sites } from '@/db/schema';
 import { env } from '@/lib/env';
-import { decideSwap } from '@/lib/sites/generations';
+import { decideSwap, staleCrawledArticles } from '@/lib/sites/generations';
 
 /**
  * Refunds the manual-crawl quota slot that paid for the crawl now ending in
@@ -228,12 +228,7 @@ export async function POST(request: NextRequest) {
           .where(eq(sites.id, event.siteId));
         await tx
           .delete(articles)
-          .where(
-            and(
-              eq(articles.siteId, event.siteId),
-              ne(articles.crawlGeneration, decision.generation),
-            ),
-          );
+          .where(staleCrawledArticles(event.siteId, decision.generation));
       });
       return NextResponse.json({ ok: true });
     }
@@ -257,12 +252,7 @@ export async function POST(request: NextRequest) {
         await refundCrawlClaim(tx, site.activeCrawlRunId);
         await tx
           .delete(articles)
-          .where(
-            and(
-              eq(articles.siteId, event.siteId),
-              ne(articles.crawlGeneration, site.activeGeneration),
-            ),
-          );
+          .where(staleCrawledArticles(event.siteId, site.activeGeneration));
       });
       return NextResponse.json({ ok: true });
     }
@@ -270,8 +260,11 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Article counts for specific generations of one site, in a single round trip.
- * Generations absent from the result have no rows.
+ * Crawled-article counts for specific generations of one site, in a single
+ * round trip. Generations absent from the result have no rows.
+ *
+ * Crawled rows only: a manual document must never make an empty crawl look
+ * like it found something, or `decideSwap` would promote it.
  */
 async function countByGeneration(
   siteId: string,
@@ -281,7 +274,13 @@ async function countByGeneration(
   const rows = await db
     .select({ generation: articles.crawlGeneration, value: count() })
     .from(articles)
-    .where(and(eq(articles.siteId, siteId), inArray(articles.crawlGeneration, wanted)))
+    .where(
+      and(
+        eq(articles.siteId, siteId),
+        eq(articles.source, 'crawl'),
+        inArray(articles.crawlGeneration, wanted),
+      ),
+    )
     .groupBy(articles.crawlGeneration);
   return new Map(rows.map((row) => [row.generation, row.value]));
 }
