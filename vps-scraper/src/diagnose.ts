@@ -15,9 +15,50 @@ export interface EmptyCrawlDiagnosis {
   message: string;
 }
 
+/**
+ * Which edge/security service answered, from the response headers it stamps on
+ * everything — so the owner is told "Vercel Firewall blocked us", not handed
+ * Cloudflare instructions for a site that isn't on Cloudflare. Null when the
+ * response carries no recognisable signature (the origin's own server or a
+ * WordPress security plugin, which only shows itself in the body).
+ */
+export function detectProtection(headers: Headers): string | null {
+  const server = (headers.get('server') ?? '').toLowerCase();
+  if (headers.has('cf-ray') || server === 'cloudflare') return 'Cloudflare';
+  if (
+    headers.has('x-vercel-id') ||
+    headers.has('x-vercel-mitigated') ||
+    server === 'vercel'
+  ) {
+    return 'Vercel Firewall';
+  }
+  if (headers.has('x-sucuri-id') || server.includes('sucuri')) return 'Sucuri';
+  if (
+    headers.has('x-iinfo') ||
+    (headers.get('x-cdn') ?? '').toLowerCase().includes('incapsula')
+  ) {
+    return 'Imperva';
+  }
+  if (server.includes('akamaighost')) return 'Akamai';
+  if (headers.has('x-amz-cf-id')) return 'AWS CloudFront / AWS WAF';
+  return null;
+}
+
+/**
+ * A bot check answered instead of the site, whatever the status code:
+ * Cloudflare's `cf-mitigated: challenge` (its older JS challenge arrived as a
+ * 503) and Vercel's `x-vercel-mitigated: challenge | deny`.
+ */
+export function isChallenge(headers: Headers): boolean {
+  return (
+    headers.get('cf-mitigated')?.toLowerCase() === 'challenge' ||
+    headers.has('x-vercel-mitigated')
+  );
+}
+
 /** Pure classification of the probe outcome — unit-testable without network. */
 export function classifyProbe(
-  outcome: { status: number } | { failed: string },
+  outcome: { status: number; provider?: string | null } | { failed: string },
 ): EmptyCrawlDiagnosis {
   if ('failed' in outcome) {
     return {
@@ -26,14 +67,15 @@ export function classifyProbe(
     };
   }
 
-  const { status } = outcome;
+  const { status, provider } = outcome;
   if (status === 401 || status === 403 || status === 429) {
     return {
       code: 'blocked',
-      message:
-        `The site's security service answered with HTTP ${status} instead of the page — ` +
-        'a firewall or bot-protection layer (such as Cloudflare) is blocking our crawler. ' +
-        'Please allow this app to crawl the site (e.g. an allowlist/skip rule in the firewall), then retry.',
+      message: provider
+        ? `${provider} answered with HTTP ${status} instead of the page — its bot protection is blocking our crawler. ` +
+          'Please allow this app to crawl the site (one allow rule for our access key), then retry.'
+        : `The site answered with HTTP ${status} instead of the page — a firewall, security plugin or the host is blocking our crawler. ` +
+          'Please allow this app to crawl the site (one allow rule for our access key), then retry.',
     };
   }
   if (status >= 500) {
@@ -51,14 +93,11 @@ export function classifyProbe(
 }
 
 /** What one GET of a URL looked like, before any interpretation. */
-type ProbeOutcome = { status: number; challenged: boolean } | { failed: string };
+type ProbeOutcome =
+  { status: number; challenged: boolean; provider: string | null } | { failed: string };
 
 /**
- * One GET with the crawl's identity. Never throws.
- *
- * `challenged` is Cloudflare's `cf-mitigated: challenge` header — the most
- * reliable sign a bot check answered instead of the site, whatever the status
- * code (the older JS challenge used to arrive as a 503).
+ * One GET with the crawl's identity, plus who answered it. Never throws.
  */
 async function probeOnce(url: string, identity: CrawlIdentity): Promise<ProbeOutcome> {
   try {
@@ -69,9 +108,11 @@ async function probeOnce(url: string, identity: CrawlIdentity): Promise<ProbeOut
     // Body content is irrelevant — the status is the diagnosis. Cancel so the
     // connection is released rather than left to drain.
     await response.body?.cancel().catch(() => undefined);
-    const challenged =
-      response.headers.get('cf-mitigated')?.toLowerCase() === 'challenge';
-    return { status: response.status, challenged };
+    return {
+      status: response.status,
+      challenged: isChallenge(response.headers),
+      provider: detectProtection(response.headers),
+    };
   } catch (err) {
     const reason = err instanceof Error ? err.message.split('\n')[0]! : 'unknown error';
     return { failed: reason };
@@ -89,7 +130,10 @@ export async function diagnoseEmptyCrawl(
 ): Promise<EmptyCrawlDiagnosis> {
   const outcome = await probeOnce(startUrl, identity);
   if ('failed' in outcome) return classifyProbe(outcome);
-  return classifyProbe(outcome.challenged ? { status: 403 } : { status: outcome.status });
+  return classifyProbe({
+    status: outcome.challenged ? 403 : outcome.status,
+    provider: outcome.provider,
+  });
 }
 
 export type AccessCheck =
@@ -106,13 +150,14 @@ export function classifyAccess(outcome: ProbeOutcome): AccessCheck {
   if ('failed' in outcome) {
     return { ok: false, code: 'unreachable', status: null, detail: outcome.failed };
   }
-  const { status, challenged } = outcome;
+  const { status, challenged, provider } = outcome;
   if (challenged || status === 401 || status === 403 || status === 429) {
+    const what = challenged ? 'bot challenge' : `HTTP ${status}`;
     return {
       ok: false,
       code: 'blocked',
       status,
-      detail: challenged ? 'Cloudflare challenge' : `HTTP ${status}`,
+      detail: provider ? `${provider} ${what}` : what,
     };
   }
   if (status >= 200 && status < 400) return { ok: true, status };

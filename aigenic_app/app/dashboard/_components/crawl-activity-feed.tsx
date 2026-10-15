@@ -174,9 +174,9 @@ function CrawlFailurePanel({
               >
                 Settings → Crawler access
               </Link>{' '}
-              and copy the ready-made firewall rule (on Cloudflare it goes under{' '}
-              <span className="text-foreground">Security → WAF → Custom rules</span>). It
-              matches your site&apos;s private access key, so it lets in only our crawler
+              for a ready-made allow rule, with steps for Cloudflare, Vercel and other
+              firewalls. It matches your site&apos;s private access key, so it lets in
+              only our crawler
               {crawlerIp ? <> (IP {crawlerIp})</> : null}.
             </li>
             <li>

@@ -86,9 +86,12 @@ export function CrawlerAccessCard({
           <p className="mb-2 font-medium">On Cloudflare</p>
           <ol className="list-decimal space-y-1.5 pl-5 text-muted-foreground">
             <li>
-              Open your domain → <span className="text-foreground">Security → WAF</span> →{' '}
-              <span className="text-foreground">Custom rules</span> →{' '}
-              <span className="text-foreground">Create rule</span>.
+              Open your domain, then <span className="text-foreground">Security</span> →{' '}
+              <span className="text-foreground">Security rules</span> →{' '}
+              <span className="text-foreground">Create rule</span> →{' '}
+              <span className="text-foreground">Custom rules</span>. (In Cloudflare&apos;s
+              older dashboard layout the same page is{' '}
+              <span className="text-foreground">Security → WAF → Custom rules</span>.)
             </li>
             <li>
               Name it <span className="text-foreground">Allow Aigenic crawler</span>,
@@ -124,11 +127,35 @@ export function CrawlerAccessCard({
         </div>
 
         <div className="rounded-lg border border-border/60 bg-background/50 p-4 text-sm">
-          <p className="mb-2 font-medium">Other firewalls and security plugins</p>
+          <p className="mb-2 font-medium">On Vercel</p>
+          <ol className="list-decimal space-y-1.5 pl-5 text-muted-foreground">
+            <li>
+              Open the project → <span className="text-foreground">Firewall</span> →{' '}
+              <span className="text-foreground">Configure</span> →{' '}
+              <span className="text-foreground">New rule</span>.
+            </li>
+            <li>
+              If <span className="text-foreground">Request Header</span>{' '}
+              <span className="text-foreground">{header}</span>{' '}
+              <span className="text-foreground">Equals</span> the access key above, then{' '}
+              <span className="text-foreground">Bypass</span>. Save and publish.
+            </li>
+            <li>
+              If <span className="text-foreground">Attack Challenge Mode</span> is on, it
+              challenges every visitor including us — turn it off while the crawl runs.
+            </li>
+          </ol>
+        </div>
+
+        <div className="rounded-lg border border-border/60 bg-background/50 p-4 text-sm">
+          <p className="mb-2 font-medium">Other firewalls, hosts and security plugins</p>
           <p className="text-muted-foreground">
-            Sucuri, Wordfence, AWS WAF, Vercel Firewall, Akamai and others: add an allow
-            rule for requests whose <span className="text-foreground">{header}</span>{' '}
-            header equals the access key above
+            Not sure what&apos;s blocking us? Press{' '}
+            <span className="text-foreground">Test access</span> — it names the service
+            when it can tell. Sucuri, Wordfence, Imperva, AWS WAF, Akamai and hosting
+            control panels: add an allow rule for requests whose{' '}
+            <span className="text-foreground">{header}</span> header equals the access key
+            above
             {crawlerIp ? (
               <>
                 , or allow our crawler&apos;s IP address{' '}
