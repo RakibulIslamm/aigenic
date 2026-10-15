@@ -105,13 +105,22 @@ export function CrawlerAccessCard({
             </li>
             <li>
               Action: <span className="text-foreground">Skip</span>. Tick{' '}
-              <span className="text-foreground">All Super Bot Fight Mode rules</span>,{' '}
-              <span className="text-foreground">All managed rules</span> and{' '}
-              <span className="text-foreground">All rate limiting rules</span>, and under
-              &ldquo;More components to skip&rdquo; tick{' '}
+              <span className="text-foreground">All managed rules</span>,{' '}
+              <span className="text-foreground">All rate limiting rules</span> and, if
+              shown,{' '}
+              <span className="text-foreground">All Super Bot Fight Mode rules</span>;
+              under &ldquo;More components to skip&rdquo; tick{' '}
               <span className="text-foreground">Browser Integrity Check</span> and{' '}
-              <span className="text-foreground">Security Level</span>. Deploy, and drag
-              the rule to the top of the list.
+              <span className="text-foreground">Security Level</span>. Leave{' '}
+              <span className="text-foreground">All remaining custom rules</span> unticked
+              — Cloudflare rejects it combined with the others (&ldquo;skip action
+              parameters &lsquo;phase&rsquo; and &lsquo;ruleset&rsquo; cannot be used
+              together&rdquo;).
+            </li>
+            <li>
+              Set <span className="text-foreground">Execution order</span> to{' '}
+              <span className="text-foreground">First</span>, then{' '}
+              <span className="text-foreground">Deploy</span>.
             </li>
             <li>
               Press <span className="text-foreground">Test access</span> below, then{' '}
@@ -121,8 +130,9 @@ export function CrawlerAccessCard({
           <p className="mt-3 text-xs text-muted-foreground">
             On Cloudflare&apos;s Free plan, the simple{' '}
             <span className="text-foreground">Bot Fight Mode</span> switch ignores custom
-            rules. If the test still fails, turn it off under Security → Bots, or add your
-            content directly on the Knowledge tab instead.
+            rules. If the test still fails, turn it off under Security → Settings (older
+            layout: Security → Bots), or add your content directly on the Knowledge tab
+            instead.
           </p>
         </div>
 
