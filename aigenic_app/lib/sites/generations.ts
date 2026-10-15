@@ -1,4 +1,4 @@
-import { and, eq, type SQL } from 'drizzle-orm';
+import { and, eq, ne, or, type SQL } from 'drizzle-orm';
 import { articles } from '@/db/schema';
 
 /**
@@ -25,16 +25,25 @@ import { articles } from '@/db/schema';
  * previous generation left behind. A failed, empty or superseded crawl changes
  * nothing a visitor can see.
  *
- * **The invariant everything else relies on:** rows where
- * `crawl_generation = sites.active_generation` are the live KB. Everything else
- * is staging or garbage, is never read, and is cleared on the next dispatch —
- * so the system self-heals even if a crawl dies without any terminal event.
+ * **The invariant everything else relies on:** crawled rows where
+ * `crawl_generation = sites.active_generation` are the live KB. Every other
+ * crawled row is staging or garbage, is never read, and is cleared on the next
+ * dispatch — so the system self-heals even if a crawl dies without any
+ * terminal event.
+ *
+ * Manual rows (`source = 'manual'`, added by the owner in the dashboard) are
+ * outside all of this: always served, never swapped, never cleared by a crawl.
  */
 
 /**
- * Restricts a query to one site's articles from one generation. Use it
- * everywhere articles are read — a missed call means a visitor can be answered
- * out of a half-finished crawl.
+ * The knowledge base a site **serves**: its active crawl generation plus every
+ * document the owner added by hand. Use it everywhere content is read for a
+ * visitor or shown to the owner as "the KB" — a missed call means a visitor can
+ * be answered out of a half-finished crawl.
+ *
+ * Manual documents (`source = 'manual'`) carry no meaningful generation: no
+ * crawl wrote them, so no crawl may hide or replace them. They are the part of
+ * the KB a firewall can't block.
  *
  * The generation is a parameter rather than a subquery on `sites` because every
  * caller already holds the site row (the dashboard through the request-memoized
@@ -43,15 +52,40 @@ import { articles } from '@/db/schema';
  * table qualifiers inside a raw `sql` template to the alias of the table being
  * queried, which silently turned `sites.active_generation` into
  * `articles.active_generation` — valid-looking SQL that Postgres rejects.
- *
- * Pass `activeGeneration` for anything a visitor or owner reads, and
- * `crawlGeneration` only to report the progress of a crawl in flight.
  */
-export function articlesInGeneration(
+export function servedArticles(
   siteId: string,
-  generation: number,
+  activeGeneration: number,
 ): SQL | undefined {
-  return and(eq(articles.siteId, siteId), eq(articles.crawlGeneration, generation));
+  return and(
+    eq(articles.siteId, siteId),
+    or(eq(articles.crawlGeneration, activeGeneration), eq(articles.source, 'manual')),
+  );
+}
+
+/**
+ * Rows one crawl wrote — and only crawled rows. For crawl progress and the
+ * swap decision: counting manual documents there would make an empty crawl
+ * look like it found pages, and `decideSwap` would promote it.
+ */
+export function crawledArticles(siteId: string, generation: number): SQL | undefined {
+  return and(
+    eq(articles.siteId, siteId),
+    eq(articles.source, 'crawl'),
+    eq(articles.crawlGeneration, generation),
+  );
+}
+
+/**
+ * Crawled rows from any generation but `keep` — staging and garbage. What the
+ * dispatch, swap and error paths delete. Never matches a manual document.
+ */
+export function staleCrawledArticles(siteId: string, keep: number): SQL | undefined {
+  return and(
+    eq(articles.siteId, siteId),
+    eq(articles.source, 'crawl'),
+    ne(articles.crawlGeneration, keep),
+  );
 }
 
 /**

@@ -1,3 +1,4 @@
+import { crawlFetch, type CrawlIdentity } from '../identity.js';
 import { logger } from '../logger.js';
 
 /**
@@ -20,20 +21,18 @@ export interface JsonResult<T> {
 
 export async function fetchJson<T>(opts: {
   url: string;
-  userAgent: string;
+  identity: CrawlIdentity;
   signal: AbortSignal | undefined;
 }): Promise<JsonResult<T> | null> {
-  const { url, userAgent, signal } = opts;
+  const { url, identity, signal } = opts;
   if (signal?.aborted) return null;
 
   try {
-    const response = await fetch(url, {
+    const response = await crawlFetch(url, identity, {
       headers: {
-        'User-Agent': userAgent,
         Accept: 'application/json, */*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
       },
-      redirect: 'follow',
       signal: combine(AbortSignal.timeout(TIMEOUT_MS), signal),
     });
 

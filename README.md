@@ -19,6 +19,8 @@ Built on the **Vercel AI SDK** + **OpenRouter** (model swappable; ships with `de
 
 - **One-line embed.** A single `<script>` tag, anywhere a script can load — Next, Astro, Webflow, Shopify, WordPress. Mounts in a Shadow DOM so your host CSS can't reach in.
 - **Auto-crawl.** Point Aigenic at your URL and a separate Playwright service walks the site, dedupes by content hash, and streams articles back over a webhook. Static sites skip the Chromium startup tax.
+- **Works behind Cloudflare and other firewalls.** Aigenic doesn't try to get past bot protection. Each site gets a private **crawler access key** that the crawler sends as `X-Aigenic-Access-Key`, only ever to that site. Settings → Crawler access gives the owner a ready-to-paste Cloudflare rule that matches it (plus instructions for other firewalls) and a **Test access** button that checks from the crawler's real IP. A public [`/crawler`](./aigenic_app/app/crawler/page.tsx) page explains to firewall admins who `AigenicBot` is.
+- **Content no firewall can block.** On the Knowledge tab owners can upload PDF, Word (.docx), Markdown, HTML, text or CSV files, or paste text. It's live immediately, split into searchable sections, and kept across re-crawls. Crawled pages are replaced on each re-crawl; added content is only ever removed by its owner.
 - **Full-text search over your KB.** Postgres `tsvector` + GIN index, `plainto_tsquery` + `ts_rank` for ordering.
 - **Streaming chat with tool use.** Custom SSE protocol (`meta | text | tool | error | done`). Three tools bound per request: `search_knowledge_base`, `get_article`, `escalate_to_human`. Tool calls render inline in the dashboard with friendly labels and a JSON drill-down.
 - **Graceful escalation.** When the agent isn't sure it calls the escalate tool. Resend delivers the full transcript to the inbox set on the site — idempotent via DB constraint.
@@ -105,15 +107,15 @@ Sticky top nav with active-state highlight (Sites / Billing). Sites grid shows p
 
 6-tab nav with sliding active indicator:
 
-| Tab                      | What's on it                                                                                                                                                                                          |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Overview**             | 3 stats (articles, monthly conversations, escalation rate) + 5 most recent conversations.                                                                                                             |
-| **Knowledge base**       | Paginated (25/page) article list with per-article re-scrape button. **Resync all** toggles to **Stop crawl** mid-flight.                                                                              |
-| **Conversations**        | Status filter pill bar (All / Active / Escalated / Resolved), counts per status, click into transcript.                                                                                               |
-| **Conversations** detail | Sticky transcript card with role-styled bubbles, inline collapsible tool calls (with friendly labels + icons + JSON input/output), visitor sidebar + escalation sidebar, **Mark as resolved** action. |
-| **Analytics**            | 4 stats (monthly chats, avg resolution time, escalation rate, top-topics count) + 30-day Recharts area chart + top-5 topic list.                                                                      |
-| **Widget code**          | Copyable `<script>` snippet, copyable site ID, live `srcDoc` iframe rendering the actual widget.                                                                                                      |
-| **Settings**             | Site basics + widget appearance (bot name, greeting, **primary color with native picker swatch**) + danger-zone delete (type-to-confirm).                                                             |
+| Tab                      | What's on it                                                                                                                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Overview**             | 3 stats (articles, monthly conversations, escalation rate) + 5 most recent conversations.                                                                                                              |
+| **Knowledge base**       | **Add content** (upload files / paste text) + an "Added content" list, then the paginated (25/page) crawled-page list with per-article re-scrape. **Resync all** toggles to **Stop crawl** mid-flight. |
+| **Conversations**        | Status filter pill bar (All / Active / Escalated / Resolved), counts per status, click into transcript.                                                                                                |
+| **Conversations** detail | Sticky transcript card with role-styled bubbles, inline collapsible tool calls (with friendly labels + icons + JSON input/output), visitor sidebar + escalation sidebar, **Mark as resolved** action.  |
+| **Analytics**            | 4 stats (monthly chats, avg resolution time, escalation rate, top-topics count) + 30-day Recharts area chart + top-5 topic list.                                                                       |
+| **Widget code**          | Copyable `<script>` snippet, copyable site ID, live `srcDoc` iframe rendering the actual widget.                                                                                                       |
+| **Settings**             | Site basics + widget appearance (bot name, greeting, **primary color with native picker swatch**) + **Crawler access** (access key, Cloudflare rule, Test access, rotate key) + danger-zone delete.    |
 
 ### Billing (`/dashboard/billing`)
 

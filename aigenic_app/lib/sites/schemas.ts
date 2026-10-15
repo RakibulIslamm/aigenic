@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { CRAWL_MAX_PAGES_CAP, DEFAULT_CRAWL_MAX_PAGES, MIN_CRAWL_PAGES } from './limits';
+import {
+  CRAWL_MAX_PAGES_CAP,
+  DEFAULT_CRAWL_MAX_PAGES,
+  MANUAL_TEXT_MAX_CHARS,
+  MANUAL_TITLE_MAX_CHARS,
+  MIN_CRAWL_PAGES,
+} from './limits';
 
 /** RFC 5321's maximum forward-path length — longer can't be a real address. */
 const EMAIL_MAX_CHARS = 254;
@@ -52,3 +58,23 @@ export const DEFAULT_WIDGET_CONFIG = {
   greeting: "Hey! I'm here to help. Ask me anything about us.",
   botName: 'Support',
 } as const;
+
+/** A pasted document on the knowledge tab. */
+export const textDocumentSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, 'Give it a title')
+    .max(
+      MANUAL_TITLE_MAX_CHARS,
+      `Keep the title under ${MANUAL_TITLE_MAX_CHARS} characters`,
+    ),
+  content: z
+    .string()
+    .trim()
+    .min(20, 'Add a bit more text — at least a sentence or two')
+    .max(
+      MANUAL_TEXT_MAX_CHARS,
+      `That's over ${MANUAL_TEXT_MAX_CHARS.toLocaleString('en-US')} characters — upload it as a file instead`,
+    ),
+});

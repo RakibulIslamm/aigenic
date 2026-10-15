@@ -1,3 +1,4 @@
+import { crawlFetch, type CrawlIdentity } from './identity.js';
 import { logger } from './logger.js';
 import {
   isSameSite,
@@ -13,7 +14,7 @@ const MAX_URLS = 5_000;
 interface DiscoverOptions {
   origin: string;
   site: NormalizedSite;
-  userAgent: string;
+  identity: CrawlIdentity;
 }
 
 /**
@@ -28,7 +29,7 @@ interface DiscoverOptions {
 export async function discoverSitemapUrls({
   origin,
   site,
-  userAgent,
+  identity,
 }: DiscoverOptions): Promise<string[]> {
   const seedCandidates = [
     `${origin}/sitemap.xml`,
@@ -36,7 +37,7 @@ export async function discoverSitemapUrls({
     `${origin}/sitemap-index.xml`,
   ];
 
-  const robotsBody = (await fetchText(`${origin}/robots.txt`, userAgent)) ?? '';
+  const robotsBody = (await fetchText(`${origin}/robots.txt`, identity)) ?? '';
   const robotsSitemaps = extractSitemapsFromRobotsBody(robotsBody);
   const initial = [...new Set([...robotsSitemaps, ...seedCandidates])];
 
@@ -49,7 +50,7 @@ export async function discoverSitemapUrls({
     if (visited.has(sitemapUrl)) continue;
     visited.add(sitemapUrl);
 
-    const body = await fetchText(sitemapUrl, userAgent);
+    const body = await fetchText(sitemapUrl, identity);
     if (!body) continue;
 
     if (looksLikeSitemapIndex(body)) {
@@ -86,14 +87,12 @@ function extractSitemapsFromRobotsBody(body: string): string[] {
   return found;
 }
 
-async function fetchText(url: string, userAgent: string): Promise<string | null> {
+async function fetchText(url: string, identity: CrawlIdentity): Promise<string | null> {
   try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': userAgent,
-        Accept: 'application/xml, text/xml, text/plain, */*',
-      },
-      redirect: 'follow',
+    // Sitemap indexes may point at another host (a CDN, a sitemap service) —
+    // `crawlFetch` keeps the access key off those.
+    const res = await crawlFetch(url, identity, {
+      headers: { Accept: 'application/xml, text/xml, text/plain, */*' },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return null;

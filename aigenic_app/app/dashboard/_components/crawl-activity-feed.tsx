@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import Link from 'next/link';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -92,6 +93,7 @@ export function CrawlActivityFeed({
 
       {showFailure && (
         <CrawlFailurePanel
+          siteId={siteId}
           message={lastError}
           code={lastErrorCode}
           crawlerIp={crawlerIp ?? null}
@@ -138,13 +140,16 @@ export function CrawlActivityFeed({
 /**
  * The "what now?" box for a failed crawl. For a `blocked` verdict the owner
  * controls the firewall that refused us, so the fix is theirs to make —
- * allow the crawler, then Resync.
+ * allow the crawler (one rule matching their site's access key), then Resync.
+ * Either way they can add content directly, which no firewall stands between.
  */
 function CrawlFailurePanel({
+  siteId,
   message,
   code,
   crawlerIp,
 }: {
+  siteId: string;
   message: string;
   code: string | null;
   crawlerIp: string | null;
@@ -162,29 +167,48 @@ function CrawlFailurePanel({
           </p>
           <ol className="list-decimal space-y-1 pl-4">
             <li>
-              Open your site&apos;s firewall / bot-protection settings (on Cloudflare:
-              <span className="text-foreground"> Security → WAF → Custom rules</span>).
+              Open{' '}
+              <Link
+                href={`/dashboard/sites/${siteId}/settings#crawler-access`}
+                className="font-medium text-foreground underline underline-offset-2"
+              >
+                Settings → Crawler access
+              </Link>{' '}
+              and copy the ready-made firewall rule (on Cloudflare it goes under{' '}
+              <span className="text-foreground">Security → WAF → Custom rules</span>). It
+              matches your site&apos;s private access key, so it lets in only our crawler
+              {crawlerIp ? <> (IP {crawlerIp})</> : null}.
             </li>
             <li>
-              {crawlerIp ? (
-                <>
-                  Add a rule with action{' '}
-                  <span className="text-foreground">Skip (bot protection)</span> when{' '}
-                  <span className="text-foreground">IP equals {crawlerIp}</span>.
-                </>
-              ) : (
-                <>
-                  Allow our crawler through, or temporarily relax bot protection while
-                  the crawl runs.
-                </>
-              )}
-            </li>
-            <li>
-              Come back and press <span className="text-foreground">Resync all</span> on
-              the Knowledge tab to retry.
+              Press <span className="text-foreground">Test access</span> there to confirm,
+              then <span className="text-foreground">Resync all</span> on the Knowledge
+              tab.
             </li>
           </ol>
+          <p className="mt-2">
+            Can&apos;t change the firewall? Add your content directly — upload documents
+            or paste text on the{' '}
+            <Link
+              href={`/dashboard/sites/${siteId}/knowledge`}
+              className="font-medium text-foreground underline underline-offset-2"
+            >
+              Knowledge tab
+            </Link>
+            . The assistant answers from it right away.
+          </p>
         </div>
+      )}
+      {code !== 'blocked' && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Meanwhile, you can upload documents or paste text on the{' '}
+          <Link
+            href={`/dashboard/sites/${siteId}/knowledge`}
+            className="font-medium text-foreground underline underline-offset-2"
+          >
+            Knowledge tab
+          </Link>{' '}
+          — the assistant answers from it right away.
+        </p>
       )}
     </div>
   );
