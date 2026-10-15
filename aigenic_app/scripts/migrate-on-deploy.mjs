@@ -7,12 +7,14 @@
  * Runs only where it's safe:
  *
  * - **Production** deploys (`VERCEL_ENV=production`): always.
- * - **Preview** deploys: only with `MIGRATE_ON_PREVIEW=1`. Previews build
- *   unmerged branches, and when a preview shares the production database
- *   (one DATABASE_URL for both), migrating there changes production for code
- *   that may never be merged. Opt in when previews have their own database —
- *   e.g. a Neon branch per preview via Neon's Vercel integration — or when
- *   you've checked the pending migrations are safe for production.
+ * - **Preview** deploys: by default too, so a preview never boots against a
+ *   schema it doesn't match. Know the trade-off: while previews share the
+ *   production database (one DATABASE_URL for both), a branch's migrations
+ *   reach production as soon as its preview builds — before review or
+ *   merge. Write migrations additively (add, don't drop or rename) while
+ *   that's true, or give previews their own database (a Neon branch per
+ *   preview via Neon's Vercel integration). `MIGRATE_ON_PREVIEW=0` turns
+ *   preview migrations off.
  * - Anywhere else (local `pnpm build`, GitHub Actions CI): never. CI proves
  *   migrations in its own `database` job against a throwaway Postgres.
  */
@@ -24,9 +26,9 @@ if (!env) {
   process.exit(0);
 }
 
-if (env === 'preview' && process.env.MIGRATE_ON_PREVIEW !== '1') {
+if (env === 'preview' && process.env.MIGRATE_ON_PREVIEW === '0') {
   console.log(
-    'migrate-on-deploy: preview build — skipping migrations (set MIGRATE_ON_PREVIEW=1 to run them here).',
+    'migrate-on-deploy: preview build — skipping migrations (MIGRATE_ON_PREVIEW=0).',
   );
   process.exit(0);
 }
