@@ -51,6 +51,7 @@ describe('classifyAccess', () => {
     expect(classifyAccess({ status, challenged: false, provider: null })).toEqual({
       ok: true,
       status,
+      provider: null,
     });
   });
 
@@ -90,6 +91,7 @@ describe('classifyAccess', () => {
       code: 'unreachable',
       status: null,
       detail: 'getaddrinfo ENOTFOUND x.invalid',
+      provider: null,
     });
   });
 
@@ -158,5 +160,23 @@ describe('classifyProbe — naming the blocker', () => {
     ).toMatchObject({
       detail: 'HTTP 403',
     });
+  });
+});
+
+describe('classifyAccess — provider', () => {
+  it('reports the service on a pass too, so the dashboard can name it', () => {
+    expect(
+      classifyAccess({ status: 200, challenged: false, provider: 'Cloudflare' }),
+    ).toEqual({
+      ok: true,
+      status: 200,
+      provider: 'Cloudflare',
+    });
+  });
+
+  it('reports it on a block as a field, not only inside the text', () => {
+    expect(
+      classifyAccess({ status: 403, challenged: true, provider: 'Cloudflare' }),
+    ).toMatchObject({ ok: false, code: 'blocked', provider: 'Cloudflare' });
   });
 });

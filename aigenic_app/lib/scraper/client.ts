@@ -127,13 +127,18 @@ export async function stopSiteCrawl(siteId: string): Promise<StopCrawlResponse> 
  * Parsed, not trusted — the scraper deploys separately, and a shape drift
  * must become a clean error rather than a broken Settings card.
  */
+// The edge/security service that answered, e.g. "Cloudflare". Optional with a
+// null default: a scraper from before the field existed omits it.
+const providerField = z.string().max(100).nullable().optional().default(null);
+
 const accessProbeResultSchema = z.discriminatedUnion('ok', [
-  z.object({ ok: z.literal(true), status: z.number().int() }),
+  z.object({ ok: z.literal(true), status: z.number().int(), provider: providerField }),
   z.object({
     ok: z.literal(false),
     code: z.enum(['blocked', 'unreachable', 'other']),
     status: z.number().int().nullable(),
     detail: z.string().max(500),
+    provider: providerField,
   }),
 ]);
 

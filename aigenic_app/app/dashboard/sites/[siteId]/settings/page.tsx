@@ -5,6 +5,7 @@ import {
   CRAWLER_ACCESS_HEADER,
   CRAWLER_DOCS_PATH,
   cloudflareRuleExpression,
+  initialGuideFor,
 } from '@/lib/sites/crawler-identity';
 import { getSiteForUser } from '@/lib/sites/queries';
 import { DEFAULT_WIDGET_CONFIG } from '@/lib/sites/schemas';
@@ -31,6 +32,23 @@ export default async function SiteSettingsPage({
 
   const widgetConfig = site.widgetConfig ?? DEFAULT_WIDGET_CONFIG;
 
+  // A blocked crawl is the reason most owners land here (the failure panel
+  // links to #crawler-access) — lead with the fix rather than the form.
+  const crawlBlocked = site.kbStatus === 'failed' && site.kbLastErrorCode === 'blocked';
+  const crawlerAccess = (
+    <CrawlerAccessCard
+      siteId={siteId}
+      siteHost={hostOf(site.domain)}
+      accessKey={site.crawlAccessKey}
+      header={CRAWLER_ACCESS_HEADER}
+      ruleExpression={cloudflareRuleExpression(site.crawlAccessKey)}
+      crawlerIp={env.SCRAPER_EGRESS_IP ?? null}
+      docsPath={CRAWLER_DOCS_PATH}
+      lastCrawlBlocked={crawlBlocked}
+      initialGuide={initialGuideFor(crawlBlocked ? site.kbLastError : null)}
+    />
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <header>
@@ -40,6 +58,8 @@ export default async function SiteSettingsPage({
           our crawler gets past your firewall.
         </p>
       </header>
+
+      {crawlBlocked && crawlerAccess}
 
       <SettingsForm
         siteId={siteId}
@@ -53,14 +73,7 @@ export default async function SiteSettingsPage({
         }}
       />
 
-      <CrawlerAccessCard
-        siteId={siteId}
-        accessKey={site.crawlAccessKey}
-        header={CRAWLER_ACCESS_HEADER}
-        ruleExpression={cloudflareRuleExpression(site.crawlAccessKey)}
-        crawlerIp={env.SCRAPER_EGRESS_IP ?? null}
-        docsPath={CRAWLER_DOCS_PATH}
-      />
+      {!crawlBlocked && crawlerAccess}
 
       <Card className="border-destructive/40 bg-destructive/5">
         <CardHeader>
@@ -76,4 +89,13 @@ export default async function SiteSettingsPage({
       </Card>
     </div>
   );
+}
+
+/** "https://www.acme.com/help" → "www.acme.com"; the raw value if it won't parse. */
+function hostOf(domain: string): string {
+  try {
+    return new URL(domain).hostname;
+  } catch {
+    return domain;
+  }
 }

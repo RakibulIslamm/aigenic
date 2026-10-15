@@ -28,13 +28,29 @@ function stubFetch(impl: () => Promise<Response>) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('probeSiteAccess', () => {
-  it('returns a well-formed result', async () => {
+  it('returns a well-formed result, defaulting provider for an older scraper', async () => {
     stubFetch(async () =>
       Response.json({ ok: false, code: 'blocked', status: 403, detail: 'HTTP 403' }),
     );
     expect(await probeSiteAccess('https://acme.com', KEY)).toEqual({
       ok: true,
-      result: { ok: false, code: 'blocked', status: 403, detail: 'HTTP 403' },
+      result: {
+        ok: false,
+        code: 'blocked',
+        status: 403,
+        detail: 'HTTP 403',
+        provider: null,
+      },
+    });
+  });
+
+  it('passes the detected provider through', async () => {
+    stubFetch(async () =>
+      Response.json({ ok: true, status: 200, provider: 'Cloudflare' }),
+    );
+    expect(await probeSiteAccess('https://acme.com', KEY)).toEqual({
+      ok: true,
+      result: { ok: true, status: 200, provider: 'Cloudflare' },
     });
   });
 
