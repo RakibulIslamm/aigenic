@@ -35,7 +35,7 @@ const enforcedSecurityHeaders = [
 const cspReportOnly = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://challenges.cloudflare.com https://js.stripe.com",
-  "connect-src 'self' https://*.clerk.accounts.dev https://clerk-telemetry.com https://api.stripe.com",
+  "connect-src 'self' https://*.clerk.accounts.dev https://clerk-telemetry.com https://api.stripe.com https://*.ingest.sentry.io https://*.ingest.de.sentry.io https://*.ingest.us.sentry.io",
   "img-src 'self' data: blob: https://img.clerk.com",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",

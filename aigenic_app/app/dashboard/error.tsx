@@ -19,6 +19,7 @@ export default function DashboardError({
 }) {
   useEffect(() => {
     log.error('[dashboard] unhandled render error', {
+      error,
       message: error.message,
       digest: error.digest,
     });

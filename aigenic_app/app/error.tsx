@@ -19,6 +19,7 @@ export default function RootError({
 }) {
   useEffect(() => {
     log.error('[app] unhandled render error', {
+      error,
       message: error.message,
       digest: error.digest,
     });

@@ -21,6 +21,7 @@ export default function SiteError({
 
   useEffect(() => {
     log.error('[dashboard/site] unhandled render error', {
+      error,
       message: error.message,
       digest: error.digest,
       siteId: params?.siteId,

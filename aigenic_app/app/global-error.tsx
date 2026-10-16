@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { log } from '@/lib/log';
 import './globals.css';
 
 /**
@@ -22,7 +23,8 @@ export default function GlobalError({
   unstable_retry: () => void;
 }) {
   useEffect(() => {
-    console.error('[app] root layout error', {
+    log.error('[app] root layout error', {
+      error,
       message: error.message,
       digest: error.digest,
     });
