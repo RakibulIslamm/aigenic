@@ -18,20 +18,29 @@ export function installProcessListeners(): void {
   process.on('unhandledRejection', (reason) => {
     // Log-only, deliberately: a stray rejection from one request shouldn't
     // kill a warm instance that is serving other requests.
-    log.error('[instrumentation] unhandled promise rejection', {
-      reason: reason instanceof Error ? reason.message : String(reason),
-      stack: reason instanceof Error ? reason.stack : undefined,
-    });
+    log.error(
+      '[instrumentation] unhandled promise rejection',
+      {
+        reason: reason instanceof Error ? reason.message : String(reason),
+        stack: reason instanceof Error ? reason.stack : undefined,
+      },
+      // Sentry's own unhandled-rejection handler reports these already.
+      { report: false },
+    );
   });
 
   process.on('uncaughtException', (err) => {
     // Log, then let the process die as it would have without this listener —
     // continuing past an uncaught exception means serving later requests from
     // a process in unknown state.
-    log.error('[instrumentation] uncaught exception', {
-      message: err.message,
-      stack: err.stack,
-    });
+    log.error(
+      '[instrumentation] uncaught exception',
+      {
+        message: err.message,
+        stack: err.stack,
+      },
+      { report: false },
+    );
     process.exit(1);
   });
 }

@@ -7,6 +7,9 @@ import { checkAccess } from './diagnose.js';
 import { buildSite } from './url-utils.js';
 import { createCrawlIdentity } from './identity.js';
 import { crawlRequestSchema, probeRequestSchema } from './schemas.js';
+// Initialises Sentry on import. Order among these imports doesn't matter:
+// none of them do work at load time that could throw.
+import { captureError, flushErrors, sentryEnabled } from './sentry.js';
 
 const PORT = Number(process.env.PORT ?? 3007);
 const API_KEY = process.env.SCRAPER_API_KEY;
@@ -84,6 +87,7 @@ app.post('/crawl', (req, res) => {
   })
     .catch((err) => {
       logger.error({ jobId, siteId, err }, 'unhandled crawl error');
+      captureError(err, { siteId, jobId });
     })
     .finally(() => {
       // Only clear if this is still the current controller — guards against
@@ -123,6 +127,22 @@ app.post('/probe', async (req, res, next) => {
   }
 });
 
+/**
+ * Sends one test error to Sentry so the operator can confirm error tracking
+ * works after a deploy (task T0.1). Needs the API key like every other
+ * operational route.
+ */
+app.post('/debug/sentry', requireApiKey, async (_req, res) => {
+  if (!sentryEnabled) {
+    return res.status(503).json({ sent: false, reason: 'SENTRY_DSN is not set' });
+  }
+  captureError(new Error('Aigenic crawler test error: error tracking works (T0.1)'), {
+    test: 'true',
+  });
+  await flushErrors();
+  return res.status(200).json({ sent: true });
+});
+
 app.post('/crawl/:siteId/stop', (req, res) => {
   const siteId = req.params.siteId;
   const controller = activeCrawls.get(siteId);
@@ -143,6 +163,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     return res.status(status).json({ error: 'Invalid request body' });
   }
   logger.error({ err }, 'unhandled error');
+  captureError(err);
   res.status(500).json({ error: 'Internal server error' });
 });
 

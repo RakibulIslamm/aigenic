@@ -11,6 +11,9 @@ packages:
 # pnpm v10 skips these packages' postinstall build scripts.
 # (Moved here from the former aigenic_app/pnpm-workspace.yaml.)
 ignoredBuiltDependencies:
+  # Downloads the Sentry CLI binary, only needed to upload source maps,
+  # which this project doesn't do.
+  - '@sentry/cli'
   - msw
   - sharp
   - unrs-resolver
